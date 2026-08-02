@@ -1,0 +1,44 @@
+[
+  {
+    "id": "1",
+    "slug": "leila-hamdi",
+    "name": "Dr. Leila Hamdi",
+    "title": "Consultante en financement d'entreprise",
+    "bio": "15 ans d'expérience en conseil aux PME algériennes. Ancienne directrice régionale BNA. Spécialisée dans le financement islamique et les dispositifs gouvernementaux.",
+    "specialties": ["financement", "business-plan", "comptabilite"],
+    "rating": 4.9,
+    "reviewCount": 87,
+    "sessionRate": 3500,
+    "sessionCount": 214,
+    "verified": true,
+    "availableForBooking": true
+  },
+  {
+    "id": "2",
+    "slug": "nadia-benali",
+    "name": "Nadia Benali",
+    "title": "Coach entrepreneuriat & marketing digital",
+    "bio": "Fondatrice de deux startups tech. Formatrice certifiée en marketing digital et stratégie commerciale.",
+    "specialties": ["marketing", "tech"],
+    "rating": 4.7,
+    "reviewCount": 53,
+    "sessionRate": 2500,
+    "sessionCount": 130,
+    "verified": true,
+    "availableForBooking": true
+  },
+  {
+    "id": "3",
+    "slug": "sarah-khelifi",
+    "name": "Maître Sarah Khelifi",
+    "title": "Avocate d'affaires & conseillère juridique",
+    "bio": "Spécialisée en droit des sociétés, propriété intellectuelle et contrats commerciaux pour les startups.",
+    "specialties": ["juridique", "rh"],
+    "rating": 4.8,
+    "reviewCount": 41,
+    "sessionRate": 4000,
+    "sessionCount": 98,
+    "verified": true,
+    "availableForBooking": false
+  }
+]

@@ -1,0 +1,537 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String              @id @default(cuid())
+  email                 String              @unique
+  passwordHash          String
+  name                  String
+  role                  Role
+  language              Language            @default(FR)
+  avatarUrl             String?
+  bio                   String?
+  isVerified            Boolean             @default(false)
+  isActive              Boolean             @default(true)
+  emailVerifiedAt       DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  applications          Application[]
+  businessPlans         BusinessPlan[]
+  expertProfile         ExpertProfile?
+  reviewsGiven          ExpertReview[]      @relation("ReviewGiver")
+  reviewsReceived       ExpertReview[]      @relation("ReviewReceiver")
+  favoritePrograms      FavoriteProgram[]
+  institutionProfile    InstitutionProfile?
+  receivedMessages      Message[]           @relation("MessageReceiver")
+  sentMessages          Message[]           @relation("MessageSender")
+  notifications         Notification[]
+  questionsAnswered     QAQuestion[]        @relation("QuestionAnswerer")
+  questionsAsked        QAQuestion[]        @relation("QuestionAsker")
+  refreshTokens         RefreshToken[]
+  sessionAsEntrepreneur Session[]           @relation("EntrepreneurSessions")
+  sessionAsExpert       Session[]           @relation("ExpertSessions")
+
+  @@index([email])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model ExpertProfile {
+  id                  String     @id @default(cuid())
+  userId              String     @unique
+  title               String
+  specialties         String[]
+  sessionRateDA       Int        @default(0)
+  availableForBooking Boolean    @default(true)
+  linkedinUrl         String?
+  websiteUrl          String?
+  rating              Float      @default(0)
+  reviewCount         Int        @default(0)
+  sessionCount        Int        @default(0)
+  isApprovedByAdmin   Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  articles            Article[]
+  courses             Course[]
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resources           Resource[]
+  videos              Video[]
+}
+
+model InstitutionProfile {
+  id              String                @id @default(cuid())
+  userId          String                @unique
+  institutionName String
+  type            InstitutionType
+  city            String
+  websiteUrl      String?
+  contactEmail    String?
+  contactPhone    String?
+  logoUrl         String?
+  isVerified      Boolean               @default(false)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  programs        FinancingProgram[]
+  documents       InstitutionDocument[]
+  events          InstitutionEvent[]
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BusinessPlan {
+  id               String             @id @default(cuid())
+  title            String
+  status           BusinessPlanStatus @default(DRAFT)
+  progress         Int                @default(0)
+  ownerId          String
+  executiveSummary Json?
+  marketAnalysis   Json?
+  strategy         Json?
+  financialPlan    Json?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  reviewScore      Int?
+  reviewNotes      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  owner            User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model FinancingProgram {
+  id                   String   @id @default(cuid())
+
+  slug                 String   @unique
+  title                String
+  shortDescription     String?
+  description          String
+
+  category             ProgramCategory
+
+  sector               String?
+  fundingType          String?
+
+  amountMin            BigInt
+  amountMax            BigInt
+  currency             String @default("DZD")
+
+  openingDate          DateTime?
+  closingDate          DateTime?
+
+  region               String?
+
+  targetAudience       String?
+  eligibility          String[]
+
+  requiredDocuments    String[]
+
+  website              String?
+  email                String?
+  phone                String?
+
+  isPublished          Boolean @default(false)
+  isArchived           Boolean @default(false)
+
+  institutionProfileId String
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  institutionProfile InstitutionProfile @relation(fields: [institutionProfileId], references: [id], onDelete: Cascade)
+  applications Application[]
+  favoritePrograms FavoriteProgram[]
+}
+
+model Application {
+  id              String            @id @default(cuid())
+  programId       String
+  applicantId     String
+  status          ApplicationStatus @default(DRAFT)
+  amountRequested BigInt
+  coverLetter     String?
+  notes           String?
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  applicant       User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  program         FinancingProgram  @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, applicantId])
+  @@index([applicantId])
+  @@index([programId])
+  @@index([status])
+}
+
+model AccountRequest {
+  id              String               @id @default(cuid())
+  type            AccountRequestType
+  status          AccountRequestStatus @default(PENDING)
+  email           String
+  fullName        String?
+  data            Json
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([email])
+}
+
+model FavoriteProgram {
+  id        String           @id @default(cuid())
+  userId    String
+  programId String
+  createdAt DateTime         @default(now())
+  program   FinancingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programId])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+  receiver   User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender     User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  link      String?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model Session {
+  id              String        @id @default(cuid())
+  entrepreneurId  String
+  expertId        String
+  topic           String
+  durationMinutes Int           @default(60)
+  scheduledAt     DateTime
+  status          SessionStatus @default(UPCOMING)
+  meetingUrl      String?
+  notes           String?
+  rateDA          Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  entrepreneur    User          @relation("EntrepreneurSessions", fields: [entrepreneurId], references: [id], onDelete: Cascade)
+  expert          User          @relation("ExpertSessions", fields: [expertId], references: [id], onDelete: Cascade)
+
+  @@index([entrepreneurId])
+  @@index([expertId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model ExpertReview {
+  id          String   @id @default(cuid())
+  giverId     String
+  receiverId  String
+  rating      Int
+  comment     String
+  sessionType String?
+  createdAt   DateTime @default(now())
+  giver       User     @relation("ReviewGiver", fields: [giverId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("ReviewReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId])
+  @@index([giverId])
+}
+
+model QAQuestion {
+  id         String    @id @default(cuid())
+  askerId    String
+  answererId String?
+  question   String
+  answer     String?
+  category   String
+  votes      Int       @default(0)
+  isAnswered Boolean   @default(false)
+  answeredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  answerer   User?     @relation("QuestionAnswerer", fields: [answererId], references: [id])
+  asker      User      @relation("QuestionAsker", fields: [askerId], references: [id], onDelete: Cascade)
+
+  @@index([askerId])
+  @@index([isAnswered])
+}
+
+model Course {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  description     String
+  category        String
+  level           String
+  durationMinutes Int
+  lessonCount     Int           @default(0)
+  enrolledCount   Int           @default(0)
+  rating          Float         @default(0)
+  coverUrl        String?
+  isPublished     Boolean       @default(false)
+  expertProfileId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@index([expertProfileId])
+  @@index([isPublished])
+}
+
+model Article {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  excerpt         String
+  content         String
+  category        String
+  readTimeMinutes Int           @default(5)
+  views           Int           @default(0)
+  isPublished     Boolean       @default(false)
+  publishedAt     DateTime?
+  expertProfileId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@index([expertProfileId])
+  @@index([isPublished])
+  @@index([slug])
+}
+
+model Video {
+  id              String        @id @default(cuid())
+  title           String
+  description     String
+  durationSeconds Int
+  thumbnailUrl    String?
+  videoUrl        String?
+  views           Int           @default(0)
+  category        String
+  isPublished     Boolean       @default(false)
+  expertProfileId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+}
+
+model Resource {
+  id              String        @id @default(cuid())
+  title           String
+  description     String
+  type            String
+  fileUrl         String?
+  fileSizeBytes   BigInt?
+  downloadCount   Int           @default(0)
+  isPublished     Boolean       @default(false)
+  expertProfileId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+}
+
+model InstitutionEvent {
+  id                   String             @id @default(cuid())
+  title                String
+  description          String
+  type                 EventType
+  scheduledAt          DateTime
+  locationOrUrl        String
+  capacity             Int?
+  registeredCount      Int                @default(0)
+  registrationUrl      String?
+  isPublished          Boolean            @default(false)
+  institutionProfileId String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  institutionProfile   InstitutionProfile @relation(fields: [institutionProfileId], references: [id], onDelete: Cascade)
+}
+
+model InstitutionDocument {
+  id                   String             @id @default(cuid())
+  name                 String
+  description          String
+  type                 String
+  fileUrl              String?
+  fileSizeBytes        BigInt?
+  downloadCount        Int                @default(0)
+  isRequired           Boolean            @default(false)
+  institutionProfileId String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  institutionProfile   InstitutionProfile @relation(fields: [institutionProfileId], references: [id], onDelete: Cascade)
+}
+
+model ExpertApplication {
+  id             String       @id @default(cuid())
+  fullName       String
+  email          String
+  title          String
+  experience     String
+  specialties    String
+  languages      String?
+  linkedin       String?
+  portfolio      String?
+  certifications String?
+  motivation     String
+  cvPath         String?
+  status         ReviewStatus @default(PENDING)
+  adminComment   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model InstitutionApplication {
+  id               String       @id @default(cuid())
+  email            String
+  phone            String?
+  website          String?
+  documentPath     String?
+  status           ReviewStatus @default(PENDING)
+  adminComment     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  contactName      String
+  contactRole      String?
+  motivation       String
+  organizationName String
+  organizationType String
+  sectors          String?
+  wilaya           String
+}
+
+enum Role {
+  ENTREPRENEUR
+  EXPERT
+  INSTITUTION
+  ADMIN
+}
+
+enum Language {
+  AR
+  FR
+  EN
+}
+
+enum BusinessPlanStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WAITLISTED
+}
+
+enum ProgramCategory {
+  BANK_LOAN
+  ISLAMIC_FINANCE
+  GOVERNMENT_GRANT
+  STARTUP_FUNDING
+}
+
+enum InstitutionType {
+  BANK
+  GOVERNMENT
+  INCUBATOR
+  ACCELERATOR
+  NGO
+  INVESTOR
+}
+
+enum EventType {
+  WEBINAR
+  WORKSHOP
+  CONFERENCE
+  INFO_SESSION
+  OTHER
+}
+
+enum NotificationType {
+  SESSION_BOOKED
+  BUSINESS_PLAN_SUBMITTED
+  BUSINESS_PLAN_REVIEWED
+  NEW_MESSAGE
+  NEW_QUESTION
+  NEW_REVIEW
+  APPLICATION_STATUS_CHANGED
+  PROGRAM_PUBLISHED
+  GENERAL
+}
+
+enum SessionStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageThreadStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AccountRequestType {
+  EXPERT
+  INSTITUTION
+}
+
+enum AccountRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

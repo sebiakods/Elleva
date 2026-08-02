@@ -1,0 +1,9 @@
+to see the visualization of backend 
+
+npm run db:studio
+
+
+
+tro run frontend :
+cd riadiyet-frontend
+npm run dev

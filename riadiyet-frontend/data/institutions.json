@@ -1,0 +1,38 @@
+[
+  {
+    "id": "1",
+    "slug": "bna",
+    "name": "Banque Nationale d'Algérie",
+    "type": "bank",
+    "description": "Première banque publique algérienne, partenaire historique des entrepreneurs et des PME.",
+    "city": "Alger",
+    "website": "https://www.bna.dz",
+    "programCount": 6,
+    "verified": true,
+    "contactEmail": "entreprises@bna.dz"
+  },
+  {
+    "id": "2",
+    "slug": "anade",
+    "name": "ANADE",
+    "type": "government",
+    "description": "Agence Nationale d'Appui et de Développement de l'Entrepreneuriat. Dispositif national de soutien aux jeunes entrepreneurs.",
+    "city": "Alger",
+    "website": "https://www.anade.dz",
+    "programCount": 3,
+    "verified": true,
+    "contactEmail": "contact@anade.dz"
+  },
+  {
+    "id": "3",
+    "slug": "algeria-venture",
+    "name": "Algeria Venture",
+    "type": "accelerator",
+    "description": "Premier accélérateur de startups en Algérie. Accompagnement, financement et mise en réseau.",
+    "city": "Alger",
+    "website": "https://www.algeriaventure.com",
+    "programCount": 2,
+    "verified": true,
+    "contactEmail": "hello@algeriaventure.com"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "slug": "credit-pme-femmes",
+    "title": "Crédit PME spécial entrepreneures",
+    "institution": "Banque Nationale d'Algérie",
+    "category": "bank-loan",
+    "amountMin": 500000,
+    "amountMax": 5000000,
+    "rate": "5.5% / an",
+    "description": "Un crédit dédié aux femmes porteuses de projets dans le commerce, l'artisanat et les services, avec un accompagnement personnalisé.",
+    "eligibility": ["Projet enregistré au registre de commerce", "Apport personnel de 10%", "Plan d'affaires validé"],
+    "documents": ["Registre de commerce", "Business plan", "Pièce d'identité", "Justificatif de domicile"]
+  },
+  {
+    "slug": "mourabaha-artisanat",
+    "title": "Mourabaha Artisanat & Métiers",
+    "institution": "Banque Al Baraka",
+    "category": "islamic-finance",
+    "amountMin": 200000,
+    "amountMax": 2000000,
+    "rate": "Conforme Charia — marge fixe",
+    "description": "Financement participatif conforme aux principes de la finance islamique pour l'achat de matériel et de stock.",
+    "eligibility": ["Activité artisanale déclarée", "Garantie matérielle ou caution"],
+    "documents": ["Carte d'artisan", "Devis fournisseur", "Pièce d'identité"]
+  },
+  {
+    "slug": "ansej-femmes-2026",
+    "title": "Dispositif ANADE Femmes 2026",
+    "institution": "ANADE",
+    "category": "government-grant",
+    "amountMin": 100000,
+    "amountMax": 10000000,
+    "rate": "Taux bonifié 1-3%",
+    "description": "Programme national de soutien à la création d'entreprises portées par des femmes de moins de 40 ans.",
+    "eligibility": ["Âge entre 19 et 40 ans", "Diplôme ou qualification", "Résidence en Algérie"],
+    "documents": ["Diplôme", "Pièce d'identité", "Business plan", "Casier judiciaire"]
+  },
+  {
+    "slug": "startup-fund-incub",
+    "title": "Fonds d'amorçage Startups",
+    "institution": "Algeria Venture",
+    "category": "startup-funding",
+    "amountMin": 1000000,
+    "amountMax": 15000000,
+    "rate": "Prise de participation 5-15%",
+    "description": "Financement en capital pour les startups à fort potentiel de croissance, avec accès à un incubateur.",
+    "eligibility": ["Startup labellisée", "Produit ou prototype existant", "Équipe fondatrice active"],
+    "documents": ["Pitch deck", "Business plan", "Statuts de la société"]
+  }
+]
