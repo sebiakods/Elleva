@@ -1,12 +1,10 @@
-
 {
-
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
 
     "module": "CommonJS",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "node10",
 
     "rootDir": ".",
     "outDir": "./dist",

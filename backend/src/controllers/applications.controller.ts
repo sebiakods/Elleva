@@ -1,11 +1,18 @@
+
 import { Request, Response } from "express";
 import * as svc from "../services/applications.service";
 import * as R from "../utils/response";
 import { getPagination, paginate } from "../utils/pagination";
-import { AuthenticatedRequest, ApplicationStatus } from "../types";
-import upload from "../middleware/upload";
+import {
+  AuthenticatedRequest,
+  ApplicationStatus,
+  ReviewStatus,
+} from "../types";
 
-// ─── Expert ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPERT
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function applyExpertApplication(
   req: Request,
   res: Response
@@ -34,129 +41,192 @@ export async function applyExpertApplication(
       "Candidature experte envoyée avec succès"
     );
   } catch (err) {
-    console.error(err);
+    console.error("APPLY EXPERT APPLICATION ERROR:", err);
     R.serverError(res);
   }
 }
-// ─── Entrepreneur ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENTREPRENEUR - Apply to a financing program
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function applyToProgram(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
-    const { programId, amountRequested, coverLetter } = req.body as {
+    const {
+      programId,
+      amountRequested,
+      coverLetter,
+    } = req.body as {
       programId: string;
       amountRequested: number;
       coverLetter?: string;
     };
 
+    if (!req.user) {
+      R.unauthorized(res);
+      return;
+    }
+
     const application = await svc.applyToProgram(
-      req.user!.id,
+      req.user.id,
       programId,
       amountRequested,
       coverLetter
     );
 
-    R.created(res, application, "Candidature soumise avec succès");
+    R.created(
+      res,
+      application,
+      "Candidature soumise avec succès"
+    );
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "PROGRAM_NOT_FOUND") {
-        return void R.notFound(res, "Programme introuvable ou non publié");
+        R.notFound(
+          res,
+          "Programme introuvable ou non publié"
+        );
+        return;
       }
 
       if (err.message === "ALREADY_APPLIED") {
-        return void R.conflict(
+        R.conflict(
           res,
           "Vous avez déjà candidaté à ce programme"
         );
+        return;
       }
     }
 
+    console.error("APPLY TO PROGRAM ERROR:", err);
     R.serverError(res);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENTREPRENEUR - List my applications
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function listMyApplications(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
-    const applications = await svc.listMyApplications(req.user!.id);
+    if (!req.user) {
+      R.unauthorized(res);
+      return;
+    }
+
+    const applications = await svc.listMyApplications(
+      req.user.id
+    );
+
     R.ok(res, applications);
   } catch (err) {
-    console.error(err);
-    R.serverError(res);  }
+    console.error("LIST MY APPLICATIONS ERROR:", err);
+    R.serverError(res);
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENTREPRENEUR - Withdraw application
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function withdrawApplication(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
+    if (!req.user) {
+      R.unauthorized(res);
+      return;
+    }
+
     await svc.withdrawApplication(
       String(req.params.id),
-      req.user!.id
+      req.user.id
     );
 
     R.noContent(res);
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "NOT_FOUND") {
-        return void R.notFound(res);
+        R.notFound(res);
+        return;
       }
 
       if (err.message === "FORBIDDEN") {
-        return void R.forbidden(res);
+        R.forbidden(res);
+        return;
       }
 
       if (err.message === "CANNOT_WITHDRAW") {
-        return void R.badRequest(
+        R.badRequest(
           res,
           "Une candidature approuvée ne peut pas être retirée"
         );
+        return;
       }
     }
 
+    console.error("WITHDRAW APPLICATION ERROR:", err);
     R.serverError(res);
   }
 }
 
-// ─── Institution ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// INSTITUTION - List applications
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function listInstitutionApplications(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
+    if (!req.user) {
+      R.unauthorized(res);
+      return;
+    }
+
     const { page, limit, skip } = getPagination(req);
-    const { status, programId } = req.query as Record<string, string>;
 
-    const { default: prisma } = await import("../config/database");
+    const { status, programId } =
+      req.query as Record<string, string | undefined>;
 
-    const profile = await prisma.institutionProfile.findUnique({
-      where: {
-        userId: req.user!.id,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const { default: prisma } =
+      await import("../config/database");
+
+    const profile =
+      await prisma.institutionProfile.findUnique({
+        where: {
+          userId: req.user.id,
+        },
+        select: {
+          id: true,
+        },
+      });
 
     if (!profile) {
-      return void R.forbidden(
+      R.forbidden(
         res,
         "Profil institution introuvable"
       );
+      return;
     }
 
     const { applications, total } =
-      await svc.listInstitutionApplications(profile.id, {
-        skip,
-        limit,
-        status,
-        programId,
-      });
+      await svc.listInstitutionApplications(
+        profile.id,
+        {
+          skip,
+          limit,
+          status,
+          programId,
+        }
+      );
 
     R.ok(
       res,
@@ -167,44 +237,62 @@ export async function listInstitutionApplications(
       })
     );
   } catch (err) {
-    console.error(err);
-    R.serverError(res);  }
+    console.error(
+      "LIST INSTITUTION APPLICATIONS ERROR:",
+      err
+    );
+
+    R.serverError(res);
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INSTITUTION - Update application status
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function updateApplicationStatus(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
+    if (!req.user) {
+      R.unauthorized(res);
+      return;
+    }
+
     const { status, notes } = req.body as {
       status: ApplicationStatus;
       notes?: string;
     };
 
-    const { default: prisma } = await import("../config/database");
+    const { default: prisma } =
+      await import("../config/database");
 
-    const profile = await prisma.institutionProfile.findUnique({
-      where: {
-        userId: req.user!.id,
-      },
-      select: {
-        id: true,
-      },
-    });
+    const profile =
+      await prisma.institutionProfile.findUnique({
+        where: {
+          userId: req.user.id,
+        },
+        select: {
+          id: true,
+        },
+      });
 
     if (!profile) {
-      return void R.forbidden(
+      R.forbidden(
         res,
         "Profil institution introuvable"
       );
+      return;
     }
 
-    const application = await svc.updateApplicationStatus(
-      String(req.params.id),
-      profile.id,
-      status,
-      notes
-    );
+    const application =
+      await svc.updateApplicationStatus(
+        String(req.params.id),
+        profile.id,
+        status,
+        notes
+      );
 
     R.ok(
       res,
@@ -214,32 +302,36 @@ export async function updateApplicationStatus(
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "NOT_FOUND") {
-        return void R.notFound(res);
+        R.notFound(res);
+        return;
       }
 
       if (err.message === "FORBIDDEN") {
-        return void R.forbidden(res);
+        R.forbidden(res);
+        return;
       }
     }
+
+    console.error(
+      "UPDATE APPLICATION STATUS ERROR:",
+      err
+    );
 
     R.serverError(res);
   }
 }
-// ─────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ADMIN - Get all expert applications
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getApplications(
   req: Request,
   res: Response
 ): Promise<void> {
-
   try {
-
-    const { default: prisma } = await import(
-      "../config/database"
-    );
-
+    const { default: prisma } =
+      await import("../config/database");
 
     const applications =
       await prisma.expertApplication.findMany({
@@ -248,185 +340,141 @@ export async function getApplications(
         },
       });
 
-
     res.json({
       success: true,
       applications,
     });
-
-
   } catch (error) {
-
     console.error(
       "GET EXPERT APPLICATIONS ERROR:",
       error
     );
 
-
     res.status(500).json({
-      success:false,
-      message:"Failed to load expert applications",
+      success: false,
+      message: "Failed to load expert applications",
     });
-
   }
 }
 
-
-
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // ADMIN - Get one expert application
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getApplication(
   req: Request,
   res: Response
 ): Promise<void> {
-
   try {
-
-    const { default: prisma } = await import(
-      "../config/database"
-    );
-
+    const { default: prisma } =
+      await import("../config/database");
 
     const application =
       await prisma.expertApplication.findUnique({
-        where:{
-          id:String(req.params.id),
+        where: {
+          id: String(req.params.id),
         },
       });
 
-
-    if(!application){
-
+    if (!application) {
       res.status(404).json({
-        success:false,
-        message:"Application not found",
+        success: false,
+        message: "Application not found",
       });
-
       return;
     }
 
-
     res.json({
-      success:true,
+      success: true,
       application,
     });
-
-
-  } catch(error){
-
-    console.error(error);
+  } catch (error) {
+    console.error(
+      "GET EXPERT APPLICATION ERROR:",
+      error
+    );
 
     res.status(500).json({
-      success:false,
-      message:"Server error",
+      success: false,
+      message: "Server error",
     });
-
   }
-
 }
 
-
-
-// ─────────────────────────────────────────
-// ADMIN - Approve
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN - Approve expert application
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function approveApplication(
   req: Request,
   res: Response
 ): Promise<void> {
-
   try {
-
-    const { default: prisma } = await import(
-      "../config/database"
-    );
-
+    const { default: prisma } =
+      await import("../config/database");
 
     const application =
       await prisma.expertApplication.update({
-
-        where:{
-          id:String(req.params.id),
+        where: {
+          id: String(req.params.id),
         },
-
-        data:{
-          status:"APPROVED",
-          reviewedAt:new Date(),
+        data: {
+          status: ReviewStatus.APPROVED,
         },
-
       });
 
-
     res.json({
-      success:true,
+      success: true,
       application,
     });
-
-
-  } catch(error){
-
-    console.error(error);
+  } catch (error) {
+    console.error(
+      "APPROVE EXPERT APPLICATION ERROR:",
+      error
+    );
 
     res.status(500).json({
-      success:false,
-      message:"Approve failed",
+      success: false,
+      message: "Approve failed",
     });
-
   }
-
 }
 
-
-
-// ─────────────────────────────────────────
-// ADMIN - Reject
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN - Reject expert application
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function rejectApplication(
   req: Request,
   res: Response
 ): Promise<void> {
-
   try {
-
-    const { default: prisma } = await import(
-      "../config/database"
-    );
-
+    const { default: prisma } =
+      await import("../config/database");
 
     const application =
       await prisma.expertApplication.update({
-
-        where:{
-          id:String(req.params.id),
+        where: {
+          id: String(req.params.id),
         },
-
-        data:{
-          status:"REJECTED",
-          reviewedAt:new Date(),
+        data: {
+          status: ReviewStatus.REJECTED,
         },
-
       });
 
-
     res.json({
-      success:true,
+      success: true,
       application,
     });
-
-
-  } catch(error){
-
-    console.error(error);
+  } catch (error) {
+    console.error(
+      "REJECT EXPERT APPLICATION ERROR:",
+      error
+    );
 
     res.status(500).json({
-      success:false,
-      message:"Reject failed",
+      success: false,
+      message: "Reject failed",
     });
-
   }
-
 }

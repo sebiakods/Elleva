@@ -1,16 +1,16 @@
 import { Request } from "express";
 import { ParamsDictionary } from "express-serve-static-core";
+import { Role } from "@prisma/client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Enums (must match schema.prisma)
+// Prisma Role — single source of truth
 // ─────────────────────────────────────────────────────────────────────────────
 
-export enum Role {
-  ENTREPRENEUR = "ENTREPRENEUR",
-  EXPERT = "EXPERT",
-  INSTITUTION = "INSTITUTION",
-  ADMIN = "ADMIN",
-}
+export { Role };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Application enums
+// ─────────────────────────────────────────────────────────────────────────────
 
 export enum Language {
   AR = "AR",
@@ -103,18 +103,20 @@ export enum ReviewStatus {
 // Authenticated Request
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  role: Role;
+  name: string;
+}
+
 export interface AuthenticatedRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
   ReqQuery = any
 > extends Request<P, ResBody, ReqBody, ReqQuery> {
-  user?: {
-    id: string;
-    email: string;
-    role: Role;
-    name: string;
-  };
+  user?: AuthenticatedUser;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,7 +155,9 @@ export interface ApiError {
   details?: unknown;
 }
 
-export type ApiResponse<T = unknown> = ApiSuccess<T> | ApiError;
+export type ApiResponse<T = unknown> =
+  | ApiSuccess<T>
+  | ApiError;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pagination
@@ -165,7 +169,7 @@ export interface PaginationParams {
   skip: number;
 }
 
-export interface PaginatedResult<T> {
+export interface PaginatedResult<T = unknown> {
   items: T[];
   total: number;
   page: number;

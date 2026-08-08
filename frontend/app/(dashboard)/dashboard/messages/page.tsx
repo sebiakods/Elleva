@@ -1,799 +1,461 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  GraduationCap,
-  Building2,
-  Headset,
-  Search,
-  X,
-  MessageCircle,
-  ArrowRight,
-  Send,
-  Loader2,
-  ChevronUp,
-  AlertCircle,
-  RotateCcw,
-  ArrowDown,
-  Check,
-  CheckCheck,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '@/services/api';
+import authService, { type User } from '@/services/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+type Role = 'ADMIN' | 'EXPERT' | 'ENTREPRENEUR' | 'INSTITUTION';
 
-// How often we poll for new messages / unread counts. Tune to taste,
-// or swap the polling effects below for a WebSocket/SSE subscription later.
-const MESSAGE_POLL_MS = 4000;
-const UNREAD_POLL_MS = 15000;
-
-type User = {
+interface UserSummary {
   id: string;
   name: string;
-  email: string;
-  role: string;
-  avatarUrl?: string | null;
-  bio?: string | null;
-};
+  email?: string;
+  role: Role;
+}
 
-type Message = {
+interface MessageItem {
   id: string;
+  conversationId: string;
   senderId: string;
   receiverId: string;
   content: string;
+  isRead: boolean;
   createdAt: string;
-  readAt?: string | null;
+  sender: UserSummary;
+  receiver: UserSummary;
+}
+
+interface ConversationSummary {
+  id: string;
+  updatedAt: string;
+  participant: UserSummary | null;
+  lastMessage: MessageItem | null;
+  unreadCount: number;
+}
+
+const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: 'Admin',
+  EXPERT: 'Expert',
+  ENTREPRENEUR: 'Entrepreneur',
+  INSTITUTION: 'Institution',
 };
 
-// Client-only fields layered on top of a real Message while a send is in flight.
-type UIMessage = Message & {
-  pending?: boolean;
-  failed?: boolean;
-  clientId?: string;
-};
-
-const categories = [
-  {
-    key: "EXPERT",
-    title: "Experts",
-    description: "Mentoring, advice, courses and business guidance.",
-    icon: GraduationCap,
-  },
-  {
-    key: "INSTITUTION",
-    title: "Institutions",
-    description: "Funding programs, partnerships and opportunities.",
-    icon: Building2,
-  },
-  {
-    key: "ADMIN",
-    title: "Support",
-    description: "Account issues and platform assistance.",
-    icon: Headset,
-  },
-] as const;
-
-const AVATAR_TINTS = [
-  "from-wine-500 to-rose-400",
-  "from-rose-500 to-amber-400",
-  "from-wine-600 to-rose-500",
-  "from-amber-500 to-rose-400",
+const ROLE_FILTERS: Array<{ value: Role | 'ALL'; label: string }> = [
+  { value: 'ALL', label: 'All' },
+  { value: 'ENTREPRENEUR', label: 'Entrepreneurs' },
+  { value: 'EXPERT', label: 'Experts' },
+  { value: 'ADMIN', label: 'Admins' },
 ];
 
-function tintFor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash + id.charCodeAt(i)) % AVATAR_TINTS.length;
-  return AVATAR_TINTS[hash];
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 }
 
-function formatTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
+function formatTime(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatDateDivider(iso: string) {
-  try {
-    const date = new Date(iso);
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    const isSameDay = (a: Date, b: Date) =>
-      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-    if (isSameDay(date, today)) return "Today";
-    if (isSameDay(date, yesterday)) return "Yesterday";
-    return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-  } catch {
-    return "";
-  }
-}
-
-function dedupeAndSort(messages: UIMessage[]): UIMessage[] {
-  const map = new Map<string, UIMessage>();
-  for (const m of messages) map.set(m.id, m);
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-}
-
-async function safeJson(res: Response) {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-function SkeletonRow() {
-  return (
-    <div className="flex items-center gap-4 rounded-xl2 border border-rose-100 bg-white p-4">
-      <div className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-rose-100" />
-      <div className="flex-1 space-y-2">
-        <div className="h-3 w-1/3 animate-pulse rounded bg-rose-100" />
-        <div className="h-2.5 w-2/3 animate-pulse rounded bg-rose-50" />
-      </div>
-      <div className="h-9 w-24 shrink-0 animate-pulse rounded-lg bg-rose-50" />
-    </div>
-  );
-}
-
-export default function MessagesPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errored, setErrored] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<(typeof categories)[number]["key"]>("EXPERT");
-  const [search, setSearch] = useState("");
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-
-  // conversation panel state
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<UIMessage[]>([]);
+export default function InstitutionMessagesPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [input, setInput] = useState('');
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [conversationError, setConversationError] = useState(false);
-  const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const activeIdRef = useRef<string | null>(null);
-  const messagesRef = useRef<UIMessage[]>([]);
-  const isNearBottomRef = useRef(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
 
-  // temporary until auth token is connected
-  const currentUserId = "cmseo90l50001r603a8oi9992";
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await api.get<UserSummary[]>('/messages/users');
+      setUsers(data);
+    } catch {
+      setError('Could not load the users list. Please try again.');
+    }
+  }, []);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const data = await api.get<ConversationSummary[]>('/messages/conversations');
+      setConversations(data);
+    } catch {
+      // Non-fatal: users list is the primary source of truth.
+    }
+  }, []);
+
+  const fetchMessages = useCallback(async (userId: string) => {
+    setLoadingMessages(true);
+    setError(null);
+    try {
+      const data = await api.get<MessageItem[]>(`/messages/${userId}`);
+      setMessages(data);
+    } catch {
+      setError('Could not load this conversation. Please try again.');
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
 
   useEffect(() => {
-    activeIdRef.current = activeId;
-  }, [activeId]);
+    setCurrentUser(authService.getUser());
+    setLoadingUsers(true);
+    Promise.all([fetchUsers(), fetchConversations()]).finally(() => setLoadingUsers(false));
+  }, [fetchUsers, fetchConversations]);
 
   useEffect(() => {
-    messagesRef.current = messages;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ---------- Load contacts ----------
-  const loadUsers = useCallback(async () => {
-    try {
-      setErrored(false);
-      const res = await fetch(`${API_URL}/messages/users`, {
-        headers: { "user-id": currentUserId },
-      });
-      const data = await safeJson(res);
-      if (Array.isArray(data)) setUsers(data);
-    } catch (error) {
-      console.error("LOAD USERS ERROR:", error);
-      setErrored(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const handleSelectUser = (user: UserSummary) => {
+    setSelectedUser(user);
+    fetchMessages(user.id);
+  };
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  // ---------- Unread counts (polled) ----------
-  const loadUnreadCounts = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/messages/unread-counts`, {
-        headers: { "user-id": currentUserId },
-      });
-      if (!res.ok) return;
-      const data = await safeJson(res);
-      if (data && typeof data === "object") setUnreadCounts(data);
-    } catch (error) {
-      // Non-fatal: the badge simply stays hidden if this endpoint is unavailable.
-      console.error("LOAD UNREAD COUNTS ERROR:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUnreadCounts();
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") loadUnreadCounts();
-    }, UNREAD_POLL_MS);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") loadUnreadCounts();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [loadUnreadCounts]);
-
-  // ---------- Conversation loading ----------
-  async function loadConversation(otherUserId: string, { silent }: { silent?: boolean } = {}) {
-    if (!silent) {
-      setLoadingMessages(true);
-      setConversationError(false);
-    }
-    try {
-      const res = await fetch(`${API_URL}/messages/${otherUserId}`, {
-        headers: { "user-id": currentUserId },
-      });
-      if (!res.ok) throw new Error(`Load failed: ${res.status}`);
-      const data = await safeJson(res);
-      if (activeIdRef.current !== otherUserId) return; // user switched away mid-request
-
-      const incoming: UIMessage[] = Array.isArray(data) ? data : [];
-      setMessages((prev) => {
-        // keep any still-pending optimistic messages that the server hasn't echoed back yet
-        const stillPending = prev.filter((m) => m.pending && !incoming.some((i) => i.id === m.id));
-        return dedupeAndSort([...incoming, ...stillPending]);
-      });
-      if (!silent) setConversationError(false);
-    } catch (err) {
-      console.error("LOAD CONVERSATION ERROR:", err);
-      if (!silent) setConversationError(true);
-    } finally {
-      if (!silent) setLoadingMessages(false);
-    }
-  }
-
-  async function markAsRead(otherUserId: string) {
-    setUnreadCounts((prev) => {
-      if (!prev[otherUserId]) return prev;
-      const next = { ...prev };
-      delete next[otherUserId];
-      return next;
-    });
-    try {
-      await fetch(`${API_URL}/messages/${otherUserId}/read`, {
-        method: "POST",
-        headers: { "user-id": currentUserId },
-      });
-    } catch (error) {
-      // Non-fatal: worst case the badge re-appears on the next unread-count poll.
-      console.error("MARK READ ERROR:", error);
-    }
-  }
-
-  function toggleConversation(user: User) {
-    if (activeId === user.id) {
-      setActiveId(null);
-      setMessages([]);
-      setNewMessage("");
-      return;
-    }
-    setActiveId(user.id);
-    setNewMessage("");
-    isNearBottomRef.current = true;
-    loadConversation(user.id);
-    markAsRead(user.id);
-  }
-
-  // Poll the open conversation for messages the other person just sent.
-  useEffect(() => {
-    if (!activeId) return;
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        loadConversation(activeId, { silent: true });
-      }
-    }, MESSAGE_POLL_MS);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") loadConversation(activeId, { silent: true });
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
-
-  // Keep unread badge cleared while the thread is actively open and new messages arrive.
-  useEffect(() => {
-    if (activeId) markAsRead(activeId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length]);
-
-  // ---------- Scroll handling ----------
-  function handleScroll() {
-    const el = scrollRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const nearBottom = distanceFromBottom < 80;
-    isNearBottomRef.current = nearBottom;
-    setShowJumpToLatest(!nearBottom);
-  }
-
-  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
-    setShowJumpToLatest(false);
-    isNearBottomRef.current = true;
-  }
-
-  useEffect(() => {
-    // Only auto-scroll if the user is already near the bottom, so reading
-    // older history isn't interrupted by incoming messages.
-    if (isNearBottomRef.current) {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-    } else {
-      setShowJumpToLatest(true);
-    }
-  }, [messages, activeId]);
-
-  // Auto-resize the composer as the user types.
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }, [newMessage]);
-
-  useEffect(() => {
-    if (activeId) textareaRef.current?.focus();
-  }, [activeId]);
-
-  // ---------- Sending ----------
-  async function sendMessage(otherUserId: string) {
-    const content = newMessage.trim();
-    if (!content || sending) return;
-
-    const clientId = `pending-${Date.now()}`;
-    const optimisticMessage: UIMessage = {
-      id: clientId,
-      senderId: currentUserId,
-      receiverId: otherUserId,
-      content,
-      createdAt: new Date().toISOString(),
-      pending: true,
-      clientId,
-    };
-
-    setMessages((prev) => dedupeAndSort([...prev, optimisticMessage]));
-    setNewMessage("");
-    isNearBottomRef.current = true;
+  const handleSend = async () => {
+    if (!selectedUser || !input.trim() || sending) return;
     setSending(true);
-
+    setError(null);
+    const content = input.trim();
     try {
-      const res = await fetch(`${API_URL}/messages/${otherUserId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "user-id": currentUserId,
-        },
-        body: JSON.stringify({ content }),
+      const created = await api.post<MessageItem>('/messages', {
+        receiverId: selectedUser.id,
+        content,
       });
-
-      if (!res.ok) throw new Error(`Send failed: ${res.status}`);
-
-      const data: Message = await res.json();
-      setMessages((prev) =>
-        dedupeAndSort(prev.filter((m) => m.clientId !== clientId).concat({ ...data }))
-      );
+      setMessages((prev) => [...prev, created]);
+      setInput('');
+      fetchConversations();
     } catch (err) {
-      console.error("SEND MESSAGE ERROR:", err);
-      setMessages((prev) =>
-        prev.map((m) => (m.clientId === clientId ? { ...m, pending: false, failed: true } : m))
-      );
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
     }
-  }
+  };
 
-  async function retrySend(message: UIMessage) {
-    if (!activeId) return;
-    setMessages((prev) => prev.filter((m) => m.clientId !== message.clientId));
-    setNewMessage(message.content);
-    // small delay so state updates before re-sending
-    setTimeout(() => sendMessage(activeId), 0);
-  }
-
-  function handleComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>, otherUserId: string) {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(otherUserId);
+      handleSend();
     }
-  }
+  };
 
-  const counts = useMemo(() => {
-    return categories.reduce<Record<string, number>>((acc, c) => {
-      acc[c.key] = users.filter((u) => u.role === c.key).length;
-      return acc;
-    }, {});
-  }, [users]);
+  const unreadForUser = (userId: string) =>
+    conversations.find((c) => c.participant?.id === userId)?.unreadCount ?? 0;
+
+  const lastMessageForUser = (userId: string) =>
+    conversations.find((c) => c.participant?.id === userId)?.lastMessage ?? null;
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const aConvo = conversations.find((c) => c.participant?.id === a.id);
+      const bConvo = conversations.find((c) => c.participant?.id === b.id);
+      if (aConvo && bConvo) {
+        return new Date(bConvo.updatedAt).getTime() - new Date(aConvo.updatedAt).getTime();
+      }
+      if (aConvo) return -1;
+      if (bConvo) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [users, conversations]);
 
   const filteredUsers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return users.filter((user) => {
-      const roleMatch = user.role === selectedRole;
-      if (!roleMatch) return false;
-      if (!q) return true;
-      return (
-        user.name.toLowerCase().includes(q) ||
-        user.email?.toLowerCase().includes(q) ||
-        user.bio?.toLowerCase().includes(q)
-      );
+    const query = searchQuery.trim().toLowerCase();
+    return sortedUsers.filter((user) => {
+      const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
+      if (!matchesRole) return false;
+      if (!query) return true;
+      const haystack = `${user.name} ${user.email ?? ''}`.toLowerCase();
+      return haystack.includes(query);
     });
-  }, [users, selectedRole, search]);
+  }, [sortedUsers, roleFilter, searchQuery]);
 
-  const activeCategory = categories.find((c) => c.key === selectedRole)!;
-  const activeUser = users.find((u) => u.id === activeId) || null;
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
   return (
-    <div className="min-h-screen bg-sand-50">
-      <div className="mx-auto max-w-5xl px-6 py-8 md:px-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl2 bg-rise-gradient text-white shadow-bloom">
-            <MessageCircle size={20} />
-          </div>
+    <div className="relative flex h-[calc(100vh-4rem)] w-full flex-col overflow-hidden bg-sand-50 font-body">
+      {/* Ambient decorative blooms */}
+      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-rose-200/40 blur-3xl animate-float" />
+      <div
+        className="pointer-events-none absolute -right-20 top-1/3 h-64 w-64 rounded-full bg-wine-100/50 blur-3xl animate-float"
+        style={{ animationDelay: '2s' }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-gold-400/10 blur-3xl animate-float"
+        style={{ animationDelay: '4s' }}
+      />
+
+      <header className="relative z-10 flex-shrink-0 border-b border-sand-200 bg-white/70 px-5 py-5 backdrop-blur-md sm:px-8">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-2xl text-wine-700 md:text-3xl">Messages</h1>
-            <p className="text-sm text-ink-soft">Connect with the right person for your needs.</p>
+            <p className="font-script text-2xl leading-none text-rose-500">say hello,</p>
+            <h1 className="font-display text-3xl text-ink">
+              Your <span className="text-gradient-rise">Messages</span>
+            </h1>
+
           </div>
-        </div>
-
-        {/* Category tabs */}
-        <div
-          role="tablist"
-          aria-label="Contact categories"
-          className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3"
-        >
-          {categories.map((category) => {
-            const Icon = category.icon;
-            const isActive = selectedRole === category.key;
-            const count = counts[category.key] ?? 0;
-            const categoryUnread = users
-              .filter((u) => u.role === category.key)
-              .reduce((sum, u) => sum + (unreadCounts[u.id] || 0), 0);
-
-            return (
-              <button
-                key={category.key}
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setSelectedRole(category.key)}
-                className={`
-                  group relative flex items-center gap-3 rounded-xl2 border px-4 py-3.5
-                  text-left transition-all duration-150
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wine-400 focus-visible:ring-offset-2 focus-visible:ring-offset-sand-50
-                  ${
-                    isActive
-                      ? "border-transparent bg-rise-gradient text-white shadow-bloom"
-                      : "border-rose-100 bg-white text-ink hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-card"
-                  }
-                `}
-              >
-                {categoryUnread > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-wine-600 px-1 text-[10px] font-bold text-white shadow-card">
-                    {categoryUnread > 9 ? "9+" : categoryUnread}
-                  </span>
-                )}
-
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                    isActive ? "bg-white/15" : "bg-rose-50 text-wine-600"
-                  }`}
-                >
-                  <Icon size={18} />
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{category.title}</p>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
-                        isActive ? "bg-white/20 text-white" : "bg-rose-100 text-wine-600"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </div>
-                  <p
-                    className={`mt-0.5 truncate text-xs ${
-                      isActive ? "text-white/80" : "text-ink-soft"
-                    }`}
-                  >
-                    {category.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-6 max-w-md">
-          <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-wine-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${activeCategory.title.toLowerCase()}...`}
-            className="w-full rounded-xl border border-rose-100 bg-white py-2.5 pl-10 pr-9 text-sm text-ink outline-none transition focus:border-wine-300 focus:ring-2 focus:ring-rose-200"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft transition hover:text-wine-600"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
-
-        {/* Section heading */}
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-base font-semibold text-wine-700">
-            Available {activeCategory.title}
-          </h2>
-          {!loading && (
-            <span className="text-xs text-ink-soft">
-              {filteredUsers.length} {filteredUsers.length === 1 ? "contact" : "contacts"}
+          {totalUnread > 0 && (
+            <span className="hidden flex-shrink-0 items-center gap-1.5 rounded-full bg-rise-gradient px-4 py-2 text-xs font-semibold text-white shadow-bloom sm:inline-flex">
+              {totalUnread} new
             </span>
           )}
         </div>
+      </header>
 
-        {/* List */}
-        <div className="space-y-3">
-          {loading ? (
-            Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
-          ) : errored ? (
-            <div className="rounded-xl2 border border-rose-100 bg-white p-8 text-center">
-              <AlertCircle size={20} className="mx-auto mb-2 text-wine-400" />
-              <p className="text-sm font-medium text-ink">Couldn&apos;t load contacts.</p>
-              <p className="mt-1 text-xs text-ink-soft">Check your connection and try again.</p>
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  loadUsers();
-                }}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-medium text-wine-600 transition hover:bg-rise-gradient hover:text-white"
+      <div className="relative z-10 flex flex-1 gap-4 overflow-hidden p-4 sm:p-6">
+        {/* Users list */}
+        <aside
+          className={`card-surface flex w-full flex-shrink-0 flex-col overflow-hidden shadow-card sm:w-80 ${
+            selectedUser ? 'hidden sm:flex' : 'flex'
+          }`}
+        >
+          {/* Search + filters */}
+          <div className="flex-shrink-0 space-y-3 border-b border-sand-100 bg-rise-gradient-soft/40 px-4 py-4">
+            <div className="relative">
+              <svg
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rose-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
               >
-                <RotateCcw size={13} /> Retry
-              </button>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search contacts…"
+                aria-label="Search contacts"
+                className="focus-ring w-full rounded-full border border-rose-100 bg-white py-2.5 pl-10 pr-9 text-sm text-ink shadow-sm placeholder:text-ink-soft/40 transition focus:border-rose-300 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/40 transition hover:bg-rose-100 hover:text-rose-600"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="rounded-xl2 border border-dashed border-rose-200 bg-white p-10 text-center">
-              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-wine-400">
-                <Search size={18} />
+
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {ROLE_FILTERS.map((filter) => {
+                const isActive = roleFilter === filter.value;
+                return (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setRoleFilter(filter.value)}
+                    className={`focus-ring flex-shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                      isActive
+                        ? 'bg-rise-gradient text-white shadow-bloom'
+                        : 'bg-white text-wine-500 ring-1 ring-inset ring-rose-100 hover:bg-rose-50'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {loadingUsers ? (
+              <div className="space-y-1 px-4 py-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2.5">
+                    <div className="h-11 w-11 flex-shrink-0 animate-pulse rounded-full bg-rose-100" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-2/3 animate-pulse rounded-full bg-rose-100" />
+                      <div className="h-2.5 w-1/3 animate-pulse rounded-full bg-sand-100" />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="text-sm font-medium text-ink">No contacts found</p>
-              <p className="mt-1 text-xs text-ink-soft">
-                {search
-                  ? `Nothing matches "${search}" in ${activeCategory.title.toLowerCase()}.`
-                  : `No ${activeCategory.title.toLowerCase()} are available right now.`}
+            ) : filteredUsers.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+                <span className="font-script text-3xl text-rose-300">nothing here</span>
+                <p className="text-sm font-medium text-ink">
+                  {searchQuery || roleFilter !== 'ALL' ? 'No contacts match' : 'No one to message yet'}
+                </p>
+                <p className="text-xs text-ink-soft">
+                  {searchQuery || roleFilter !== 'ALL'
+                    ? 'Try a different name or filter.'
+                    : 'Contacts will appear here once available.'}
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-sand-100 px-2 py-2">
+                {filteredUsers.map((user) => {
+                  const unread = unreadForUser(user.id);
+                  const isActive = selectedUser?.id === user.id;
+                  const lastMessage = lastMessageForUser(user.id);
+                  return (
+                    <li key={user.id} className="px-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectUser(user)}
+                        className={`focus-ring flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-rose-50 ${
+                          isActive ? 'bg-rise-gradient-soft shadow-sm' : ''
+                        }`}
+                      >
+                        <span className="relative flex-shrink-0">
+                          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-rise-gradient text-sm font-semibold text-white shadow-sm ring-2 ring-white">
+                            {getInitials(user.name)}
+                          </span>
+                          {unread > 0 && (
+                            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-gold-500 text-[10px] font-bold text-white ring-2 ring-white">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold text-ink">
+                              {user.name}
+                            </span>
+                          </span>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs text-ink-soft">
+                              {lastMessage ? lastMessage.content : `New to ${ROLE_LABELS[user.role].toLowerCase()}s`}
+                            </span>
+                            <span className="flex-shrink-0 rounded-full bg-wine-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-wine-500">
+                              {ROLE_LABELS[user.role]}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </aside>
+
+        {/* Conversation */}
+        <section
+          className={`card-surface flex flex-1 flex-col overflow-hidden shadow-card ${
+            selectedUser ? 'flex' : 'hidden sm:flex'
+          }`}
+        >
+          {!selectedUser ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-rise-gradient-soft shadow-inner">
+                <svg className="h-7 w-7 text-wine-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </span>
+              <p className="font-script text-3xl text-rose-500">pick a conversation</p>
+              <p className="max-w-xs text-sm text-ink-soft">
+                Choose someone from the list, or search for a contact by name to get started.
               </p>
             </div>
           ) : (
-            filteredUsers.map((user) => {
-              const isOpen = activeId === user.id;
-              const unread = unreadCounts[user.id] || 0;
-
-              return (
-                <div
-                  key={user.id}
-                  className={`
-                    rounded-xl2 border bg-white transition-all duration-150
-                    ${isOpen ? "border-wine-300 shadow-bloom" : "border-rose-100 hover:border-rose-300 hover:shadow-card"}
-                  `}
+            <>
+              <div className="flex flex-shrink-0 items-center gap-3 border-b border-sand-100 bg-rise-gradient-soft/30 px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUser(null)}
+                  className="focus-ring text-sm font-medium text-rose-600 sm:hidden"
                 >
-                  {/* Row */}
-                  <div className="flex w-full items-center gap-4 p-4">
-                    <div className="relative shrink-0">
-                      {user.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={user.avatarUrl}
-                          alt={user.name}
-                          className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-card"
-                        />
-                      ) : (
-                        <div
-                          className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br ${tintFor(
-                            user.id
-                          )} text-base font-bold text-white shadow-card`}
-                        >
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      {unread > 0 && !isOpen && (
-                        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-wine-600 px-1 text-[10px] font-bold text-white">
-                          {unread > 9 ? "9+" : unread}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3
-                          className={`truncate ${unread > 0 && !isOpen ? "font-bold text-ink" : "font-semibold text-ink"}`}
-                        >
-                          {user.name}
-                        </h3>
-                        <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-wine-500">
-                          {user.role}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 truncate text-sm text-ink-soft">
-                        {user.bio || "Elleva member"}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => toggleConversation(user)}
-                      aria-expanded={isOpen}
-                      className={`
-                        flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wine-400
-                        ${
-                          isOpen
-                            ? "bg-rise-gradient text-white shadow-bloom"
-                            : "bg-rose-50 text-wine-600 hover:bg-rise-gradient hover:text-white hover:shadow-bloom"
-                        }
-                      `}
-                    >
-                      {isOpen ? "Close" : "Message"}
-                      {isOpen ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ArrowRight size={14} className="transition-transform" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Inline conversation panel */}
-                  {isOpen && (
-                    <div className="border-t border-rose-100 bg-sand-50/60 px-4 py-3">
-                      <div className="relative">
-                        <div
-                          ref={scrollRef}
-                          onScroll={handleScroll}
-                          className="mb-3 max-h-80 space-y-1 overflow-y-auto pr-1 scroll-smooth"
-                        >
-                          {loadingMessages ? (
-                            <div className="flex items-center justify-center py-6 text-ink-soft">
-                              <Loader2 size={16} className="mr-2 animate-spin" />
-                              <span className="text-xs">Loading conversation...</span>
-                            </div>
-                          ) : conversationError ? (
-                            <div className="py-4 text-center">
-                              <p className="text-xs text-ink-soft">Couldn&apos;t load this conversation.</p>
-                              <button
-                                onClick={() => loadConversation(user.id)}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1 text-xs font-medium text-wine-600 transition hover:bg-rise-gradient hover:text-white"
-                              >
-                                <RotateCcw size={12} /> Retry
-                              </button>
-                            </div>
-                          ) : messages.length === 0 ? (
-                            <p className="py-4 text-center text-xs text-ink-soft">
-                              No messages yet. Say hello to {user.name.split(" ")[0]}.
-                            </p>
-                          ) : (
-                            messages.map((m, idx) => {
-                              const isMine = m.senderId === currentUserId;
-                              const prev = messages[idx - 1];
-                              const showDivider =
-                                !prev || formatDateDivider(prev.createdAt) !== formatDateDivider(m.createdAt);
-
-                              return (
-                                <div key={m.id}>
-                                  {showDivider && (
-                                    <div className="my-3 flex items-center justify-center">
-                                      <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-medium text-wine-500">
-                                        {formatDateDivider(m.createdAt)}
-                                      </span>
-                                    </div>
-                                  )}
-                                  <div className={`flex py-0.5 ${isMine ? "justify-end" : "justify-start"}`}>
-                                    <div
-                                      className={`
-                                        max-w-[75%] rounded-xl px-3.5 py-2 text-sm
-                                        ${
-                                          isMine
-                                            ? m.failed
-                                              ? "border border-red-300 bg-red-50 text-red-700"
-                                              : "bg-rise-gradient text-white"
-                                            : "border border-rose-100 bg-white text-ink"
-                                        }
-                                        ${m.pending ? "opacity-60" : ""}
-                                      `}
-                                    >
-                                      <p className="whitespace-pre-wrap break-words">{m.content}</p>
-                                      <div
-                                        className={`mt-1 flex items-center gap-1 text-[10px] ${
-                                          isMine && !m.failed ? "text-white/70" : "text-ink-soft"
-                                        }`}
-                                      >
-                                        <span>{formatTime(m.createdAt)}</span>
-                                        {isMine && !m.failed && (
-                                          m.pending ? (
-                                            <Loader2 size={10} className="animate-spin" />
-                                          ) : m.readAt ? (
-                                            <CheckCheck size={12} />
-                                          ) : (
-                                            <Check size={12} />
-                                          )
-                                        )}
-                                        {m.failed && (
-                                          <button
-                                            onClick={() => retrySend(m)}
-                                            className="ml-1 inline-flex items-center gap-1 font-medium text-red-700 underline"
-                                          >
-                                            <RotateCcw size={10} /> Retry
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-
-                        {showJumpToLatest && messages.length > 0 && (
-                          <button
-                            onClick={() => scrollToBottom()}
-                            className="absolute bottom-3 right-2 flex items-center gap-1 rounded-full bg-wine-600 px-3 py-1.5 text-xs font-medium text-white shadow-bloom transition hover:bg-wine-700"
-                          >
-                            <ArrowDown size={12} /> New
-                          </button>
-                        )}
-                      </div>
-
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          sendMessage(user.id);
-                        }}
-                        className="flex items-end gap-2"
-                      >
-                        <textarea
-                          ref={textareaRef}
-                          rows={1}
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyDown={(e) => handleComposerKeyDown(e, user.id)}
-                          placeholder={`Message ${user.name.split(" ")[0]}... (Enter to send)`}
-                          className="max-h-32 flex-1 resize-none rounded-lg border border-rose-100 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-wine-300 focus:ring-2 focus:ring-rose-200"
-                        />
-                        <button
-                          type="submit"
-                          disabled={sending || !newMessage.trim()}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rise-gradient text-white shadow-bloom transition disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Send message"
-                        >
-                          {sending ? (
-                            <Loader2 size={15} className="animate-spin" />
-                          ) : (
-                            <Send size={15} />
-                          )}
-                        </button>
-                      </form>
-                    </div>
-                  )}
+                  ← Back
+                </button>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-rise-gradient text-xs font-semibold text-white shadow-sm ring-2 ring-white">
+                  {getInitials(selectedUser.name)}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-ink">{selectedUser.name}</p>
+                  <p className="text-xs text-wine-400">{ROLE_LABELS[selectedUser.role]}</p>
                 </div>
-              );
-            })
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-5">
+                {loadingMessages ? (
+                  <div className="text-sm text-ink-soft">Loading messages…</div>
+                ) : messages.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                    <span className="font-script text-2xl text-rose-300">say something sweet</span>
+                    <p className="text-sm text-ink-soft">
+                      No messages yet. Say hello to {selectedUser.name.split(' ')[0]}.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {messages.map((message) => {
+                      const isMine = message.senderId === currentUser?.id;
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                              isMine
+                                ? 'rounded-br-md bg-rise-gradient text-white shadow-bloom'
+                                : 'rounded-bl-md border border-sand-200 bg-white text-ink shadow-sm'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                            <p
+                              className={`mt-1 text-right text-[10px] tracking-wide ${
+                                isMine ? 'text-rose-100' : 'text-ink-soft/50'
+                              }`}
+                            >
+                              {formatTime(message.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="mx-5 mb-2 flex-shrink-0 rounded-xl bg-rose-50 px-3 py-2 text-xs text-wine-600">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex flex-shrink-0 items-end gap-2 border-t border-sand-100 bg-white px-5 py-4">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Write a message…"
+                  rows={1}
+                  className="focus-ring flex-1 resize-none rounded-full border border-rose-100 bg-sand-50 px-4 py-2.5 text-sm text-ink placeholder:text-ink-soft/40 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!input.trim() || sending}
+                  className="focus-ring flex-shrink-0 rounded-full bg-rise-gradient px-6 py-2.5 text-sm font-medium text-white shadow-bloom transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                >
+                  {sending ? 'Sending…' : 'Send'}
+                </button>
+              </div>
+            </>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

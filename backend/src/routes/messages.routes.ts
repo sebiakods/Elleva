@@ -1,29 +1,14 @@
-import { Router } from "express";
-
-import {
-  getMessagingUsers,
-  createMessage,
-  getMessages,
-} from "../controllers/messages.controller";
+import { Router } from 'express';
+import * as messagesController from '../controllers/messages.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// ==========================
-// GET USERS
-// GET /api/messages/users
-// ==========================
-router.get("/users", getMessagingUsers);
+router.use(authenticate);
 
-// ==========================
-// GET CONVERSATION
-// GET /api/messages/:otherUserId
-// ==========================
-router.get("/:otherUserId", getMessages);
-
-// ==========================
-// SEND MESSAGE
-// POST /api/messages/:otherUserId
-// ==========================
-router.post("/:otherUserId", createMessage);
+router.get('/users', messagesController.getUsers);
+router.get('/conversations', messagesController.getConversations);
+router.get('/:userId', messagesController.getConversationMessages);
+router.post('/', messagesController.postMessage);
 
 export default router;

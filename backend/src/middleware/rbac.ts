@@ -1,28 +1,26 @@
-import { Response, NextFunction } from "express";
-import { Role } from "../types";
-import { forbidden, unauthorized } from "../utils/response";
-import { AuthenticatedRequest } from "../types";
 
-/**
- * Normalize role values
- * Handles:
- * "institution" -> "INSTITUTION"
- * "ADMIN" -> "ADMIN"
- */
+import { Response, NextFunction } from "express";
+import { Role, AuthenticatedRequest } from "../types";
+import { forbidden, unauthorized } from "../utils/response";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Normalize role values
+// ─────────────────────────────────────────────────────────────────────────────
+
 function normalizeRole(role: unknown): string {
   return String(role ?? "").toUpperCase();
 }
 
-/**
- * Require specific roles
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Require specific roles
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function requireRoles(...roles: Role[]) {
   return (
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): void => {
-
     if (!req.user) {
       unauthorized(res);
       return;
@@ -46,8 +44,9 @@ export function requireRoles(...roles: Role[]) {
   };
 }
 
-
-// ─── Convenience helpers ─────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Convenience helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const adminOnly = requireRoles(
   Role.ADMIN
@@ -64,7 +63,6 @@ export const expertOnly = requireRoles(
 export const institutionOnly = requireRoles(
   Role.INSTITUTION
 );
-
 
 export const allRoles = requireRoles(
   Role.ADMIN,
@@ -85,22 +83,20 @@ export const institutionOrAdmin = requireRoles(
   Role.ADMIN
 );
 
-
 export const entrepreneurOrAdmin = requireRoles(
   Role.ENTREPRENEUR,
   Role.ADMIN
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Owner or admin check
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Owner or admin check
- */
 export function checkOwnerOrAdmin(
   user: AuthenticatedRequest["user"],
   ownerId: string,
   res: Response
 ): boolean {
-
   if (!user) {
     unauthorized(res);
     return false;

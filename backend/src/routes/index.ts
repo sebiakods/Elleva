@@ -42,7 +42,7 @@ router.use("/users", usersRoutes);
 /* ===========================
    Programs
 =========================== */
-router.use("/programs", programsRoutes);
+router.use("/", programsRoutes);
 
 /* ===========================
    Articles
