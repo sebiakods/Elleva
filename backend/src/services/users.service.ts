@@ -1,10 +1,16 @@
 import prisma from "../config/database";
 import { Language } from "@prisma/client";
 
-// ─── Get user profile ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Get user profile
+// ─────────────────────────────────────────────────────────────
+
 export async function getProfile(userId: string) {
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
+
     select: {
       id: true,
       email: true,
@@ -55,8 +61,10 @@ export async function getProfile(userId: string) {
   return user;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Update profile
+// ─────────────────────────────────────────────────────────────
 
-// ─── Update profile ───────────────────────────────────────────────────────────
 export async function updateProfile(
   userId: string,
   data: {
@@ -67,7 +75,9 @@ export async function updateProfile(
   }
 ) {
   return prisma.user.update({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
 
     data,
 
@@ -83,8 +93,10 @@ export async function updateProfile(
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// Admin: list all users
+// ─────────────────────────────────────────────────────────────
 
-// ─── Admin: list all users ────────────────────────────────────────────────────
 export async function listUsers(params: {
   skip: number;
   limit: number;
@@ -92,7 +104,11 @@ export async function listUsers(params: {
   search?: string;
 }) {
   const where = {
-    ...(params.role ? { role: params.role as any } : {}),
+    ...(params.role
+      ? {
+          role: params.role as any,
+        }
+      : {}),
 
     ...(params.search
       ? {
@@ -114,12 +130,12 @@ export async function listUsers(params: {
       : {}),
   };
 
-
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
       skip: params.skip,
       take: params.limit,
+
       orderBy: {
         createdAt: "desc",
       },
@@ -140,15 +156,16 @@ export async function listUsers(params: {
     }),
   ]);
 
-
   return {
     users,
     total,
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Admin: toggle active
+// ─────────────────────────────────────────────────────────────
 
-// ─── Admin: toggle active ─────────────────────────────────────────────────────
 export async function setUserActive(
   userId: string,
   isActive: boolean
@@ -169,79 +186,71 @@ export async function setUserActive(
   });
 }
 
-// ─── Admin: get one user ──────────────────────────────────────────────────────
-export async function getUserById(id:string){
+// ─────────────────────────────────────────────────────────────
+// Admin: get one user
+// ─────────────────────────────────────────────────────────────
 
+export async function getUserById(id: string) {
   const user = await prisma.user.findUnique({
-
-    where:{
-      id
+    where: {
+      id,
     },
 
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      isVerified: true,
+      avatarUrl: true,
+      bio: true,
+      language: true,
+      createdAt: true,
 
-    select:{
-
-      id:true,
-      name:true,
-      email:true,
-      role:true,
-      isActive:true,
-      isVerified:true,
-      avatarUrl:true,
-      bio:true,
-      language:true,
-      createdAt:true,
-
-
-      expertProfile:{
-
-        select:{
-
-          title:true,
-          specialties:true,
-          experience:true,
-          languages:true,
-          certifications:true,
-          rating:true,
-          reviewCount:true,
-          sessionCount:true,
-
-        }
-
+      expertProfile: {
+        select: {
+          id: true,
+          title: true,
+          specialties: true,
+          sessionRateDA: true,
+          availableForBooking: true,
+          linkedinUrl: true,
+          websiteUrl: true,
+          rating: true,
+          reviewCount: true,
+          sessionCount: true,
+          isApprovedByAdmin: true,
+        },
       },
 
-
-
-      institutionProfile:{
-
-        select:{
-
-          institutionName:true,
-          type:true,
-          city:true,
-          websiteUrl:true,
-          isVerified:true,
-
-        }
-
+      institutionProfile: {
+        select: {
+          id: true,
+          institutionName: true,
+          type: true,
+          city: true,
+          websiteUrl: true,
+          contactEmail: true,
+          contactPhone: true,
+          logoUrl: true,
+          isVerified: true,
+        },
       },
-
-
-    }
-
+    },
   });
 
-
-
-  if(!user)
+  if (!user) {
     throw new Error("USER_NOT_FOUND");
-
-
+  }
 
   return user;
-
 }
-// ─── Admin: delete user ───────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Admin: delete user
+// ─────────────────────────────────────────────────────────────
+
 export async function deleteUser(userId: string) {
   const existingUser = await prisma.user.findUnique({
     where: {

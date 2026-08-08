@@ -24,7 +24,7 @@ const pendingReviews = [
 export default function ExpertOverviewPage() {
   return (
     <>
-      <Header title="Bonjour, Dr. Leila 👋" />
+      <Header title="Bonjour, Dr. Leila " />
 
       <Reveal>
         <StatsCards items={[

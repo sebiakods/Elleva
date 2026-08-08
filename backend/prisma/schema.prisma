@@ -560,16 +560,21 @@ enum ReviewStatus {
   REJECTED
 }
 
+enum CategoryStatus {
+  active
+  hidden
+}
+
 model Category {
-  id             String  @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
-  slug           String  @unique
+  slug           String         @unique
   description    String?
   image          String?
   icon           String?
   color          String?
-  status         String  @default("active")
-  featured       Boolean @default(false)
+  status         CategoryStatus @default(active)
+  featured       Boolean        @default(false)
   seoTitle       String?
   seoDescription String?
 

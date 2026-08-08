@@ -1,351 +1,351 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
   CalendarDays,
   DollarSign,
+  Eye,
   FileText,
   Landmark,
-  Mail,
-  Users,
-  Trash2,
-  Plus,
   Loader2,
-  Eye,
+  Mail,
+  Plus,
   Send,
+  Trash2,
+  Users,
 } from "lucide-react";
 
-import { Header } from "@/components/layout/Header";
-import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-
-
-interface ProgramFormProps {
-  mode: "create" | "edit";
-  program?: any;
+// Mock sub-components (Replace with your actual UI imports if needed)
+function Header({ title }: { title: string }) {
+  return (
+    <header className="mb-6 border-b border-sand-200 pb-4">
+      <h1 className="text-2xl font-bold text-ink">{title}</h1>
+    </header>
+  );
 }
 
-type ProgramForm = {
+function Badge({
+  children,
+  tone = "red",
+}: {
+  children: React.ReactNode;
+  tone?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+        tone === "red" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Button({
+  children,
+  variant = "primary",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "outline";
+}) {
+  return (
+    <button
+      {...props}
+      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+        variant === "outline"
+          ? "border border-sand-300 bg-white text-ink hover:bg-sand-50"
+          : "bg-red-600 text-white hover:bg-red-700"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Card({
+  children,
+  hover = false,
+}: {
+  children: React.ReactNode;
+  hover?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-sand-200 bg-white p-6 shadow-sm ${
+        hover ? "transition hover:shadow-md" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Input({
+  label,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-ink-soft">
+        {label}
+      </span>
+      <input
+        {...props}
+        className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+      />
+    </label>
+  );
+}
+
+function Select({
+  label,
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-ink-soft">
+        {label}
+      </span>
+      <select
+        {...props}
+        className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
+
+interface FormState {
   title: string;
+  category: string;
   shortDescription: string;
   description: string;
-
-  category: string;
   sector: string;
+  region: string;
   fundingType: string;
-
+  currency: string;
   minAmount: string;
   maxAmount: string;
-  currency: string;
-
   openingDate: string;
   closingDate: string;
-
-  region: string;
-
   targetAudience: string;
   eligibilityCriteria: string;
   documents: string[];
-
   website: string;
   email: string;
   phone: string;
-
   status: "draft" | "published";
-};
-
-const initialForm: ProgramForm = {
-  title: "",
-  shortDescription: "",
-  description: "",
-
-  category: "",
-  sector: "",
-  fundingType: "",
-
-  minAmount: "",
-  maxAmount: "",
-  currency: "DZD",
-
-  openingDate: "",
-  closingDate: "",
-
-  region: "Algérie",
-
-  targetAudience: "",
-  eligibilityCriteria: "",
-  documents: [""],
-
-  website: "",
-  email: "",
-  phone: "",
-
-  status: "draft",
-};
-
-type Toast = { type: "success" | "error"; text: string };
+}
 
 export default function ProgramForm({
-  mode,
-  program,
-}: ProgramFormProps) {
+  mode = "create",
+}: {
+  mode?: "create" | "edit";
+}) {
   const router = useRouter();
 
-  const [form, setForm] = useState<ProgramForm>(initialForm);
-
-useEffect(() => {
-  if (!program) return;
-
-  setForm({
-    ...initialForm,
-
-    title: program.title ?? "",
-    shortDescription: program.shortDescription ?? "",
-    description: program.description ?? "",
-
-    category: program.category ?? "",
-    sector: program.sector ?? "",
-    fundingType: program.fundingType ?? "",
-
-    minAmount: program.amountMin?.toString() ?? "",
-    maxAmount: program.amountMax?.toString() ?? "",
-    currency: program.currency ?? "DZD",
-
-    openingDate: program.openingDate?.slice(0, 10) ?? "",
-    closingDate: program.closingDate?.slice(0, 10) ?? "",
-
-    region: program.region ?? "Algérie",
-
-    targetAudience: program.targetAudience ?? "",
-
-    eligibilityCriteria:
-      program.eligibility?.join("\n") ?? "",
-
-    documents:
-      program.requiredDocuments?.length
-        ? program.requiredDocuments
-        : [""],
-
-    website: program.website ?? "",
-    email: program.email ?? "",
-    phone: program.phone ?? "",
-
-    status: program.status ?? "draft",
+  const [form, setForm] = useState<FormState>({
+    title: "",
+    category: "",
+    shortDescription: "",
+    description: "",
+    sector: "",
+    region: "Algérie",
+    fundingType: "",
+    currency: "DZD",
+    minAmount: "",
+    maxAmount: "",
+    openingDate: "",
+    closingDate: "",
+    targetAudience: "",
+    eligibilityCriteria: "",
+    documents: [""],
+    website: "",
+    email: "",
+    phone: "",
+    status: "draft",
   });
-}, [program]);
+
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<Toast | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  function update<K extends keyof ProgramForm>(key: K, value: ProgramForm[K]) {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-    setMessage(null);
-  }
+  const update = (key: keyof FormState, value: unknown) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
-  function updateDocument(index: number, value: string) {
+  const updateDocument = (index: number, value: string) => {
     setForm((prev) => {
-      const documents = [...prev.documents];
-      documents[index] = value;
-      return { ...prev, documents };
+      const docs = [...prev.documents];
+      docs[index] = value;
+      return { ...prev, documents: docs };
     });
-  }
+  };
 
-  function addDocument() {
-    setForm((prev) => ({
-      ...prev,
-      documents: [...prev.documents, ""],
-    }));
-  }
+  const addDocument = () => {
+    setForm((prev) => ({ ...prev, documents: [...prev.documents, ""] }));
+  };
 
-  function removeDocument(index: number) {
+  const removeDocument = (index: number) => {
     setForm((prev) => ({
       ...prev,
       documents: prev.documents.filter((_, i) => i !== index),
     }));
-  }
+  };
 
-  async function saveDraft() {
+  const saveDraft = async () => {
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setSaving(false);
+    try {
+      // API call placeholder
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setMessage({ type: "success", text: "Brouillon enregistré !" });
+    } catch {
+      setMessage({ type: "error", text: "Erreur lors de l'enregistrement." });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    setForm((prev) => ({ ...prev, status: "draft" }));
-    setMessage({
-      type: "success",
-      text: "Le programme a été enregistré comme brouillon.",
-    });
-  }
-
-  async function submit(e: FormEvent<HTMLFormElement>) {
+const submit = async (e: React.FormEvent) => {
   e.preventDefault();
 
   try {
     setSaving(true);
 
-   const token =
-  localStorage.getItem("accessToken") ||
-  localStorage.getItem("token");
+    const token =
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("refreshToken") ||
+      localStorage.getItem("token");
+
+    console.log("TOKEN:", token);
 
     if (!token) {
-      setSaving(false);
-
       setMessage({
         type: "error",
-        text: "Veuillez vous reconnecter.",
+        text: "Session expirée. Veuillez vous reconnecter.",
       });
-
+      setSaving(false);
       return;
     }
 
-const body = {
-  slug: form.title
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, ""),
+    const payload = {
+      title: form.title,
+      shortDescription: form.shortDescription,
+      description: form.description,
 
-  title: form.title,
+      category: form.category,
+      sector: form.sector,
+      fundingType: form.fundingType,
 
-  shortDescription: form.shortDescription,
+      amountMin: Number(form.minAmount),
+      amountMax: Number(form.maxAmount),
+      currency: form.currency,
 
-  description: form.description,
+      openingDate: form.openingDate,
+      closingDate: form.closingDate,
 
-  category: form.category,
+      region: form.region,
 
-  sector: form.sector,
+      targetAudience: form.targetAudience,
 
-  amountMin:
-    form.minAmount.trim() === ""
-      ? null
-      : Number(form.minAmount),
+      eligibilityCriteria: form.eligibilityCriteria
+        .split("\n")
+        .filter(Boolean),
 
-  amountMax:
-    form.maxAmount.trim() === ""
-      ? null
-      : Number(form.maxAmount),
+      requiredDocuments: form.documents.filter(Boolean),
 
-  fundingType: form.fundingType,
+      website: form.website,
+      email: form.email,
+      phone: form.phone,
 
-  openingDate: form.openingDate,
-
-  closingDate: form.closingDate,
-
-  region: form.region,
-
-  website: form.website,
-
-  email: form.email,
-
-  phone: form.phone,
-
-  status: form.status,
-
-  eligibility: form.eligibilityCriteria
-    .split("\n")
-    .filter(Boolean),
-
-  requiredDocuments: form.documents.filter(Boolean),
-  currency: form.currency,
-
-  targetAudience: form.targetAudience,
-};
+      isPublished: form.status === "published",
+    };
 
 
-if (mode === "edit" && !program?.id) {
-  throw new Error("Programme introuvable.");
-}
+    const response = await fetch(
+      "http://localhost:4000/api/institution/programs",
+      {
+        method: mode === "create" ? "POST" : "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
-if (mode === "edit" && !program?.id) {
-  throw new Error("Programme introuvable.");
-}
 
-const url =
-  mode === "create"
-    ? `${process.env.NEXT_PUBLIC_API_URL}/programs`
-    : `${process.env.NEXT_PUBLIC_API_URL}/programs/${program.id}`;
-    console.log("POST URL:", url);
-    console.log("TOKEN:", token);
-    console.log("BODY:", body);
+    const data = await response.json();
 
-    const response = await fetch(url, {
-      method: mode === "create" ? "POST" : "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
+    console.log("SERVER RESPONSE:", data);
 
-    let data: any = {};
 
-try {
-  data = await response.json();
-} catch {
-  data = {};
-}
+    if (!response.ok) {
+      throw new Error(data.message || "Erreur");
+    }
 
-  if (!response.ok) {
-    console.log("BACKEND ERROR:", data);
-    throw new Error(JSON.stringify(data));
-  }
 
     setMessage({
       type: "success",
       text:
         mode === "create"
-          ? "Programme créé avec succès."
-          : "Programme modifié avec succès.",
+          ? "Programme créé avec succès"
+          : "Programme modifié avec succès",
     });
 
+
     router.push("/institution/programs");
-    router.refresh();
-  } catch (err) {
-  setMessage({
-    type: "error",
-    text:
-      err instanceof Error
-        ? err.message
-        : "Erreur inconnue",
-  });
-} finally {
+
+
+  } catch (error: any) {
+
+    console.error(error);
+
+    setMessage({
+      type: "error",
+      text: error.message,
+    });
+
+  } finally {
+
     setSaving(false);
+
   }
-}
+};
   return (
     <>
       <Header
-  title={
-    mode === "create"
-      ? "Publier un programme"
-      : "Modifier le programme"
-  }
-/>
+        title={
+          mode === "create" ? "Publier un programme" : "Modifier le programme"
+        }
+      />
 
       <div className="mx-auto max-w-7xl space-y-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-3">
-              <Badge tone="wine">Nouveau programme</Badge>
-              <Badge tone="gold">Institution</Badge>
+              <Badge tone="red">Nouveau programme</Badge>
+              <Badge tone="red">Institution</Badge>
             </div>
 
             <h1 className="font-display text-4xl text-ink">
               {mode === "create"
-  ? "Créer un programme de financement"
-  : "Modifier le programme"}
+                ? "Créer un programme de financement"
+                : "Modifier le programme"}
             </h1>
 
             <p className="mt-3 max-w-3xl text-ink-soft">
-              Définissez les informations de votre programme, les montants,
-              les critères d'éligibilité, les dates importantes ainsi que les
+              Définissez les informations de votre programme, les montants, les
+              critères d'éligibilité, les dates importantes ainsi que les
               coordonnées de contact avant la publication.
             </p>
           </div>
@@ -363,7 +363,7 @@ try {
             {/* General information */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Landmark size={22} />
                 </div>
                 <div>
@@ -390,22 +390,10 @@ try {
                   onChange={(e) => update("category", e.target.value)}
                 >
                   <option value="">Sélectionner...</option>
-
-                  <option value="GOVERNMENT_GRANT">
-                    Subvention
-                  </option>
-
-                  <option value="BANK_LOAN">
-                    Prêt bancaire
-                  </option>
-
-                  <option value="ISLAMIC_FINANCE">
-                    Finance islamique
-                  </option>
-
-                  <option value="STARTUP_FUNDING">
-                    Financement Startup
-                  </option>
+                  <option value="GOVERNMENT_GRANT">Subvention</option>
+                  <option value="BANK_LOAN">Prêt bancaire</option>
+                  <option value="ISLAMIC_FINANCE">Finance islamique</option>
+                  <option value="STARTUP_FUNDING">Financement Startup</option>
                 </Select>
 
                 <Input
@@ -422,7 +410,7 @@ try {
                     </span>
                     <textarea
                       rows={6}
-                      className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition-colors focus-ring focus:border-rose-400"
+                      className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                       placeholder="Décrivez les objectifs du programme, les avantages, les conditions de participation et toutes les informations utiles."
                       value={form.description}
                       onChange={(e) => update("description", e.target.value)}
@@ -465,7 +453,7 @@ try {
             {/* Funding details */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <DollarSign size={22} />
                 </div>
                 <div>
@@ -522,16 +510,13 @@ try {
             {/* Calendar */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Calendar size={22} />
                 </div>
                 <div>
-                  <h2 className="font-display text-2xl text-ink">
-                    Calendrier
-                  </h2>
+                  <h2 className="font-display text-2xl text-ink">Calendrier</h2>
                   <p className="text-sm text-ink-soft">
-                    Définissez la période pendant laquelle les candidatures
-                    seront acceptées.
+                    Définissez la période pendant laquelle les candidatures seront acceptées.
                   </p>
                 </div>
               </div>
@@ -556,7 +541,7 @@ try {
             {/* Eligibility */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Users size={22} />
                 </div>
                 <div>
@@ -576,7 +561,7 @@ try {
                   </span>
                   <textarea
                     rows={4}
-                    className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition-colors focus-ring focus:border-rose-400"
+                    className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                     placeholder="Exemple : Femmes entrepreneures, startups innovantes, PME..."
                     value={form.targetAudience}
                     onChange={(e) => update("targetAudience", e.target.value)}
@@ -589,7 +574,7 @@ try {
                   </span>
                   <textarea
                     rows={6}
-                    className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition-colors focus-ring focus:border-rose-400"
+                    className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                     placeholder={
                       "• Être une entreprise enregistrée\n• Activité depuis au moins 6 mois\n• Projet innovant\n• Résider en Algérie"
                     }
@@ -605,7 +590,7 @@ try {
             {/* Required documents */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <FileText size={22} />
                 </div>
                 <div>
@@ -631,14 +616,14 @@ try {
                       value={document}
                       onChange={(e) => updateDocument(index, e.target.value)}
                       placeholder={`Document ${index + 1}`}
-                      className="flex-1 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-rose-400"
+                      className="flex-1 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-red-500"
                     />
 
                     {form.documents.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeDocument(index)}
-                        className="rounded-lg p-2 text-red-500 transition hover:bg-red-50"
+                        className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -649,7 +634,7 @@ try {
                 <button
                   type="button"
                   onClick={addDocument}
-                  className="flex items-center gap-2 rounded-xl border border-dashed border-rose-300 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                  className="flex items-center gap-2 rounded-xl border border-dashed border-red-300 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
                 >
                   <Plus size={16} />
                   Ajouter un document
@@ -660,7 +645,7 @@ try {
             {/* Contact */}
             <Card hover={false}>
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Mail size={22} />
                 </div>
                 <div>
@@ -668,8 +653,7 @@ try {
                     Coordonnées de contact
                   </h2>
                   <p className="text-sm text-ink-soft">
-                    Les entrepreneures utiliseront ces informations pour vous
-                    contacter.
+                    Les entrepreneures utiliseront ces informations pour vous contacter.
                   </p>
                 </div>
               </div>
@@ -732,21 +716,19 @@ try {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    {mode === "create"
-  ? "Publication..."
-  : "Enregistrement..."}
+                    {mode === "create" ? "Publication..." : "Enregistrement..."}
                   </>
                 ) : (
                   <>
                     <Send size={18} />
                     {mode === "create"
-  ? "Publier le programme"
-  : "Enregistrer les modifications"}
+                      ? "Publier le programme"
+                      : "Enregistrer les modifications"}
                   </>
                 )}
               </button>
@@ -756,7 +738,7 @@ try {
           {/* Preview */}
           <aside className="sticky top-6 h-fit rounded-2xl border border-sand-200 bg-white p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-600">
                 <Eye size={18} />
               </div>
               <div>
@@ -775,25 +757,27 @@ try {
                 </p>
               </div>
 
-<div className="rounded-xl bg-sand-50 p-4">
-  {form.shortDescription && (
-    <p className="mb-2 font-semibold text-ink">
-      {form.shortDescription}
-    </p>
-  )}
+              <div className="rounded-xl bg-sand-50 p-4">
+                {form.shortDescription && (
+                  <p className="mb-2 font-semibold text-ink">
+                    {form.shortDescription}
+                  </p>
+                )}
 
-  <p className="line-clamp-4 text-sm text-ink-soft">
-    {form.description ||
-      "La description du programme apparaîtra ici..."}
-  </p>
-</div>
+                <p className="line-clamp-4 text-sm text-ink-soft">
+                  {form.description ||
+                    "La description du programme apparaîtra ici..."}
+                </p>
+              </div>
 
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-ink-soft">Montant</span>
                   <span className="font-semibold text-ink">
                     {form.minAmount || form.maxAmount
-                      ? `${form.minAmount || "0"} - ${form.maxAmount || "?"} ${form.currency}`
+                      ? `${form.minAmount || "0"} - ${form.maxAmount || "?"} ${
+                          form.currency
+                        }`
                       : "-"}
                   </span>
                 </div>
@@ -813,12 +797,12 @@ try {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-rose-50 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-rose-700">
+              <div className="rounded-xl bg-red-50 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
                   <CalendarDays size={16} />
                   Période
                 </div>
-                <p className="mt-2 text-sm text-rose-900">
+                <p className="mt-2 text-sm text-red-900">
                   {form.openingDate || "Date début"} {" → "}
                   {form.closingDate || "Date fin"}
                 </p>

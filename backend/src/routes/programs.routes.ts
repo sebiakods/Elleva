@@ -1,140 +1,193 @@
-import { Router, Response, NextFunction } from "express";
-import { z } from "zod";
+import { Router } from "express";
+import { Role } from "@prisma/client";
 
-import * as ctrl from "../controllers/programs.controller";
-import { verifyToken, optionalToken } from "../middleware/auth";
-import { institutionOrAdmin } from "../middleware/rbac";
-import { validate } from "../middleware/validate";
-import { AuthenticatedRequest } from "../types";
-import prisma from "../config/database";
-import * as R from "../utils/response";
+import * as programController from "../controllers/programs.controller";
+import {
+  authenticate,
+  authorize,
+} from "../middleware/auth.middleware";
 
 const router = Router();
 
-/* -------------------------------------------------------------------------- */
-/*                                 Validation                                 */
-/* -------------------------------------------------------------------------- */
+// ============================================================================
+// INSTITUTION
+// ============================================================================
 
-const createProgramSchema = z.object({
-  slug: z.string().min(3),
-
-  title: z.string().min(5),
-  shortDescription: z.string().optional(),
-  description: z.string().min(20),
-
-  category: z.enum([
-    "BANK_LOAN",
-    "ISLAMIC_FINANCE",
-    "GOVERNMENT_GRANT",
-    "STARTUP_FUNDING",
-  ]),
-
-  sector: z.string().optional(),
-  fundingType: z.string().optional(),
-
-  amountMin: z.number().nullable().optional(),
-  amountMax: z.number().nullable().optional(),
-
-  currency: z.string().default("DZD"),
-
-  openingDate: z.string().optional(),
-  closingDate: z.string().optional(),
-
-  region: z.string().optional(),
-
-  targetAudience: z.string().optional(),
-
-  eligibility: z.array(z.string()).default([]),
-
-  requiredDocuments: z.array(z.string()).default([]),
-
-  website: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-
-  status: z.enum(["draft", "published"]),
-});
-
-const updateProgramSchema = createProgramSchema.partial();
-
-/* -------------------------------------------------------------------------- */
-/*                        Attach Institution Profile ID                        */
-/* -------------------------------------------------------------------------- */
-
-async function attachInstitutionProfile(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const profile = await prisma.institutionProfile.findUnique({
-      where: {
-        userId: req.user!.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!profile) {
-      R.forbidden(res, "Profil institution introuvable");
-      return;
-    }
-
-    req.body._institutionProfileId = profile.id;
-
-    next();
-  } catch (error) {
-    console.error(error);
-    R.serverError(res);
-    return;
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/*                                   Public                                   */
-/* -------------------------------------------------------------------------- */
-
-router.get("/", optionalToken, ctrl.listPrograms);
-
-router.get("/favorites", verifyToken, ctrl.getFavorites);
-
-router.post("/:programId/favorite", verifyToken, ctrl.toggleFavorite);
-
-/* -------------------------------------------------------------------------- */
-/*                             Institution CRUD                               */
-/* -------------------------------------------------------------------------- */
-
-router.post(
-  "/",
-  verifyToken,
-  institutionOrAdmin,
-  validate(createProgramSchema),
-  attachInstitutionProfile,
-  ctrl.createProgram
+router.get(
+  "/institution/programs",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.listInstitutionPrograms
 );
 
-router.patch(
-  "/:id",
-  verifyToken,
-  institutionOrAdmin,
-  validate(updateProgramSchema),
-  attachInstitutionProfile,
-  ctrl.updateProgram
+router.get(
+  "/institution/programs/stats",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.getInstitutionStats
+);
+
+router.post(
+  "/institution/programs",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.createProgram
+);
+
+router.get(
+  "/institution/programs/:id",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.getInstitutionProgram
+);
+
+router.put(
+  "/institution/programs/:id",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.updateProgram
 );
 
 router.delete(
-  "/:id",
-  verifyToken,
-  institutionOrAdmin,
-  attachInstitutionProfile,
-  ctrl.deleteProgram
+  "/institution/programs/:id",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.deleteProgram
 );
 
-/* -------------------------------------------------------------------------- */
-/*                               Public Single                                */
-/* -------------------------------------------------------------------------- */
+router.patch(
+  "/institution/programs/:id/publish",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.publishProgram
+);
 
-router.get("/:slug", optionalToken, ctrl.getProgram);
+router.patch(
+  "/institution/programs/:id/archive",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.archiveProgram
+);
+
+router.get(
+  "/institution/programs/:id/applications",
+  authenticate,
+  authorize(Role.INSTITUTION),
+  programController.getInstitutionProgramApplications
+);
+
+// ============================================================================
+// PUBLIC / ENTREPRENEUR
+// ============================================================================
+
+router.get(
+  "/programs",
+  programController.listPrograms
+);
+
+router.get(
+  "/programs/:id",
+  programController.getProgram
+);
+
+router.post(
+  "/programs/:id/apply",
+  authenticate,
+  authorize(Role.ENTREPRENEUR),
+  programController.applyToProgram
+);
+
+router.post(
+  "/programs/:id/favorite",
+  authenticate,
+  authorize(Role.ENTREPRENEUR),
+  programController.favoriteProgram
+);
+
+router.delete(
+  "/programs/:id/favorite",
+  authenticate,
+  authorize(Role.ENTREPRENEUR),
+  programController.unfavoriteProgram
+);
+
+router.get(
+  "/my/applications",
+  authenticate,
+  authorize(Role.ENTREPRENEUR),
+  programController.listMyApplications
+);
+
+// ============================================================================
+// EXPERT
+// ============================================================================
+
+router.get(
+  "/expert/programs",
+  authenticate,
+  authorize(Role.EXPERT),
+  programController.listExpertPrograms
+);
+
+router.get(
+  "/expert/programs/:id",
+  authenticate,
+  authorize(Role.EXPERT),
+  programController.getExpertProgram
+);
+
+// ============================================================================
+// ADMIN
+// ============================================================================
+
+// IMPORTANT:
+// This endpoint returns ALL programs:
+// - published
+// - unpublished
+// - archived
+// - drafts
+// - programs created by institutions
+
+router.get(
+  "/admin/programs",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.listAllPrograms
+);
+
+router.get(
+  "/admin/programs/:id",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.getAnyProgram
+);
+
+router.put(
+  "/admin/programs/:id",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.adminUpdateProgram
+);
+
+router.delete(
+  "/admin/programs/:id",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.adminDeleteProgram
+);
+
+router.patch(
+  "/admin/programs/:id/publish",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.adminPublishProgram
+);
+
+router.patch(
+  "/admin/programs/:id/archive",
+  authenticate,
+  authorize(Role.ADMIN),
+  programController.adminArchiveProgram
+);
 
 export default router;

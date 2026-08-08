@@ -1,8 +1,8 @@
 import prisma from "../config/database";
-import { ApplicationStatus } from "../types";
+import { ApplicationStatus, ReviewStatus } from "../types";
 
 // ─────────────────────────────────────────────────────────────
-// Entrepreneur
+// ENTREPRENEUR
 // ─────────────────────────────────────────────────────────────
 
 export async function applyToProgram(
@@ -12,7 +12,9 @@ export async function applyToProgram(
   coverLetter?: string
 ) {
   const program = await prisma.financingProgram.findUnique({
-    where: { id: programId },
+    where: {
+      id: programId,
+    },
   });
 
   if (!program || !program.isPublished) {
@@ -50,7 +52,13 @@ export async function applyToProgram(
   });
 }
 
-export async function listMyApplications(applicantId: string) {
+// ─────────────────────────────────────────────────────────────
+// ENTREPRENEUR - List applications
+// ─────────────────────────────────────────────────────────────
+
+export async function listMyApplications(
+  applicantId: string
+) {
   return prisma.application.findMany({
     where: {
       applicantId,
@@ -63,7 +71,6 @@ export async function listMyApplications(applicantId: string) {
         select: {
           title: true,
           category: true,
-          rate: true,
           institutionProfile: {
             select: {
               institutionName: true,
@@ -75,34 +82,45 @@ export async function listMyApplications(applicantId: string) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// ENTREPRENEUR - Withdraw application
+// ─────────────────────────────────────────────────────────────
+
 export async function withdrawApplication(
   id: string,
   applicantId: string
 ) {
-  const app = await prisma.application.findUnique({
-    where: { id },
+  const application = await prisma.application.findUnique({
+    where: {
+      id,
+    },
   });
 
-  if (!app) {
+  if (!application) {
     throw new Error("NOT_FOUND");
   }
 
-  if (app.applicantId !== applicantId) {
+  if (application.applicantId !== applicantId) {
     throw new Error("FORBIDDEN");
   }
 
-  if (app.status === ApplicationStatus.APPROVED) {
+  if (
+    application.status ===
+    ApplicationStatus.APPROVED
+  ) {
     throw new Error("CANNOT_WITHDRAW");
   }
 
   await prisma.application.delete({
-    where: { id },
+    where: {
+      id,
+    },
   });
 }
 
 // ─────────────────────────────────────────────────────────────
-// Expert Application
-// Saves into BOTH ExpertApplication and AccountRequest
+// EXPERT APPLICATION
+// Saves into ExpertApplication + AccountRequest
 // ─────────────────────────────────────────────────────────────
 
 export async function applyExpertApplication(data: {
@@ -118,21 +136,23 @@ export async function applyExpertApplication(data: {
   motivation: string;
   cvPath?: string | null;
 }) {
-  const expertApplication = await prisma.expertApplication.create({
-    data: {
-      fullName: data.fullName,
-      email: data.email,
-      title: data.title,
-      experience: data.experience,
-      specialties: data.specialties,
-      languages: data.languages,
-      linkedin: data.linkedin,
-      portfolio: data.portfolio,
-      certifications: data.certifications,
-      motivation: data.motivation,
-      cvPath: data.cvPath ?? null,
-    },
-  });
+  const expertApplication =
+    await prisma.expertApplication.create({
+      data: {
+        fullName: data.fullName,
+        email: data.email,
+        title: data.title,
+        experience: data.experience,
+        specialties: data.specialties,
+        languages: data.languages,
+        linkedin: data.linkedin,
+        portfolio: data.portfolio,
+        certifications: data.certifications,
+        motivation: data.motivation,
+        cvPath: data.cvPath ?? null,
+        status: ReviewStatus.PENDING,
+      },
+    });
 
   await prisma.accountRequest.create({
     data: {
@@ -148,7 +168,7 @@ export async function applyExpertApplication(data: {
         portfolio: data.portfolio,
         certifications: data.certifications,
         motivation: data.motivation,
-        cvPath: data.cvPath,
+        cvPath: data.cvPath ?? null,
       },
     },
   });
@@ -157,7 +177,7 @@ export async function applyExpertApplication(data: {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Institution
+// INSTITUTION - List applications
 // ─────────────────────────────────────────────────────────────
 
 export async function listInstitutionApplications(
@@ -173,43 +193,55 @@ export async function listInstitutionApplications(
     program: {
       institutionProfileId,
     },
+
     ...(params.status
-      ? { status: params.status as ApplicationStatus }
+      ? {
+          status:
+            params.status as ApplicationStatus,
+        }
       : {}),
+
     ...(params.programId
-      ? { programId: params.programId }
+      ? {
+          programId: params.programId,
+        }
       : {}),
   };
 
-  const [applications, total] = await Promise.all([
-    prisma.application.findMany({
-      where,
-      skip: params.skip,
-      take: params.limit,
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        program: {
-          select: {
-            title: true,
-            category: true,
+  const [applications, total] =
+    await Promise.all([
+      prisma.application.findMany({
+        where,
+        skip: params.skip,
+        take: params.limit,
+
+        orderBy: {
+          createdAt: "desc",
+        },
+
+        include: {
+          program: {
+            select: {
+              title: true,
+              category: true,
+            },
+          },
+
+          applicant: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatarUrl: true,
+            },
           },
         },
-        applicant: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    }),
-    prisma.application.count({
-      where,
-    }),
-  ]);
+      }),
+
+      prisma.application.count({
+        where,
+      }),
+    ]);
 
   return {
     applications,
@@ -217,30 +249,39 @@ export async function listInstitutionApplications(
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// INSTITUTION - Update application status
+// ─────────────────────────────────────────────────────────────
+
 export async function updateApplicationStatus(
   id: string,
   institutionProfileId: string,
   status: ApplicationStatus,
   notes?: string
 ) {
-  const app = await prisma.application.findUnique({
-    where: {
-      id,
-    },
-    include: {
-      program: {
-        select: {
-          institutionProfileId: true,
+  const application =
+    await prisma.application.findUnique({
+      where: {
+        id,
+      },
+
+      include: {
+        program: {
+          select: {
+            institutionProfileId: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!app) {
+  if (!application) {
     throw new Error("NOT_FOUND");
   }
 
-  if (app.program.institutionProfileId !== institutionProfileId) {
+  if (
+    application.program.institutionProfileId !==
+    institutionProfileId
+  ) {
     throw new Error("FORBIDDEN");
   }
 
@@ -248,6 +289,7 @@ export async function updateApplicationStatus(
     where: {
       id,
     },
+
     data: {
       status,
       notes,
