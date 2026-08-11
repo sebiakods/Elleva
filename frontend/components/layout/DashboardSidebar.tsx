@@ -17,15 +17,16 @@ const DASHBOARD_NAV_LINKS = [
     icon: "Landmark",
   },
   {
+    href:"/dashboard/cources",
+    label:"Cources",
+    icon:"BookOpen"
+
+  },
+  {
     href: "/dashboard/calculators",
     label: "Calculateurs",
     icon: "Calculator",
-  },
-  {
-    href: "/dashboard/favorites",
-    label: "Favoris",
-    icon: "Heart",
-  },
+  }, 
   {
     href: "/dashboard/messages",
     label: "Messages",

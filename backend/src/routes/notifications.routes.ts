@@ -1,13 +1,61 @@
 import { Router } from "express";
-import * as ctrl from "../controllers/notifications.controller";
-import { verifyToken } from "../middleware/auth";
-import { allRoles } from "../middleware/rbac";
+
+import {
+  getUserNotifications,
+  getUnreadNotificationsCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  removeNotification,
+} from "../controllers/notifications.controller";
+
+import { authenticate } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.get   ("/",           verifyToken, allRoles, ctrl.listNotifications);
-router.patch ("/read-all",   verifyToken, allRoles, ctrl.markAllAsRead);
-router.patch ("/:id/read",   verifyToken, allRoles, ctrl.markAsRead);
-router.delete("/:id",        verifyToken, allRoles, ctrl.deleteNotification);
+/**
+ * Every notification endpoint requires
+ * a valid JWT.
+ */
+router.use(authenticate);
+
+/**
+ * GET /api/notifications
+ */
+router.get(
+  "/",
+  getUserNotifications
+);
+
+/**
+ * GET /api/notifications/unread-count
+ */
+router.get(
+  "/unread-count",
+  getUnreadNotificationsCount
+);
+
+/**
+ * PATCH /api/notifications/read-all
+ */
+router.patch(
+  "/read-all",
+  markAllNotificationsAsRead
+);
+
+/**
+ * PATCH /api/notifications/:id/read
+ */
+router.patch(
+  "/:id/read",
+  markNotificationAsRead
+);
+
+/**
+ * DELETE /api/notifications/:id
+ */
+router.delete(
+  "/:id",
+  removeNotification
+);
 
 export default router;
