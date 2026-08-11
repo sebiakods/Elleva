@@ -1,62 +1,330 @@
-import prisma from "../config/database";
-import { NotificationType } from "../types";
+import { PrismaClient, NotificationType } from "@prisma/client";
 
-export async function listNotifications(
-  userId: string,
-  params: { skip: number; limit: number; unreadOnly?: boolean }
-) {
-  const where = {
-    userId,
-    ...(params.unreadOnly ? { isRead: false } : {}),
-  };
+const prisma = new PrismaClient();
 
-  const [notifications, total, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where,
-      skip: params.skip,
-      take: params.limit,
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.notification.count({ where }),
-    prisma.notification.count({ where: { userId, isRead: false } }),
-  ]);
-
-  return { notifications, total, unreadCount };
-}
-
-export async function markAsRead(id: string, userId: string) {
-  const notif = await prisma.notification.findUnique({ where: { id } });
-  if (!notif)               throw new Error("NOT_FOUND");
-  if (notif.userId !== userId) throw new Error("FORBIDDEN");
-
-  return prisma.notification.update({
-    where: { id },
-    data: { isRead: true, readAt: new Date() },
-  });
-}
-
-export async function markAllAsRead(userId: string) {
-  const { count } = await prisma.notification.updateMany({
-    where: { userId, isRead: false },
-    data: { isRead: true, readAt: new Date() },
-  });
-  return { updated: count };
-}
-
-export async function deleteNotification(id: string, userId: string) {
-  const notif = await prisma.notification.findUnique({ where: { id } });
-  if (!notif)               throw new Error("NOT_FOUND");
-  if (notif.userId !== userId) throw new Error("FORBIDDEN");
-  await prisma.notification.delete({ where: { id } });
-}
-
-// ─── Internal helper — called from other services ─────────────────────────────
-export async function createNotification(data: {
+export interface CreateNotificationInput {
   userId: string;
   type: NotificationType;
   title: string;
   body: string;
-  link?: string;
-}) {
-  return prisma.notification.create({ data });
+  link?: string | null;
+}
+
+/**
+ * Create one notification for one user.
+ */
+export async function createNotification(
+  data: CreateNotificationInput
+) {
+  return prisma.notification.create({
+    data: {
+      userId: data.userId,
+      type: data.type,
+      title: data.title,
+      body: data.body,
+      link: data.link ?? null,
+    },
+  });
+}
+
+/**
+ * Get notifications belonging ONLY to the authenticated user.
+ */
+export async function getNotifications(
+  userId: string,
+  options?: {
+    unreadOnly?: boolean;
+    limit?: number;
+  }
+) {
+  const limit = Math.min(
+    Math.max(options?.limit ?? 50, 1),
+    100
+  );
+
+  return prisma.notification.findMany({
+    where: {
+      userId,
+
+      ...(options?.unreadOnly
+        ? {
+            isRead: false,
+          }
+        : {}),
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+
+    take: limit,
+  });
+}
+
+/**
+ * Get number of unread notifications.
+ */
+export async function getUnreadCount(
+  userId: string
+) {
+  return prisma.notification.count({
+    where: {
+      userId,
+      isRead: false,
+    },
+  });
+}
+
+/**
+ * Mark one notification as read.
+ *
+ * updateMany is intentional:
+ * it ensures the notification belongs to the
+ * authenticated user before changing it.
+ */
+export async function markAsRead(
+  notificationId: string,
+  userId: string
+) {
+  return prisma.notification.updateMany({
+    where: {
+      id: notificationId,
+      userId,
+    },
+
+    data: {
+      isRead: true,
+      readAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Mark all notifications belonging to the user as read.
+ */
+export async function markAllAsRead(
+  userId: string
+) {
+  return prisma.notification.updateMany({
+    where: {
+      userId,
+      isRead: false,
+    },
+
+    data: {
+      isRead: true,
+      readAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Delete one notification belonging to the user.
+ */
+export async function deleteNotification(
+  notificationId: string,
+  userId: string
+) {
+  return prisma.notification.deleteMany({
+    where: {
+      id: notificationId,
+      userId,
+    },
+  });
+}
+
+/* =========================================================
+   NOTIFICATION CREATION HELPERS
+   ========================================================= */
+
+/**
+ * NEW_MESSAGE
+ */
+export async function notifyNewMessage(
+  receiverId: string,
+  senderName: string,
+  conversationId: string
+) {
+  return createNotification({
+    userId: receiverId,
+
+    type: NotificationType.NEW_MESSAGE,
+
+    title: "Nouveau message",
+
+    body: `${senderName} vous a envoyé un nouveau message.`,
+
+    link: `/messages?conversation=${conversationId}`,
+  });
+}
+
+/**
+ * SESSION_BOOKED
+ */
+export async function notifySessionBooked(
+  userId: string,
+  otherUserName: string,
+  sessionId: string
+) {
+  return createNotification({
+    userId,
+
+    type: NotificationType.SESSION_BOOKED,
+
+    title: "Séance réservée",
+
+    body: `Une séance avec ${otherUserName} a été réservée.`,
+
+    link: `/sessions/${sessionId}`,
+  });
+}
+
+/**
+ * BUSINESS_PLAN_SUBMITTED
+ */
+export async function notifyBusinessPlanSubmitted(
+  userId: string,
+  entrepreneurName: string,
+  businessPlanId: string
+) {
+  return createNotification({
+    userId,
+
+    type: NotificationType.BUSINESS_PLAN_SUBMITTED,
+
+    title: "Business plan soumis",
+
+    body: `${entrepreneurName} a soumis un business plan.`,
+
+    link: `/business-plans/${businessPlanId}`,
+  });
+}
+
+/**
+ * BUSINESS_PLAN_REVIEWED
+ */
+export async function notifyBusinessPlanReviewed(
+  entrepreneurId: string,
+  status: string,
+  businessPlanId: string
+) {
+  return createNotification({
+    userId: entrepreneurId,
+
+    type: NotificationType.BUSINESS_PLAN_REVIEWED,
+
+    title: "Business plan examiné",
+
+    body: `Votre business plan a été ${status.toLowerCase()}.`,
+
+    link: `/business-plans/${businessPlanId}`,
+  });
+}
+
+/**
+ * NEW_QUESTION
+ */
+export async function notifyNewQuestion(
+  expertId: string,
+  entrepreneurName: string,
+  questionId: string
+) {
+  return createNotification({
+    userId: expertId,
+
+    type: NotificationType.NEW_QUESTION,
+
+    title: "Nouvelle question",
+
+    body: `${entrepreneurName} vous a posé une question.`,
+
+    link: `/expert/questions/${questionId}`,
+  });
+}
+
+/**
+ * NEW_REVIEW
+ */
+export async function notifyNewReview(
+  expertId: string,
+  reviewerName: string,
+  rating: number,
+  reviewId: string
+) {
+  return createNotification({
+    userId: expertId,
+
+    type: NotificationType.NEW_REVIEW,
+
+    title: "Nouvel avis",
+
+    body: `${reviewerName} vous a laissé une note de ${rating}/5.`,
+
+    link: `/expert/reviews/${reviewId}`,
+  });
+}
+
+/**
+ * APPLICATION_STATUS_CHANGED
+ */
+export async function notifyApplicationStatusChanged(
+  entrepreneurId: string,
+  programTitle: string,
+  status: string,
+  applicationId: string
+) {
+  return createNotification({
+    userId: entrepreneurId,
+
+    type: NotificationType.APPLICATION_STATUS_CHANGED,
+
+    title: "Statut de candidature modifié",
+
+    body: `Votre candidature pour "${programTitle}" est maintenant ${status}.`,
+
+    link: `/applications/${applicationId}`,
+  });
+}
+
+/**
+ * PROGRAM_PUBLISHED
+ */
+export async function notifyProgramPublished(
+  entrepreneurId: string,
+  programTitle: string,
+  programId: string
+) {
+  return createNotification({
+    userId: entrepreneurId,
+
+    type: NotificationType.PROGRAM_PUBLISHED,
+
+    title: "Nouveau programme de financement",
+
+    body: `"${programTitle}" vient d'être publié.`,
+
+    link: `/financing/${programId}`,
+  });
+}
+
+/**
+ * GENERAL
+ */
+export async function notifyGeneral(
+  userId: string,
+  title: string,
+  body: string,
+  link?: string | null
+) {
+  return createNotification({
+    userId,
+
+    type: NotificationType.GENERAL,
+
+    title,
+
+    body,
+
+    link: link ?? null,
+  });
 }

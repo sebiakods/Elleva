@@ -30,9 +30,6 @@ export const FINANCING_CATEGORIES = [
 export const EXPERT_NAV_LINKS = [
   { href: "/expert", label: "Aperçu", icon: "LayoutDashboard" },
   { href: "/expert/courses", label: "Cours", icon: "GraduationCap" },
-  { href: "/expert/articles", label: "Articles", icon: "Newspaper" },
-  { href: "/expert/videos", label: "Vidéos", icon: "Video" },
-  { href: "/expert/resources", label: "Ressources", icon: "FolderOpen" },
   { href: "/expert/business-plans", label: "Business Plans", icon: "FileText" },
   { href: "/expert/entrepreneurs", label: "Entrepreneures", icon: "Users" },
   { href: "/expert/messages", label: "Messages", icon: "MessageSquare" },
@@ -42,7 +39,7 @@ export const EXPERT_NAV_LINKS = [
   { href: "/expert/notifications", label: "Notifications", icon: "Bell" },
   { href: "/expert/analytics", label: "Analytics", icon: "BarChart2" },
   { href: "/expert/reviews", label: "Avis", icon: "Star" },
-  { href :"/expert/meeting",label:"Réunions",icon:"CalendarPlus"},
+  { href: "/expert/meeting", label: "Réunions", icon: "CalendarPlus" },
   { href: "/expert/profile", label: "Profil", icon: "User" },
   { href: "/expert/settings", label: "Paramètres", icon: "Settings" },
 ];

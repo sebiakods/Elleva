@@ -323,77 +323,123 @@ model QAQuestion {
 }
 
 model Course {
-  id              String        @id @default(cuid())
-  slug            String        @unique
+  id              String  @id @default(cuid())
+  slug            String  @unique
   title           String
   description     String
   category        String
   level           String
   durationMinutes Int
-  lessonCount     Int           @default(0)
-  enrolledCount   Int           @default(0)
-  rating          Float         @default(0)
+  lessonCount     Int     @default(0)
+  enrolledCount   Int     @default(0)
+  rating          Float   @default(0)
   coverUrl        String?
-  isPublished     Boolean       @default(false)
+  isPublished     Boolean @default(false)
+
   expertProfileId String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expertProfile ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  articles  Article[]
+  resources Resource[]
+  videos    Video[]
 
   @@index([expertProfileId])
   @@index([isPublished])
+  @@index([category])
+  @@index([level])
 }
 
 model Article {
-  id              String        @id @default(cuid())
-  slug            String        @unique
+  id              String    @id @default(cuid())
+  slug            String    @unique
   title           String
   excerpt         String
   content         String
   category        String
-  readTimeMinutes Int           @default(5)
-  views           Int           @default(0)
-  isPublished     Boolean       @default(false)
+  coverUrl        String?
+  pdfUrl          String?
+  readTimeMinutes Int       @default(5)
+  views           Int       @default(0)
+  isPublished     Boolean   @default(false)
   publishedAt     DateTime?
+  order           Int       @default(0)
+
   expertProfileId String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  courseId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expertProfile ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  course        Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
   @@index([expertProfileId])
+  @@index([courseId])
   @@index([isPublished])
   @@index([slug])
+  @@index([order])
 }
 
 model Video {
-  id              String        @id @default(cuid())
+  id              String  @id @default(cuid())
   title           String
   description     String
   durationSeconds Int
   thumbnailUrl    String?
   videoUrl        String?
-  views           Int           @default(0)
+  fileSizeBytes   BigInt?
+  mimeType        String?
+  views           Int     @default(0)
   category        String
-  isPublished     Boolean       @default(false)
+  isPublished     Boolean @default(false)
+  order           Int     @default(0)
+
   expertProfileId String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  courseId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expertProfile ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  course        Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([expertProfileId])
+  @@index([courseId])
+  @@index([isPublished])
+  @@index([category])
+  @@index([order])
 }
 
 model Resource {
-  id              String        @id @default(cuid())
-  title           String
-  description     String
-  type            String
-  fileUrl         String?
-  fileSizeBytes   BigInt?
-  downloadCount   Int           @default(0)
-  isPublished     Boolean       @default(false)
+  id            String  @id @default(cuid())
+  title         String
+  description   String
+  type          String
+  fileUrl       String?
+  coverUrl      String?
+  fileSizeBytes BigInt?
+  downloadCount Int     @default(0)
+  isPublished   Boolean @default(false)
+  order         Int     @default(0)
+
   expertProfileId String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  courseId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expertProfile ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+  course        Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([expertProfileId])
+  @@index([courseId])
+  @@index([isPublished])
+  @@index([type])
+  @@index([order])
 }
 
 model InstitutionEvent {
@@ -580,4 +626,14 @@ model Category {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }

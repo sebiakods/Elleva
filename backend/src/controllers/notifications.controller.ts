@@ -1,53 +1,277 @@
-import { Response } from "express";
-import * as svc from "../services/notifications.service";
-import * as R from "../utils/response";
-import { getPagination, paginate } from "../utils/pagination";
-import { AuthenticatedRequest } from "../types";
+import { Request, Response } from "express";
 
-export async function listNotifications(req: AuthenticatedRequest, res: Response): Promise<void> {
-  try {
-    const { page, limit, skip } = getPagination(req);
-    const unreadOnly = req.query.unreadOnly === "true";
-    const { notifications, total, unreadCount } = await svc.listNotifications(
-      req.user!.id, { skip, limit, unreadOnly }
-    );
-    R.ok(res, { ...paginate(notifications, total, { page, limit, skip }), unreadCount });
-  } catch (err) {
-    console.error(err);
-    R.serverError(res);  }
-}
+import {
+  getNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+} from "../services/notifications.service";
 
-export async function markAsRead(req: AuthenticatedRequest, res: Response): Promise<void> {
+/**
+ * GET /api/notifications
+ *
+ * Returns notifications belonging to the
+ * currently authenticated user.
+ */
+export async function getUserNotifications(
+  req: Request,
+  res: Response
+) {
   try {
-    const notif = await svc.markAsRead(String(req.params.id), req.user!.id);
-    R.ok(res, notif);
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      if (err.message === "NOT_FOUND") return void R.notFound(res);
-      if (err.message === "FORBIDDEN") return void R.forbidden(res);
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
     }
-    R.serverError(res);
+
+    const unreadOnly =
+      req.query.unreadOnly === "true";
+
+    const limitParam =
+      typeof req.query.limit === "string"
+        ? Number(req.query.limit)
+        : 50;
+
+    const limit = Number.isFinite(limitParam)
+      ? limitParam
+      : 50;
+
+    const notifications =
+      await getNotifications(
+        req.user.id,
+        {
+          unreadOnly,
+          limit,
+        }
+      );
+
+    return res.status(200).json({
+      success: true,
+      notifications,
+      count: notifications.length,
+    });
+  } catch (error) {
+    console.error(
+      "GET /notifications error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to fetch notifications",
+    });
   }
 }
 
-export async function markAllAsRead(req: AuthenticatedRequest, res: Response): Promise<void> {
+/**
+ * GET /api/notifications/unread-count
+ */
+export async function getUnreadNotificationsCount(
+  req: Request,
+  res: Response
+) {
   try {
-    const result = await svc.markAllAsRead(req.user!.id);
-    R.ok(res, result, "Toutes les notifications marquées comme lues");
-  } catch (err) {
-    console.error(err);
-    R.serverError(res);  }
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const count =
+      await getUnreadCount(req.user.id);
+
+    return res.status(200).json({
+      success: true,
+      count,
+    });
+  } catch (error) {
+    console.error(
+      "GET /notifications/unread-count error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to fetch unread notification count",
+    });
+  }
 }
 
-export async function deleteNotification(req: AuthenticatedRequest, res: Response): Promise<void> {
+/**
+ * PATCH /api/notifications/:id/read
+ */
+export async function markNotificationAsRead(
+  req: Request,
+  res: Response
+) {
   try {
-    await svc.deleteNotification(String(req.params.id), req.user!.id);
-    R.noContent(res);
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      if (err.message === "NOT_FOUND") return void R.notFound(res);
-      if (err.message === "FORBIDDEN") return void R.forbidden(res);
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
     }
-    R.serverError(res);
+
+    /**
+     * Express can type params as string | string[].
+     * We normalize it to a string.
+     */
+    const notificationId = Array.isArray(
+      req.params.id
+    )
+      ? req.params.id[0]
+      : req.params.id;
+
+    if (!notificationId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Notification ID is required",
+      });
+    }
+
+    const result =
+      await markAsRead(
+        notificationId,
+        req.user.id
+      );
+
+    if (result.count === 0) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Notification not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Notification marked as read",
+    });
+  } catch (error) {
+    console.error(
+      "PATCH /notifications/:id/read error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to mark notification as read",
+    });
+  }
+}
+
+/**
+ * PATCH /api/notifications/read-all
+ */
+export async function markAllNotificationsAsRead(
+  req: Request,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required",
+      });
+    }
+
+    const result =
+      await markAllAsRead(
+        req.user.id
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "All notifications marked as read",
+      count: result.count,
+    });
+  } catch (error) {
+    console.error(
+      "PATCH /notifications/read-all error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to mark all notifications as read",
+    });
+  }
+}
+
+/**
+ * DELETE /api/notifications/:id
+ */
+export async function removeNotification(
+  req: Request,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required",
+      });
+    }
+
+    /**
+     * Express can type params as string | string[].
+     * We normalize it to a string.
+     */
+    const notificationId = Array.isArray(
+      req.params.id
+    )
+      ? req.params.id[0]
+      : req.params.id;
+
+    if (!notificationId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Notification ID is required",
+      });
+    }
+
+    const result =
+      await deleteNotification(
+        notificationId,
+        req.user.id
+      );
+
+    if (result.count === 0) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Notification not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Notification deleted",
+    });
+  } catch (error) {
+    console.error(
+      "DELETE /notifications/:id error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to delete notification",
+    });
   }
 }
