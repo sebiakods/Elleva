@@ -17,16 +17,20 @@ const DASHBOARD_NAV_LINKS = [
     icon: "Landmark",
   },
   {
-    href:"/dashboard/cources",
-    label:"Cources",
-    icon:"BookOpen"
-
+    href: "/dashboard/courses",
+    label: "Cours",
+    icon: "BookOpen",
+  },
+  {
+    href: "/dashboard/meeting",
+    label: "Réunions",
+    icon: "Video",
   },
   {
     href: "/dashboard/calculators",
     label: "Calculateurs",
     icon: "Calculator",
-  }, 
+  },
   {
     href: "/dashboard/messages",
     label: "Messages",
@@ -36,6 +40,11 @@ const DASHBOARD_NAV_LINKS = [
     href: "/dashboard/notifications",
     label: "Notifications",
     icon: "Bell",
+  },
+  {
+    href: "/dashboard/qa",
+    label: "Q&R", // or "Questions & Réponses"
+    icon: "HelpCircle", // or "CircleHelp" for newer Lucide versions
   },
   {
     href: "/dashboard/profile",

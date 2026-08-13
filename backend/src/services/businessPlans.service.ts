@@ -9,7 +9,7 @@ export async function listMyPlans(ownerId: string) {
     select: {
       id: true, title: true, status: true,
       progress: true, createdAt: true, updatedAt: true,
-      reviewScore: true, reviewedAt: true,
+      reviewScore: true, reviewedAt: true, reviewNotes: true,
     },
   });
 }
@@ -75,17 +75,28 @@ export async function deletePlan(id: string, ownerId: string) {
 }
 
 // ─── Expert: review queue ─────────────────────────────────────────────────────
-export async function listSubmittedPlans(params: { skip: number; limit: number }) {
-  const where = {
-    status: { in: [BusinessPlanStatus.SUBMITTED, BusinessPlanStatus.IN_REVIEW] },
-  };
+export async function listSubmittedPlans(params: {
+  skip: number;
+  limit: number;
+  view?: "pending" | "completed";
+  expertId?: string;
+}) {
+  const where =
+    params.view === "completed"
+      ? {
+          status: { in: [BusinessPlanStatus.APPROVED, BusinessPlanStatus.REJECTED] },
+          ...(params.expertId ? { reviewedById: params.expertId } : {}),
+        }
+      : {
+          status: { in: [BusinessPlanStatus.SUBMITTED, BusinessPlanStatus.IN_REVIEW] },
+        };
 
   const [plans, total] = await Promise.all([
     prisma.businessPlan.findMany({
       where,
       skip: params.skip,
       take: params.limit,
-      orderBy: { updatedAt: "asc" },
+      orderBy: { updatedAt: params.view === "completed" ? "desc" : "asc" },
       include: { owner: { select: { id: true, name: true, email: true, avatarUrl: true } } },
     }),
     prisma.businessPlan.count({ where }),

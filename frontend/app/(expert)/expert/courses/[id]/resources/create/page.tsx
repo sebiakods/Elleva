@@ -160,7 +160,7 @@ export default function CreateResourcePage() {
        * This follows the same multipart convention
        * already used by the article system.
        */
-      formData.append("files", file);
+      formData.append("file", file);
 
       const res = await fetch(
         `${API_URL}/courses/${courseId}/resources`,

@@ -142,20 +142,33 @@ const upload = multer({
 });
 
 /* ============================================================
-   PUBLIC COURSES
+   EXPERT COURSES
 ============================================================ */
 
-/*
- * GET /api/courses/public
- *
- * Publicly visible published courses.
- */
 
+/*
+ * GET /api/courses/expert
+ *
+ * Récupère uniquement les cours créés par l'expert connecté.
+ */
 router.get(
-  "/public",
-  getPublishedCourses
+  "/expert",
+  verifyToken,
+  expertOnly,
+  getMyCourses
 );
 
+/*
+ * GET /api/courses
+ *
+ * Si appelé par un utilisateur classique : retourne les cours publiés.
+ * Si vous voulez réserver /api/courses aux cours publics/publiés :
+ */
+router.get(
+  "/",
+  verifyToken, // Exige d'être connecté, mais PAS expertOnly
+  getPublishedCourses // Retourne la liste des cours pour le catalogue utilisateur
+);
 /* ============================================================
    EXPERT COURSES
 ============================================================ */
@@ -448,6 +461,26 @@ router.delete(
   deleteVideo
 );
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ============================================================
    RESOURCES
 ============================================================ */
@@ -528,3 +561,125 @@ router.delete(
 ============================================================ */
 
 export default router;
+/*
+ * ============================================================
+ * USER COURSE CATALOG
+ * ============================================================
+ */
+
+/*
+ * GET /api/courses
+ *
+ * Published courses for entrepreneurs/users.
+ *
+ * NO payment logic.
+ * NO enrollment logic.
+ */
+router.get(
+  "/",
+  verifyToken,
+  getPublishedCourses
+);
+
+
+/*
+ * GET /api/courses/:id
+ *
+ * Read one published course.
+ *
+ * IMPORTANT:
+ * This is for displaying course content.
+ *
+ * Payment is handled completely by frontend.
+ */
+router.get(
+  "/:id",
+  verifyToken,
+  getCourse
+);
+
+
+/*
+ * ============================================================
+ * EXPERT COURSE MANAGEMENT
+ * ============================================================
+ */
+
+/*
+ * GET /api/courses/expert
+ */
+router.get(
+  "/expert",
+  verifyToken,
+  expertOnly,
+  getMyCourses
+);
+
+
+/*
+ * POST /api/courses
+ */
+router.post(
+  "/",
+  verifyToken,
+  expertOnly,
+  upload.fields([
+    {
+      name: "cover",
+      maxCount: 1,
+    },
+    {
+      name: "resourceFiles",
+      maxCount: 50,
+    },
+    {
+      name: "articleFiles",
+      maxCount: 50,
+    },
+    {
+      name: "videoFiles",
+      maxCount: 20,
+    },
+  ]),
+  createCourse
+);
+
+
+/*
+ * PUT /api/courses/:id
+ */
+router.put(
+  "/:id",
+  verifyToken,
+  expertOnly,
+  upload.fields([
+    {
+      name: "cover",
+      maxCount: 1,
+    },
+    {
+      name: "resourceFiles",
+      maxCount: 50,
+    },
+    {
+      name: "articleFiles",
+      maxCount: 50,
+    },
+    {
+      name: "videoFiles",
+      maxCount: 20,
+    },
+  ]),
+  updateCourse
+);
+
+
+/*
+ * DELETE /api/courses/:id
+ */
+router.delete(
+  "/:id",
+  verifyToken,
+  expertOnly,
+  deleteCourse
+);

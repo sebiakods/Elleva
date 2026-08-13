@@ -37,7 +37,8 @@ model User {
   refreshTokens         RefreshToken[]
   sessionAsEntrepreneur Session[]           @relation("EntrepreneurSessions")
   sessionAsExpert       Session[]           @relation("ExpertSessions")
-
+  meetingsHosted        Meeting[]             @relation("MeetingHost")
+  meetingInvitations     MeetingParticipant[] @relation("MeetingInvitee")
   @@index([email])
   @@index([role])
 }
@@ -55,25 +56,26 @@ model RefreshToken {
 }
 
 model ExpertProfile {
-  id                  String     @id @default(cuid())
-  userId              String     @unique
+  id                  String                @id @default(cuid())
+  userId              String                @unique
   title               String
   specialties         String[]
-  sessionRateDA       Int        @default(0)
-  availableForBooking Boolean    @default(true)
+  sessionRateDA       Int                   @default(0)
+  availableForBooking Boolean               @default(true)
   linkedinUrl         String?
   websiteUrl          String?
-  rating              Float      @default(0)
-  reviewCount         Int        @default(0)
-  sessionCount        Int        @default(0)
-  isApprovedByAdmin   Boolean    @default(false)
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  rating              Float                 @default(0)
+  reviewCount         Int                   @default(0)
+  sessionCount        Int                   @default(0)
+  isApprovedByAdmin   Boolean               @default(false)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   articles            Article[]
   courses             Course[]
-  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   resources           Resource[]
   videos              Video[]
+  calendarEvents      ExpertCalendarEvent[]
 }
 
 model InstitutionProfile {
@@ -250,6 +252,39 @@ model Message {
   @@index([createdAt])
 }
 
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  platform    String
+  meetingUrl  String
+  scheduledAt DateTime
+  notes       String?
+
+  expertId String
+  expert   User   @relation("MeetingHost", fields: [expertId], references: [id], onDelete: Cascade)
+
+  participants MeetingParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expertId])
+  @@index([scheduledAt])
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  meetingId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation("MeetingInvitee", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+}
+
 model Notification {
   id        String           @id @default(cuid())
   userId    String
@@ -267,8 +302,9 @@ model Notification {
 }
 
 model Session {
-  id              String        @id @default(cuid())
-  entrepreneurId  String
+  id             String @id @default(cuid())
+  entrepreneurId String
+
   expertId        String
   topic           String
   durationMinutes Int           @default(60)
@@ -352,6 +388,8 @@ model Course {
   @@index([category])
   @@index([level])
 }
+
+
 
 model Article {
   id              String    @id @default(cuid())
@@ -575,6 +613,7 @@ enum NotificationType {
   NEW_REVIEW
   APPLICATION_STATUS_CHANGED
   PROGRAM_PUBLISHED
+  MEETING_SCHEDULED
   GENERAL
 }
 
@@ -636,4 +675,23 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+model ExpertCalendarEvent {
+  id              String @id @default(cuid())
+  expertProfileId String
+
+  title       String
+  description String?
+  date        DateTime
+  allDay      Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expertProfile ExpertProfile @relation(fields: [expertProfileId], references: [id], onDelete: Cascade)
+
+  @@index([expertProfileId])
+  @@index([date])
+  @@index([expertProfileId, date])
 }

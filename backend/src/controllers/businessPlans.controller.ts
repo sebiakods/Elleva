@@ -10,7 +10,8 @@ export async function listMyPlans(req: AuthenticatedRequest, res: Response): Pro
     R.ok(res, plans);
   } catch (err) {
     console.error(err);
-    R.serverError(res);  }
+    R.serverError(res);
+  }
 }
 
 export async function getPlan(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -32,7 +33,8 @@ export async function createPlan(req: AuthenticatedRequest, res: Response): Prom
     R.created(res, plan, "Business plan créé");
   } catch (err) {
     console.error(err);
-    R.serverError(res);  }
+    R.serverError(res);
+  }
 }
 
 export async function updatePlan(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -81,11 +83,18 @@ export async function deletePlan(req: AuthenticatedRequest, res: Response): Prom
 export async function listSubmittedPlans(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const { page, limit, skip } = getPagination(req);
-    const { plans, total } = await svc.listSubmittedPlans({ skip, limit });
+    const view = req.query.view === "completed" ? "completed" : "pending";
+    const { plans, total } = await svc.listSubmittedPlans({
+      skip,
+      limit,
+      view,
+      expertId: view === "completed" ? req.user!.id : undefined,
+    });
     R.ok(res, paginate(plans, total, { page, limit, skip }));
   } catch (err) {
     console.error(err);
-    R.serverError(res);  }
+    R.serverError(res);
+  }
 }
 
 export async function reviewPlan(req: AuthenticatedRequest, res: Response): Promise<void> {
