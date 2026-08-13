@@ -9,8 +9,8 @@ export default async function EditBusinessPlanPage({
   const { id } = await params;
   return (
     <>
-      <Header title={`Modifier le plan #${id}`} />
-      <BusinessPlanBuilder initialTitle="Atelier Lumière — Bougies artisanales" />
+      <Header title="Modifier le plan" />
+      <BusinessPlanBuilder planId={id} />
     </>
   );
 }

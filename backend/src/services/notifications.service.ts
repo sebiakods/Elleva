@@ -328,3 +328,44 @@ export async function notifyGeneral(
     link: link ?? null,
   });
 }
+/**
+ * MEETING_SCHEDULED
+ */
+export async function notifyMeetingScheduled(
+  userId: string,
+  expertName: string,
+  meetingTitle: string,
+  meetingId: string
+) {
+  return createNotification({
+    userId,
+
+    type: NotificationType.MEETING_SCHEDULED,
+
+    title: "Nouvelle réunion",
+
+    body: `${expertName} vous a invitée à une réunion : "${meetingTitle}".`,
+
+    link: `/dashboard/meeting/${meetingId}`,
+  });
+}
+/**
+ * QUESTION_ANSWERED (reuses GENERAL type — no new enum value required)
+ */
+export async function notifyQuestionAnswered(
+  askerId: string,
+  expertName: string,
+  questionId: string
+) {
+  return createNotification({
+    userId: askerId,
+
+    type: NotificationType.GENERAL,
+
+    title: "Votre question a une réponse",
+
+    body: `${expertName} a répondu à votre question.`,
+
+    link: `/dashboard/qa/${questionId}`,
+  });
+}

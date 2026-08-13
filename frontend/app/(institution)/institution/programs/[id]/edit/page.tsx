@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-const API =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 const CATEGORIES = [
   { value: "BANK_LOAN", label: "Bank Loan" },
@@ -14,10 +13,36 @@ const CATEGORIES = [
   { value: "STARTUP_FUNDING", label: "Startup Funding" },
 ];
 
+interface Program {
+  id: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  amountMin?: string | number | null;
+  amountMax?: string | number | null;
+  isPublished?: boolean;
+}
+
+function getToken() {
+  if (typeof window === "undefined") return null;
+
+  return (
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("token")
+  );
+}
+
 export default function EditInstitutionProgramPage() {
   const router = useRouter();
   const params = useParams();
-  const id = params?.id as string;
+
+  const rawId = params?.id;
+
+  const id = Array.isArray(rawId)
+    ? rawId[0]
+    : typeof rawId === "string"
+      ? rawId
+      : "";
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,118 +57,153 @@ export default function EditInstitutionProgramPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-const loadProgram = useCallback(async () => {
-  if (!id) {
-    setLoadError("Program ID is missing.");
-    setLoading(false);
-    return;
-  }
-
-  try {
-    setLoading(true);
-    setLoadError(null);
-
-    const token = window.localStorage.getItem("accessToken");
-
-    if (!token) {
-      setLoadError("Authentication required. Please log in again.");
+  /*
+   * We intentionally load from the working
+   * institution list endpoint.
+   *
+   * This avoids the BigInt serialization
+   * problem currently present in the direct
+   * GET /institution/programs/:id endpoint.
+   */
+  const loadProgram = useCallback(async () => {
+    if (!id) {
+      setLoadError("Program ID is missing.");
+      setLoading(false);
       return;
     }
 
-    const url = `${API}/institution/programs/${encodeURIComponent(id)}`;
+    try {
+      setLoading(true);
+      setLoadError(null);
 
-    console.log("🔵 GET PROGRAM:", url);
+      const token = getToken();
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+      if (!token) {
+        setLoadError("Authentication required. Please log in again.");
+        return;
+      }
 
-    const json = await response.json();
+      const response = await fetch(`${API}/institution/programs`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
 
-    console.log("🟢 PROGRAM STATUS:", response.status);
-    console.log("🟢 PROGRAM RESPONSE:", json);
-    console.log("🟢 PROGRAM DATA:", json?.data);
+      const text = await response.text();
 
-    if (!response.ok) {
-      setLoadError(
-        json?.message ||
-          json?.error ||
-          `Failed to load program (${response.status})`
+      let json: any = {};
+
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error("The server returned an invalid response.");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          json?.message ||
+            json?.error ||
+            `Failed to load programs (${response.status})`
+        );
+      }
+
+      const programs: Program[] = Array.isArray(json)
+        ? json
+        : json.data || json.items || json.programs || [];
+
+      const program = programs.find(
+        (item) => String(item.id) === String(id)
       );
-      return;
+
+      if (!program) {
+        throw new Error(
+          "Program not found or you do not have access to it."
+        );
+      }
+
+      setTitle(program.title ?? "");
+      setDescription(program.description ?? "");
+
+      setCategory(
+        program.category &&
+          CATEGORIES.some((item) => item.value === program.category)
+          ? program.category
+          : "BANK_LOAN"
+      );
+
+      setAmountMin(
+        program.amountMin !== null && program.amountMin !== undefined
+          ? String(program.amountMin)
+          : ""
+      );
+
+      setAmountMax(
+        program.amountMax !== null && program.amountMax !== undefined
+          ? String(program.amountMax)
+          : ""
+      );
+
+      setIsPublished(Boolean(program.isPublished));
+    } catch (err) {
+      console.error("LOAD PROGRAM ERROR:", err);
+
+      setLoadError(
+        err instanceof Error ? err.message : "Failed to load program."
+      );
+    } finally {
+      setLoading(false);
     }
+  }, [id]);
 
-    const program = json?.data;
-
-    if (!program) {
-      setLoadError("Program data is missing from the server response.");
-      return;
-    }
-
-    console.log("✅ PROGRAM TO FORM:", program);
-
-    setTitle(program.title ?? "");
-    setDescription(program.description ?? "");
-
-    setCategory(
-      program.category ?? "BANK_LOAN"
-    );
-
-    setAmountMin(
-      program.amountMin !== null &&
-      program.amountMin !== undefined
-        ? String(program.amountMin)
-        : ""
-    );
-
-    setAmountMax(
-      program.amountMax !== null &&
-      program.amountMax !== undefined
-        ? String(program.amountMax)
-        : ""
-    );
-
-    setIsPublished(
-      Boolean(program.isPublished)
-    );
-  } catch (err) {
-    console.error("❌ LOAD PROGRAM ERROR:", err);
-
-    setLoadError(
-      "Failed to connect to the server."
-    );
-  } finally {
-    setLoading(false);
-  }
-}, [id]);
   useEffect(() => {
-    if (id) loadProgram();
-  }, [id, loadProgram]);
+    loadProgram();
+  }, [loadProgram]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     setError(null);
 
-    if (!title.trim()) {
+    const cleanTitle = title.trim();
+    const cleanDescription = description.trim();
+
+    if (!cleanTitle) {
       setError("Please enter a program title.");
       return;
     }
 
-    if (
-      amountMin &&
-      amountMax &&
-      Number(amountMin) > Number(amountMax)
-    ) {
-      setError("Minimum amount can't be greater than maximum amount.");
+    const min = amountMin.trim() === "" ? null : Number(amountMin);
+    const max = amountMax.trim() === "" ? null : Number(amountMax);
+
+    if (min !== null && Number.isNaN(min)) {
+      setError("Minimum amount must be a valid number.");
       return;
     }
 
-    const token = window.localStorage.getItem("accessToken");
+    if (max !== null && Number.isNaN(max)) {
+      setError("Maximum amount must be a valid number.");
+      return;
+    }
+
+    if (min !== null && min < 0) {
+      setError("Minimum amount cannot be negative.");
+      return;
+    }
+
+    if (max !== null && max < 0) {
+      setError("Maximum amount cannot be negative.");
+      return;
+    }
+
+    if (min !== null && max !== null && min > max) {
+      setError("Minimum amount cannot be greater than maximum amount.");
+      return;
+    }
+
+    const token = getToken();
 
     if (!token) {
       setError("Your session has expired. Please log in again.");
@@ -153,33 +213,66 @@ const loadProgram = useCallback(async () => {
     try {
       setSubmitting(true);
 
-      const response = await fetch(`${API}/institution/programs/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title,
-          slug: title.toLowerCase().trim().replace(/\s+/g, "-"),
-          description,
-          category,
-          amountMin: Number(amountMin),
-          amountMax: Number(amountMax),
-          isPublished,
-        }),
+      // Safe slug generation with diacritics stripping & fallback
+      const generatedSlug = cleanTitle
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const slug = generatedSlug || `program-${Date.now()}`;
+
+      const response = await fetch(
+        `${API}/institution/programs/${encodeURIComponent(id)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            title: cleanTitle,
+            slug,
+            description: cleanDescription,
+            category,
+            amountMin: min,
+            amountMax: max,
+            isPublished,
+          }),
+        }
+      );
+
+      const text = await response.text();
+
+      let data: any = {};
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("Invalid update response:", text);
+      }
+
+      console.log("UPDATE PROGRAM:", {
+        status: response.status,
+        data,
       });
 
-      const data = await response.json().catch(() => ({}));
-
       if (!response.ok) {
-        setError(data.message || "Update failed. Please try again.");
+        setError(
+          data?.message ||
+            data?.error ||
+            `Update failed (${response.status}).`
+        );
         return;
       }
 
       router.push(`/institution/programs/${id}`);
+      router.refresh();
     } catch (err) {
-      console.error("Update program error:", err);
+      console.error("UPDATE PROGRAM ERROR:", err);
+
       setError("Failed to connect to the server.");
     } finally {
       setSubmitting(false);
@@ -188,9 +281,10 @@ const loadProgram = useCallback(async () => {
 
   if (loading) {
     return (
-      <div className="min-h-[400px] flex items-center justify-center bg-sand-50">
+      <div className="flex min-h-screen items-center justify-center bg-sand-50">
         <div className="text-center">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
+
           <p className="font-body text-sm text-ink-soft">
             Loading program…
           </p>
@@ -205,7 +299,7 @@ const loadProgram = useCallback(async () => {
         <div className="mx-auto max-w-3xl">
           <Link
             href="/institution/programs"
-            className="focus-ring font-body inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-rose-500"
+            className="font-body inline-flex items-center text-sm font-medium text-ink-soft hover:text-rose-500"
           >
             ← Back to Programs
           </Link>
@@ -220,29 +314,28 @@ const loadProgram = useCallback(async () => {
 
   return (
     <div className="min-h-screen bg-sand-50 p-6 md:p-8">
-      <div className="mx-auto max-w-3xl">
-        {/* Back link */}
+      <div className="mx-auto max-w-4xl">
         <Link
           href={`/institution/programs/${id}`}
-          className="focus-ring font-body inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-rose-500"
+          className="font-body inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-rose-500"
         >
           ← Back to Program
         </Link>
 
-        {/* Header */}
-        <div className="mt-4 mb-8">
+        <div className="mb-8 mt-4">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-rose-500">
             Institution Dashboard
           </p>
+
           <h1 className="font-display mt-1 text-3xl font-semibold text-wine-700 md:text-4xl">
             Edit Financing Program
           </h1>
+
           <p className="font-body mt-2 text-ink-soft">
-            Update the details below. Changes are saved once you submit.
+            Update the details below.
           </p>
         </div>
 
-        {/* Form card */}
         <form
           onSubmit={handleSubmit}
           className="card-surface animate-rise space-y-6 p-6 shadow-card md:p-8"
@@ -261,12 +354,13 @@ const loadProgram = useCallback(async () => {
             >
               Program title
             </label>
+
             <input
               id="title"
-              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
-              placeholder="e.g. Women in Tech Startup Fund"
+              type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
             />
           </div>
 
@@ -278,13 +372,13 @@ const loadProgram = useCallback(async () => {
             >
               Description
             </label>
+
             <textarea
               id="description"
-              className="focus-ring font-body w-full resize-none rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
-              rows={5}
-              placeholder="Describe who this program is for and what it covers…"
+              rows={6}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="focus-ring font-body w-full resize-none rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white"
             />
           </div>
 
@@ -296,36 +390,39 @@ const loadProgram = useCallback(async () => {
             >
               Category
             </label>
+
             <select
               id="category"
-              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
+              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white"
             >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+              {CATEGORIES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Amount range */}
+          {/* Amount */}
           <div>
             <span className="font-body mb-1.5 block text-sm font-semibold text-ink">
               Funding amount
             </span>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="relative">
                 <input
                   type="number"
                   min={0}
-                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
-                  placeholder="Minimum"
                   value={amountMin}
                   onChange={(e) => setAmountMin(e.target.value)}
+                  placeholder="Minimum"
+                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink"
                 />
-                <span className="font-body pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">
+
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs font-semibold text-ink-soft">
                   DZD
                 </span>
               </div>
@@ -334,24 +431,26 @@ const loadProgram = useCallback(async () => {
                 <input
                   type="number"
                   min={0}
-                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
-                  placeholder="Maximum"
                   value={amountMax}
                   onChange={(e) => setAmountMax(e.target.value)}
+                  placeholder="Maximum"
+                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink"
                 />
-                <span className="font-body pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-soft">
+
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs font-semibold text-ink-soft">
                   DZD
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Publish toggle */}
+          {/* Published */}
           <div className="flex items-center justify-between rounded-xl bg-sand-100 p-4">
             <div>
               <p className="font-body text-sm font-semibold text-ink">
                 Published
               </p>
+
               <p className="font-body mt-0.5 text-xs text-ink-soft">
                 Visible to entrepreneurs when published.
               </p>
@@ -359,9 +458,9 @@ const loadProgram = useCallback(async () => {
 
             <button
               type="button"
-              onClick={() => setIsPublished((v) => !v)}
+              onClick={() => setIsPublished((value) => !value)}
               aria-pressed={isPublished}
-              className={`focus-ring relative h-7 w-12 shrink-0 rounded-full transition ${
+              className={`relative h-7 w-12 rounded-full transition ${
                 isPublished ? "bg-rise-gradient" : "bg-sand-200"
               }`}
             >
@@ -374,10 +473,10 @@ const loadProgram = useCallback(async () => {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 border-t border-sand-200 pt-6">
+          <div className="flex justify-end gap-3 border-t border-sand-200 pt-6">
             <Link
               href={`/institution/programs/${id}`}
-              className="focus-ring font-body rounded-xl px-5 py-3 text-sm font-semibold text-ink-soft transition hover:text-ink"
+              className="font-body rounded-xl px-5 py-3 text-sm font-semibold text-ink-soft hover:text-ink"
             >
               Cancel
             </Link>
@@ -385,11 +484,12 @@ const loadProgram = useCallback(async () => {
             <button
               type="submit"
               disabled={submitting}
-              className="focus-ring font-body inline-flex items-center gap-2 rounded-xl bg-rise-gradient px-6 py-3 text-sm font-semibold text-white shadow-bloom transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="font-body inline-flex items-center gap-2 rounded-xl bg-rise-gradient px-6 py-3 text-sm font-semibold text-white shadow-bloom transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting && (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               )}
+
               {submitting ? "Saving…" : "Save Changes"}
             </button>
           </div>

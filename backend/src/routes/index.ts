@@ -14,6 +14,10 @@ import articlesRoutes from "./articles.routes";
 import settingsRoutes from "./settings.routes";
 import categoryRoutes from "./category.routes";
 import coursesRoutes from "./courses.routes";
+import entrepreneursRoutes from "./entrepreneurs.routes";
+import calendarEventRoutes from "./expertCalendar.routes";
+import meetingsRoutes from "./meetings.routes";
+import qaRoutes from "./qa.routes";
 
 const router = Router();
 
@@ -104,6 +108,17 @@ router.use("/settings", settingsRoutes);
 /* ========================================================================= */
 /* HEALTH CHECK                                                              */
 /* ========================================================================= */
+
+// meetings 
+router.use("/meetings", meetingsRoutes);
+
+
+router.use("/expert/calendar", calendarEventRoutes);
+
+router.use("/expert/entrepreneurs", entrepreneursRoutes);
+
+// Q&A
+router.use("/qa", qaRoutes);
 
 router.get("/health", (_req, res) => {
   res.json({

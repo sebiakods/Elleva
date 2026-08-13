@@ -1,266 +1,564 @@
 "use client";
-import { BarChart2, Eye, Download, Calendar, Star, TrendingUp, Users } from "lucide-react";
-import { PageShell } from "@/components/common/PageShell";
+
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
+  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
+import {
+  BarChart3,
+  Newspaper,
+  FolderOpen,
+  Users,
+  CalendarClock,
+  GraduationCap,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 
-// --- Mock data (replace with API calls once backend is wired) ---
+import { listMyEntrepreneurs, EntrepreneurSummary } from "@/lib/api/entrepreneurs";
+import { listMyMeetings, Meeting } from "@/lib/api/meetings";
 
-const kpis = [
-  {
-    label: "Vues de cours",
-    value: "4 812",
-    change: "+12,4%",
-    icon: Eye,
-  },
-  {
-    label: "Téléchargements",
-    value: "1 236",
-    change: "+8,1%",
-    icon: Download,
-  },
-  {
-    label: "Sessions réalisées",
-    value: "58",
-    change: "+3",
-    icon: Calendar,
-  },
-  {
-    label: "Note moyenne",
-    value: "4,7 / 5",
-    change: "+0,2",
-    icon: Star,
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-const monthlyActivity = [
-  { month: "Fév", vues: 320, telechargements: 90, sessions: 4 },
-  { month: "Mar", vues: 410, telechargements: 120, sessions: 6 },
-  { month: "Avr", vues: 380, telechargements: 100, sessions: 5 },
-  { month: "Mai", vues: 520, telechargements: 160, sessions: 7 },
-  { month: "Jun", vues: 610, telechargements: 190, sessions: 9 },
-  { month: "Jul", vues: 705, telechargements: 220, sessions: 11 },
-];
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
-const resourceBreakdown = [
-  { type: "Cours vidéo", value: 42 },
-  { type: "PDF / Guides", value: 28 },
-  { type: "Modèles Business Plan", value: 18 },
-  { type: "Articles", value: 12 },
-];
+type CourseContentItem = { id: string };
 
-const PIE_COLORS = ["#9d174d", "#be185d", "#db2777", "#f472b6"];
+type Course = {
+  id: string;
+  title: string;
+  isPublished: boolean;
+  articles: CourseContentItem[];
+  videos: CourseContentItem[];
+  resources: CourseContentItem[];
+};
 
-const topCourses = [
-  { name: "Élaborer un business plan solide", views: 1240, downloads: 380, rating: 4.9 },
-  { name: "Lever des fonds auprès des institutions", views: 980, downloads: 310, rating: 4.8 },
-  { name: "Gestion financière pour entrepreneures", views: 860, downloads: 265, rating: 4.6 },
-  { name: "Marketing digital à petit budget", views: 705, downloads: 190, rating: 4.7 },
-];
+/* -------------------------------------------------------------------------- */
+/* Palette                                                                    */
+/*                                                                            */
+/* Recharts needs literal color strings (it renders raw SVG fills), so these  */
+/* can't reference Tailwind classes directly. They approximate the wine /     */
+/* rose / gold tokens used across the app — swap in the exact hex values      */
+/* from tailwind.config.js if you want a pixel-perfect match.                 */
+/* -------------------------------------------------------------------------- */
 
-const entrepreneurProgress = [
-  { name: "Amina B.", program: "Incubation Sétif", progress: 82 },
-  { name: "Nour K.", program: "Financement PME", progress: 64 },
-  { name: "Sarah T.", program: "Incubation Sétif", progress: 45 },
-  { name: "Yasmine R.", program: "Financement PME", progress: 91 },
-];
+const CHART_COLORS = {
+  wine: "#6d2447",
+  rose: "#fb7185",
+  gold: "#eab308",
+  grid: "#eee3d8",
+  ink: "#8a7b80",
+};
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function safeLength(items?: unknown[]) {
+  return Array.isArray(items) ? items.length : 0;
+}
+
+function truncate(text: string, max = 16) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function getLastMonths(count: number) {
+  const months: { key: string; label: string }[] = [];
+  const now = new Date();
+
+  for (let i = count - 1; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const label = date.toLocaleDateString("fr-FR", {
+      month: "short",
+      year: "2-digit",
+    });
+
+    months.push({ key, label });
+  }
+
+  return months;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function ExpertAnalyticsPage() {
-  return (
-    <>
-      <PageShell
-        title="Analytics"
-        badge="Statistiques"
-        icon={BarChart2}
-        description="Analysez l'impact de votre activité : vues de cours, téléchargements de ressources, sessions réalisées, évaluations reçues et progression des entrepreneures."
-      />
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [entrepreneurs, setEntrepreneurs] = useState<EntrepreneurSummary[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
 
-      <div className="space-y-8">
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {kpis.map((kpi) => (
-            <div
-              key={kpi.label}
-              className="rounded-2xl border border-border bg-card p-5 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{kpi.label}</span>
-                <kpi.icon className="h-4 w-4 text-primary" />
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-foreground">{kpi.value}</span>
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                  <TrendingUp className="h-3 w-3" />
-                  {kpi.change}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-        {/* Activity over time */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-base font-semibold text-foreground">Activité mensuelle</h3>
-            <p className="text-sm text-muted-foreground">
-              Vues, téléchargements et sessions sur les 6 derniers mois
-            </p>
-          </div>
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyActivity}>
-                <defs>
-                  <linearGradient id="vuesGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#be185d" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#be185d" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                <Tooltip />
-                <Legend />
-                <Area
-                  type="monotone"
-                  dataKey="vues"
-                  name="Vues"
-                  stroke="#be185d"
-                  fill="url(#vuesGradient)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="telechargements"
-                  name="Téléchargements"
-                  stroke="#f472b6"
-                  fill="transparent"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Resource breakdown */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <h3 className="mb-4 text-base font-semibold text-foreground">
-              Répartition des téléchargements
-            </h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={resourceBreakdown}
-                    dataKey="value"
-                    nameKey="type"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                  >
-                    {resourceBreakdown.map((_, index) => (
-                      <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+  async function loadAnalytics() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem("accessToken");
+
+      if (!token) {
+        setError("Vous devez être connectée pour voir vos statistiques.");
+        return;
+      }
+
+      const [coursesRes, entrepreneursData, meetingsData] = await Promise.all([
+        fetch(`${API_URL}/courses/expert`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }),
+        listMyEntrepreneurs(),
+        listMyMeetings(),
+      ]);
+
+      const coursesJson = await coursesRes.json().catch(() => ({}));
+
+      if (!coursesRes.ok) {
+        throw new Error(coursesJson?.message || "Impossible de charger les cours.");
+      }
+
+      const coursesData: Course[] = Array.isArray(coursesJson?.data) ? coursesJson.data : [];
+
+      setCourses(coursesData);
+      setEntrepreneurs(entrepreneursData);
+      setMeetings(meetingsData);
+    } catch (err) {
+      console.error("Error loading analytics:", err);
+      setError(
+        err instanceof Error ? err.message : "Impossible de charger les statistiques."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Derived data                                                            */
+  /* ---------------------------------------------------------------------- */
+
+  const totals = useMemo(() => {
+    const articles = courses.reduce((sum, c) => sum + safeLength(c.articles), 0);
+    const videos = courses.reduce((sum, c) => sum + safeLength(c.videos), 0);
+    const resources = courses.reduce((sum, c) => sum + safeLength(c.resources), 0);
+
+    return {
+      courses: courses.length,
+      publishedCourses: courses.filter((c) => c.isPublished).length,
+      articles,
+      videos,
+      resources,
+      content: articles + videos + resources,
+    };
+  }, [courses]);
+
+  const contentBreakdown = useMemo(
+    () => [
+      { name: "Articles", value: totals.articles, color: CHART_COLORS.wine },
+      { name: "Vidéos", value: totals.videos, color: CHART_COLORS.rose },
+      { name: "Ressources", value: totals.resources, color: CHART_COLORS.gold },
+    ],
+    [totals]
+  );
+
+  const hasContent = totals.content > 0;
+
+  const perCourseData = useMemo(
+    () =>
+      courses
+        .slice()
+        .sort(
+          (a, b) =>
+            safeLength(b.articles) + safeLength(b.videos) + safeLength(b.resources) -
+            (safeLength(a.articles) + safeLength(a.videos) + safeLength(a.resources))
+        )
+        .slice(0, 8)
+        .map((c) => ({
+          name: truncate(c.title),
+          fullName: c.title,
+          Articles: safeLength(c.articles),
+          Vidéos: safeLength(c.videos),
+          Ressources: safeLength(c.resources),
+        })),
+    [courses]
+  );
+
+  const monthlyMeetings = useMemo(() => {
+    const months = getLastMonths(6);
+
+    return months.map(({ key, label }) => {
+      const count = meetings.filter((m) => {
+        const date = new Date(m.scheduledAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        return monthKey === key;
+      }).length;
+
+      return { month: label, Réunions: count };
+    });
+  }, [meetings]);
+
+  const upcomingMeetings = useMemo(
+    () => meetings.filter((m) => new Date(m.scheduledAt) >= new Date()).length,
+    [meetings]
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /* Loading / error states                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-sand-50 px-6 py-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-center gap-3 text-sm text-ink-soft">
+            <Loader2 size={18} className="animate-spin text-wine-700" />
+            Chargement de vos statistiques...
           </div>
 
-          {/* Sessions bar chart */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <h3 className="mb-4 text-base font-semibold text-foreground">
-              Sessions réalisées par mois
-            </h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyActivity}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                  <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="sessions" name="Sessions" fill="#9d174d" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Top courses table */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold text-foreground">Cours les plus consultés</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="pb-2 font-medium">Cours</th>
-                  <th className="pb-2 font-medium">Vues</th>
-                  <th className="pb-2 font-medium">Téléchargements</th>
-                  <th className="pb-2 font-medium">Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCourses.map((course) => (
-                  <tr key={course.name} className="border-b border-border last:border-0">
-                    <td className="py-3 font-medium text-foreground">{course.name}</td>
-                    <td className="py-3 text-muted-foreground">{course.views.toLocaleString("fr-FR")}</td>
-                    <td className="py-3 text-muted-foreground">
-                      {course.downloads.toLocaleString("fr-FR")}
-                    </td>
-                    <td className="py-3">
-                      <span className="inline-flex items-center gap-1 text-amber-600">
-                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                        {course.rating}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Entrepreneur progress */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <h3 className="text-base font-semibold text-foreground">
-              Progression des entrepreneures suivies
-            </h3>
-          </div>
-          <div className="space-y-4">
-            {entrepreneurProgress.map((entrepreneur) => (
-              <div key={entrepreneur.name}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">{entrepreneur.name}</span>
-                  <span className="text-muted-foreground">{entrepreneur.program}</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${entrepreneur.progress}%` }}
-                  />
-                </div>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="card-surface space-y-3 p-5">
+                <div className="h-11 w-11 animate-shimmer rounded-xl bg-gradient-to-r from-sand-100 via-sand-50 to-sand-100 bg-[length:200%_100%]" />
+                <div className="h-3 w-20 animate-shimmer rounded bg-gradient-to-r from-sand-100 via-sand-50 to-sand-100 bg-[length:200%_100%]" />
+                <div className="h-6 w-14 animate-shimmer rounded bg-gradient-to-r from-sand-100 via-sand-50 to-sand-100 bg-[length:200%_100%]" />
               </div>
             ))}
           </div>
         </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-sand-50 px-6 py-10">
+        <div className="mx-auto max-w-2xl rounded-xl2 border border-sand-200 bg-white px-6 py-14 text-center shadow-card">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+            <AlertCircle size={26} />
+          </div>
+
+          <h2 className="font-display text-xl font-semibold text-wine-900">
+            Impossible de charger vos statistiques
+          </h2>
+
+          <p className="mx-auto mt-2 max-w-xl text-sm text-ink-soft">{error}</p>
+
+          <button
+            type="button"
+            onClick={loadAnalytics}
+            className="focus-ring mt-6 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-wine-700"
+          >
+            Réessayer
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Page                                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  return (
+    <main className="min-h-screen bg-sand-50">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Experte</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Analytics</span>
+        </div>
+
+        {/* Header */}
+        <div className="relative mb-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+          />
+
+          <p className="font-script text-2xl leading-none text-rose-500">Vue d'ensemble</p>
+          <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+            Mes <span className="text-gradient-rise">statistiques</span>
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+            Le contenu que vous publiez, les entrepreneures que vous accompagnez et l'activité
+            de vos réunions, en un coup d'œil.
+          </p>
+        </div>
+
+        {/* Stat cards */}
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard icon={<BarChart3 size={20} />} label="Contenu total" value={totals.content} delay={0} />
+          <StatCard
+            icon={<GraduationCap size={20} />}
+            label="Cours publiés"
+            value={`${totals.publishedCourses}/${totals.courses}`}
+            delay={70}
+          />
+          <StatCard
+            icon={<Users size={20} />}
+            label="Entrepreneures"
+            value={entrepreneurs.length}
+            delay={140}
+          />
+          <StatCard
+            icon={<CalendarClock size={20} />}
+            label="Réunions programmées"
+            value={meetings.length}
+            sublabel={`${upcomingMeetings} à venir`}
+            delay={210}
+          />
+        </div>
+
+        {/* Content breakdown */}
+        <section className="mb-8 grid gap-6 lg:grid-cols-[380px_1fr]">
+          <div className="card-surface p-6 shadow-card">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
+                <FolderOpen size={19} />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-wine-900">
+                  Répartition du contenu
+                </h2>
+                <p className="text-xs text-ink-soft">Articles, vidéos et ressources</p>
+              </div>
+            </div>
+
+            {hasContent ? (
+              <>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={contentBreakdown}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                      >
+                        {contentBreakdown.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} stroke="none" />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 12,
+                          border: `1px solid ${CHART_COLORS.grid}`,
+                          fontSize: 13,
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-2 space-y-2">
+                  {contentBreakdown.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-ink-soft">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        {item.name}
+                      </span>
+                      <span className="font-semibold text-wine-900">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyChartState
+                icon={<FolderOpen size={22} />}
+                text="Ajoutez des articles, vidéos ou ressources pour voir la répartition."
+              />
+            )}
+          </div>
+
+          <div className="card-surface p-6 shadow-card">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
+                <Newspaper size={19} />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-wine-900">
+                  Contenu par cours
+                </h2>
+                <p className="text-xs text-ink-soft">
+                  Nombre d'articles, vidéos et ressources par cours (top 8)
+                </p>
+              </div>
+            </div>
+
+            {perCourseData.length > 0 ? (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={perCourseData} barGap={4}>
+                    <CartesianGrid vertical={false} stroke={CHART_COLORS.grid} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11, fill: CHART_COLORS.ink }}
+                      interval={0}
+                      angle={-20}
+                      textAnchor="end"
+                      height={55}
+                    />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_COLORS.ink }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: `1px solid ${CHART_COLORS.grid}`,
+                        fontSize: 13,
+                      }}
+                      labelFormatter={(_label: string, payload: any) =>
+                        payload?.[0]?.payload?.fullName ?? ""
+                      }
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Articles" stackId="content" fill={CHART_COLORS.wine} />
+                    <Bar dataKey="Vidéos" stackId="content" fill={CHART_COLORS.rose} />
+                    <Bar
+                      dataKey="Ressources"
+                      stackId="content"
+                      fill={CHART_COLORS.gold}
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyChartState
+                icon={<GraduationCap size={22} />}
+                text="Créez un cours et ajoutez du contenu pour voir ce graphique."
+              />
+            )}
+          </div>
+        </section>
+
+        {/* Meetings activity */}
+        <section className="card-surface p-6 shadow-card">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
+                <CalendarClock size={19} />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-wine-900">
+                  Activité des réunions
+                </h2>
+                <p className="text-xs text-ink-soft">
+                  Réunions programmées par mois — 6 derniers mois
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4 text-sm">
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wide text-ink-soft/70">Total</p>
+                <p className="font-display text-lg font-semibold text-wine-900">{meetings.length}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wide text-ink-soft/70">À venir</p>
+                <p className="font-display text-lg font-semibold text-wine-900">{upcomingMeetings}</p>
+              </div>
+            </div>
+          </div>
+
+          {meetings.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyMeetings}>
+                  <CartesianGrid vertical={false} stroke={CHART_COLORS.grid} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: CHART_COLORS.ink }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: CHART_COLORS.ink }} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: `1px solid ${CHART_COLORS.grid}`,
+                      fontSize: 13,
+                    }}
+                  />
+                  <Bar dataKey="Réunions" fill={CHART_COLORS.wine} radius={[8, 8, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <EmptyChartState
+              icon={<CalendarClock size={22} />}
+              text="Programmez une réunion pour voir l'activité apparaître ici."
+            />
+          )}
+        </section>
       </div>
-    </>
+    </main>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Stat card                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sublabel,
+  delay = 0,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  sublabel?: string;
+  delay?: number;
+}) {
+  return (
+    <div
+      className="card-surface animate-rise p-5 shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.015] hover:border-rose-200 hover:shadow-bloom"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-rise-gradient-soft text-wine-700">
+        {icon}
+      </div>
+
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-soft/70">{label}</p>
+
+      <div className="mt-1 flex items-baseline gap-2">
+        <p className="font-display text-2xl font-semibold text-wine-900">{value}</p>
+        {sublabel && <span className="text-xs text-ink-soft">{sublabel}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Empty state for a chart                                                    */
+/* -------------------------------------------------------------------------- */
+
+function EmptyChartState({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <div className="flex h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-sand-200 bg-sand-50 px-6 text-center">
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-ink-soft shadow-sm">
+        {icon}
+      </div>
+      <p className="max-w-xs text-sm text-ink-soft">{text}</p>
+    </div>
   );
 }
