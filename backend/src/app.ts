@@ -14,6 +14,12 @@ import path from "path";
 const app = express();
 
 // ─── Security headers ─────────────────────────────────────────────────────────
+// helmet's default Cross-Origin-Resource-Policy is "same-origin", which blocks
+// the frontend (localhost:3000) from embedding files served from this API
+// (localhost:4000) in <video>/<img> tags, even though the request itself
+// succeeds (you'd see it as a 200/206 in the server logs but nothing renders
+// in the browser). We keep helmet's defaults everywhere else and only relax
+// this for the /uploads static route below.
 app.use(helmet());
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -60,8 +66,17 @@ if (env.NODE_ENV !== "test") {
 
 
 //----
+// Uploaded files (course videos, images, PDFs, etc.) need to be embeddable
+// cross-origin by the frontend (different port = different origin in dev,
+// and possibly a different subdomain in prod). Override helmet's default
+// same-origin CORP just for this route so <video>/<img>/<a download> all work
+// when loaded from the frontend origin.
 app.use(
   "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
   express.static(path.join(process.cwd(), "uploads"))
 );
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -87,4 +102,3 @@ app.listen(env.PORT, () => {
 ╚══════════════════════════════════════════════════════════════╝
   `);
 });
-

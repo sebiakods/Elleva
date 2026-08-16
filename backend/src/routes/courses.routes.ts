@@ -28,6 +28,8 @@ import {
   createResource,
   updateResource,
   deleteResource,
+
+  getLesson,
 } from "../controllers/courses.controller";
 
 import { verifyToken } from "../middleware/auth";
@@ -39,16 +41,10 @@ const router = Router();
    UPLOAD CONFIGURATION
 ============================================================ */
 
-const uploadDir = path.join(
-  process.cwd(),
-  "uploads",
-  "courses"
-);
+const uploadDir = path.join(process.cwd(), "uploads", "courses");
 
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, {
-    recursive: true,
-  });
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
@@ -57,65 +53,35 @@ const storage = multer.diskStorage({
   },
 
   filename: (_req, file, cb) => {
-    const extension = path.extname(
-      file.originalname
-    );
-
-    const baseName = path.basename(
-      file.originalname,
-      extension
-    );
+    const extension = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, extension);
 
     const safeName = baseName
       .replace(/[^a-zA-Z0-9-_]/g, "-")
       .replace(/-+/g, "-");
 
-    cb(
-      null,
-      `${Date.now()}-${safeName}${extension}`
-    );
+    cb(null, `${Date.now()}-${safeName}${extension}`);
   },
 });
 
 /*
  * Allowed files:
- *
- * PDF
- * Images
- * Videos
- * DOC / DOCX
- * XLS / XLSX
- * PPT / PPTX
- * ZIP
+ * PDF, Images, Videos, DOC/DOCX, XLS/XLSX, PPT/PPTX, ZIP
  */
-
 const allowedMimeTypes = [
-  // PDF
   "application/pdf",
-
-  // Images
   "image/jpeg",
   "image/png",
   "image/webp",
-
-  // Videos
   "video/mp4",
   "video/webm",
   "video/quicktime",
-
-  // Word
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-
-  // Excel
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
-  // PowerPoint
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-
-  // ZIP
   "application/zip",
   "application/x-zip-compressed",
 ];
@@ -133,183 +99,67 @@ const upload = multer({
       return;
     }
 
-    cb(
-      new Error(
-        `Type de fichier non autorisé: ${file.mimetype}`
-      )
-    );
+    cb(new Error(`Type de fichier non autorisé: ${file.mimetype}`));
   },
 });
 
 /* ============================================================
-   EXPERT COURSES
+   EXPERT: MY COURSES
+   IMPORTANT: /expert MUST come before /:id, otherwise
+   GET /api/courses/expert would be captured by GET /api/courses/:id
+   with id = "expert".
 ============================================================ */
 
-
-/*
- * GET /api/courses/expert
- *
- * Récupère uniquement les cours créés par l'expert connecté.
- */
-router.get(
-  "/expert",
-  verifyToken,
-  expertOnly,
-  getMyCourses
-);
-
-/*
- * GET /api/courses
- *
- * Si appelé par un utilisateur classique : retourne les cours publiés.
- * Si vous voulez réserver /api/courses aux cours publics/publiés :
- */
-router.get(
-  "/",
-  verifyToken, // Exige d'être connecté, mais PAS expertOnly
-  getPublishedCourses // Retourne la liste des cours pour le catalogue utilisateur
-);
-/* ============================================================
-   EXPERT COURSES
-============================================================ */
-
-/*
- * IMPORTANT:
- *
- * /expert MUST COME BEFORE /:id
- *
- * Otherwise:
- *
- * GET /api/courses/expert
- *
- * would become:
- *
- * GET /api/courses/:id
- *
- * with:
- *
- * id = "expert"
- */
-
-/*
- * GET /api/courses/expert
- *
- * Get all courses belonging to the
- * currently authenticated expert.
- */
-
-router.get(
-  "/expert",
-  verifyToken,
-  expertOnly,
-  getMyCourses
-);
-
-/*
- * GET /api/courses
- *
- * Alias for the expert's courses.
- */
-
-router.get(
-  "/",
-  verifyToken,
-  expertOnly,
-  getMyCourses
-);
+router.get("/expert", verifyToken, expertOnly, getMyCourses);
 
 /* ============================================================
-   CREATE COURSE
+   PUBLIC/USER CATALOG
+   Any authenticated user (entrepreneur, expert, admin, etc.)
+   can list published courses. NO payment logic, NO enrollment logic.
 ============================================================ */
 
-/*
- * POST /api/courses
- *
- * Multipart form:
- *
- * cover
- * resourceFiles[]
- * articleFiles[]
- * videoFiles[]
- */
+router.get("/", verifyToken, getPublishedCourses);
+
+/* ============================================================
+   CREATE COURSE (expert only)
+============================================================ */
 
 router.post(
   "/",
   verifyToken,
   expertOnly,
   upload.fields([
-    {
-      name: "cover",
-      maxCount: 1,
-    },
-
-    {
-      name: "resourceFiles",
-      maxCount: 50,
-    },
-
-    {
-      name: "articleFiles",
-      maxCount: 50,
-    },
-
-    {
-      name: "videoFiles",
-      maxCount: 20,
-    },
+    { name: "cover", maxCount: 1 },
+    { name: "resourceFiles", maxCount: 50 },
+    { name: "articleFiles", maxCount: 50 },
+    { name: "videoFiles", maxCount: 20 },
   ]),
   createCourse
 );
 
 /* ============================================================
    SINGLE COURSE
+   Open to any authenticated user. The controller decides:
+   - expert -> owned course (any publish state)
+   - everyone else -> published course only
+   Payment gating is handled entirely on the frontend.
+   This MUST remain AFTER /expert.
 ============================================================ */
 
-/*
- * GET /api/courses/:id
- *
- * Get one course.
- *
- * This MUST remain AFTER /expert.
- */
-
-router.get(
-  "/:id",
-  verifyToken,
-  expertOnly,
-  getCourse
-);
+router.get("/:id", verifyToken, getCourse);
 
 /*
  * PUT /api/courses/:id
- *
- * Update a course.
  */
-
 router.put(
   "/:id",
   verifyToken,
   expertOnly,
   upload.fields([
-    {
-      name: "cover",
-      maxCount: 1,
-    },
-
-    {
-      name: "resourceFiles",
-      maxCount: 50,
-    },
-
-    {
-      name: "articleFiles",
-      maxCount: 50,
-    },
-
-    {
-      name: "videoFiles",
-      maxCount: 20,
-    },
+    { name: "cover", maxCount: 1 },
+    { name: "resourceFiles", maxCount: 50 },
+    { name: "articleFiles", maxCount: 50 },
+    { name: "videoFiles", maxCount: 20 },
   ]),
   updateCourse
 );
@@ -317,38 +167,13 @@ router.put(
 /*
  * DELETE /api/courses/:id
  */
-
-router.delete(
-  "/:id",
-  verifyToken,
-  expertOnly,
-  deleteCourse
-);
+router.delete("/:id", verifyToken, expertOnly, deleteCourse);
 
 /* ============================================================
-   ARTICLES
+   ARTICLES (expert only — content management)
 ============================================================ */
 
-/*
- * GET /api/courses/:id/articles
- */
-
-router.get(
-  "/:id/articles",
-  verifyToken,
-  expertOnly,
-  getArticles
-);
-
-/*
- * POST /api/courses/:id/articles
- *
- * Supports article attachments such as PDF.
- *
- * Frontend field:
- *
- * files[]
- */
+router.get("/:id/articles", verifyToken, expertOnly, getArticles);
 
 router.post(
   "/:id/articles",
@@ -358,22 +183,12 @@ router.post(
   createArticle
 );
 
-/*
- * GET /api/courses/:id/articles/:contentId
- */
-
 router.get(
   "/:id/articles/:contentId",
   verifyToken,
   expertOnly,
   getArticle
 );
-
-/*
- * PUT /api/courses/:id/articles/:contentId
- *
- * Supports replacing/adding article files.
- */
 
 router.put(
   "/:id/articles/:contentId",
@@ -383,10 +198,6 @@ router.put(
   updateArticle
 );
 
-/*
- * DELETE /api/courses/:id/articles/:contentId
- */
-
 router.delete(
   "/:id/articles/:contentId",
   verifyToken,
@@ -395,27 +206,10 @@ router.delete(
 );
 
 /* ============================================================
-   VIDEOS
+   VIDEOS (expert only — content management)
 ============================================================ */
 
-/*
- * GET /api/courses/:id/videos
- */
-
-router.get(
-  "/:id/videos",
-  verifyToken,
-  expertOnly,
-  getVideos
-);
-
-/*
- * POST /api/courses/:id/videos
- *
- * Video upload field:
- *
- * videoFile
- */
+router.get("/:id/videos", verifyToken, expertOnly, getVideos);
 
 router.post(
   "/:id/videos",
@@ -425,22 +219,12 @@ router.post(
   createVideo
 );
 
-/*
- * GET /api/courses/:id/videos/:contentId
- */
-
 router.get(
   "/:id/videos/:contentId",
   verifyToken,
   expertOnly,
   getVideo
 );
-
-/*
- * PUT /api/courses/:id/videos/:contentId
- *
- * Allows replacing the video.
- */
 
 router.put(
   "/:id/videos/:contentId",
@@ -450,10 +234,6 @@ router.put(
   updateVideo
 );
 
-/*
- * DELETE /api/courses/:id/videos/:contentId
- */
-
 router.delete(
   "/:id/videos/:contentId",
   verifyToken,
@@ -461,56 +241,11 @@ router.delete(
   deleteVideo
 );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ============================================================
-   RESOURCES
+   RESOURCES (expert only — content management)
 ============================================================ */
 
-/*
- * GET /api/courses/:id/resources
- */
-
-router.get(
-  "/:id/resources",
-  verifyToken,
-  expertOnly,
-  getResources
-);
-
-/*
- * POST /api/courses/:id/resources
- *
- * Resource upload field:
- *
- * file
- *
- * Supports:
- * PDF
- * DOCX
- * XLSX
- * PPTX
- * ZIP
- * etc.
- */
+router.get("/:id/resources", verifyToken, expertOnly, getResources);
 
 router.post(
   "/:id/resources",
@@ -520,22 +255,12 @@ router.post(
   createResource
 );
 
-/*
- * GET /api/courses/:id/resources/:contentId
- */
-
 router.get(
   "/:id/resources/:contentId",
   verifyToken,
   expertOnly,
   getResource
 );
-
-/*
- * PUT /api/courses/:id/resources/:contentId
- *
- * Allows replacing the resource file.
- */
 
 router.put(
   "/:id/resources/:contentId",
@@ -545,10 +270,6 @@ router.put(
   updateResource
 );
 
-/*
- * DELETE /api/courses/:id/resources/:contentId
- */
-
 router.delete(
   "/:id/resources/:contentId",
   verifyToken,
@@ -557,129 +278,14 @@ router.delete(
 );
 
 /* ============================================================
+   LESSON (unified article/video/resource lookup for learners)
+   Open to any authenticated user viewing a published course.
+============================================================ */
+
+router.get("/:id/lesson/:lessonId", verifyToken, getLesson);
+
+/* ============================================================
    EXPORT
 ============================================================ */
 
 export default router;
-/*
- * ============================================================
- * USER COURSE CATALOG
- * ============================================================
- */
-
-/*
- * GET /api/courses
- *
- * Published courses for entrepreneurs/users.
- *
- * NO payment logic.
- * NO enrollment logic.
- */
-router.get(
-  "/",
-  verifyToken,
-  getPublishedCourses
-);
-
-
-/*
- * GET /api/courses/:id
- *
- * Read one published course.
- *
- * IMPORTANT:
- * This is for displaying course content.
- *
- * Payment is handled completely by frontend.
- */
-router.get(
-  "/:id",
-  verifyToken,
-  getCourse
-);
-
-
-/*
- * ============================================================
- * EXPERT COURSE MANAGEMENT
- * ============================================================
- */
-
-/*
- * GET /api/courses/expert
- */
-router.get(
-  "/expert",
-  verifyToken,
-  expertOnly,
-  getMyCourses
-);
-
-
-/*
- * POST /api/courses
- */
-router.post(
-  "/",
-  verifyToken,
-  expertOnly,
-  upload.fields([
-    {
-      name: "cover",
-      maxCount: 1,
-    },
-    {
-      name: "resourceFiles",
-      maxCount: 50,
-    },
-    {
-      name: "articleFiles",
-      maxCount: 50,
-    },
-    {
-      name: "videoFiles",
-      maxCount: 20,
-    },
-  ]),
-  createCourse
-);
-
-
-/*
- * PUT /api/courses/:id
- */
-router.put(
-  "/:id",
-  verifyToken,
-  expertOnly,
-  upload.fields([
-    {
-      name: "cover",
-      maxCount: 1,
-    },
-    {
-      name: "resourceFiles",
-      maxCount: 50,
-    },
-    {
-      name: "articleFiles",
-      maxCount: 50,
-    },
-    {
-      name: "videoFiles",
-      maxCount: 20,
-    },
-  ]),
-  updateCourse
-);
-
-
-/*
- * DELETE /api/courses/:id
- */
-router.delete(
-  "/:id",
-  verifyToken,
-  expertOnly,
-  deleteCourse
-);

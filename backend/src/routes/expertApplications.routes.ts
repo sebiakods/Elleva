@@ -1,24 +1,19 @@
 import { Router } from "express";
 import * as expertController from "../controllers/expertApplications.controller";
+import upload from "../middleware/upload";
+import { authenticate } from "../middleware/auth.middleware";
+import { requireRoles } from "../middleware/rbac";
 
 const router = Router();
 
-// Submit an expert application
-router.post("/", expertController.createApplication);
+// Public: submit an expert application (CV upload)
+router.post("/", upload.single("cv"), expertController.createApplication);
 
-// Get all applications (Admin)
-router.get("/", expertController.getApplications);
-
-// Get one application
-router.get("/:id", expertController.getApplication);
-
-// Approve
-router.patch("/:id/approve", expertController.approveApplication);
-
-// Reject
-router.patch("/:id/reject", expertController.rejectApplication);
-
-// Delete
-router.delete("/:id", expertController.deleteApplication);
+// Admin only
+router.get("/", authenticate, requireRoles("ADMIN"), expertController.getApplications);
+router.get("/:id", authenticate, requireRoles("ADMIN"), expertController.getApplication);
+router.patch("/:id/approve", authenticate, requireRoles("ADMIN"), expertController.approveApplication);
+router.patch("/:id/reject", authenticate, requireRoles("ADMIN"), expertController.rejectApplication);
+router.delete("/:id", authenticate, requireRoles("ADMIN"), expertController.deleteApplication);
 
 export default router;

@@ -165,7 +165,7 @@ export default function ExpertApplicationPage() {
 
 
       const response = await fetch(
-        `${API_URL}/api/applications/expert`,
+        `${API_URL}/applications/expert`,
         {
           method: "POST",
           body: formData,

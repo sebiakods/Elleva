@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ListChecks,
   LayoutGrid,
+  Heart,
 } from "lucide-react";
 
 const API_URL =
@@ -356,26 +357,38 @@ export default function ProgramsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-sand-50 p-6 md:p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-sand-50">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Entrepreneuse</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Financement</span>
+        </div>
+
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-5 rounded-2xl border border-sand-200 bg-white p-6 shadow-card sm:flex-row sm:items-end sm:justify-between md:p-8">
+        <div className="relative mb-10 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+          />
+
           <div>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-rose-500">
-              Financement
+            <p className="font-script text-2xl leading-none text-rose-500">
+              Vue d&apos;ensemble
             </p>
-            <h1 className="font-display mt-1 text-3xl font-semibold text-wine-700 md:text-4xl">
-              Programmes de financement
+            <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+              Programmes de <span className="text-gradient-rise">financement</span>
             </h1>
-            <p className="font-body mt-2 text-ink-soft">
-              L&apos;accès à tous les programmes est gratuit. Postulez à
-              autant de programmes que vous le souhaitez.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+              L&apos;accès à tous les programmes est gratuit. Postulez à autant
+              de programmes que vous le souhaitez.
             </p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex gap-2 rounded-2xl border border-sand-200 bg-white p-1.5 shadow-card sm:inline-flex">
+        <div className="mb-6 flex gap-2 rounded-2xl border border-rose-100/70 bg-white p-1.5 shadow-card sm:inline-flex">
           <button
             onClick={() => setActiveTab("all")}
             className={`font-body flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
@@ -419,7 +432,7 @@ export default function ProgramsPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Rechercher un programme…"
-                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white sm:w-64"
+                  className="focus-ring font-body w-full rounded-xl border border-rose-100/70 bg-sand-50 py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white sm:w-64"
                 />
               </div>
 
@@ -429,7 +442,7 @@ export default function ProgramsPage() {
                 className={`focus-ring font-body inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                   showFilters || categoryFilter !== "ALL"
                     ? "border-rose-400 bg-rose-50 text-rose-600"
-                    : "border-sand-200 bg-white text-ink-soft hover:bg-sand-100"
+                    : "border-rose-100/70 bg-white text-ink-soft hover:bg-sand-100"
                 }`}
               >
                 <SlidersHorizontal size={16} />
@@ -444,7 +457,7 @@ export default function ProgramsPage() {
 
             {/* Filter panel */}
             {showFilters && categories.length > 0 && (
-              <div className="animate-rise mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
+              <div className="animate-rise mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-rose-100/70 bg-white p-4 shadow-card">
                 <span className="font-body mr-1 text-xs font-semibold uppercase tracking-wide text-ink-soft/70">
                   Catégorie
                 </span>
@@ -493,27 +506,17 @@ export default function ProgramsPage() {
             {loading && (
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="card-surface p-5 shadow-card">
-                    <div className="flex items-start gap-3">
-                      <div className="h-12 w-12 shrink-0 animate-pulse rounded-xl bg-sand-100" />
-                      <div className="flex-1 space-y-2 pt-1">
-                        <div className="h-4 w-3/4 animate-pulse rounded bg-sand-100" />
-                        <div className="h-3 w-1/2 animate-pulse rounded bg-sand-100" />
-                      </div>
-                    </div>
-                    <div className="mt-5 space-y-2.5">
-                      <div className="h-3 w-full animate-pulse rounded bg-sand-100" />
-                      <div className="h-3 w-5/6 animate-pulse rounded bg-sand-100" />
-                      <div className="h-3 w-2/3 animate-pulse rounded bg-sand-100" />
-                    </div>
-                  </div>
+                  <div
+                    key={i}
+                    className="h-64 animate-pulse rounded-[2rem] border border-rose-100/60 bg-white/70"
+                  />
                 ))}
               </div>
             )}
 
             {/* Error */}
             {!loading && error && (
-              <div className="font-body rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-wine-700">
+              <div className="font-body rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-wine-700">
                 {error}
                 <div className="mt-4">
                   <button
@@ -528,16 +531,16 @@ export default function ProgramsPage() {
 
             {/* Empty */}
             {!loading && !error && filteredPrograms.length === 0 && (
-              <div className="card-surface animate-rise flex flex-col items-center p-14 text-center shadow-card">
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-rise-gradient-soft text-2xl text-rose-500">
-                  <Landmark size={26} />
+              <div className="animate-rise flex flex-col items-center rounded-[2rem] border border-dashed border-rose-200 bg-white/60 px-6 py-16 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-400">
+                  <Landmark size={22} />
                 </div>
 
-                <h2 className="font-display text-2xl font-semibold text-wine-700">
-                  Aucun programme trouvé
-                </h2>
+                <p className="font-script text-xl text-rose-500">
+                  Rien à afficher pour l&apos;instant
+                </p>
 
-                <p className="font-body mt-2 max-w-sm text-ink-soft">
+                <p className="font-body mt-2 max-w-sm text-sm text-ink-soft">
                   {hasActiveFilters
                     ? "Essayez d'ajuster votre recherche ou vos filtres."
                     : "Aucun programme de financement n'est disponible pour le moment."}
@@ -549,7 +552,7 @@ export default function ProgramsPage() {
                       setCategoryFilter("ALL");
                       setSearch("");
                     }}
-                    className="focus-ring font-body mt-6 inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-5 py-2.5 text-sm font-semibold text-ink-soft transition hover:bg-sand-100"
+                    className="focus-ring font-body mt-6 inline-flex items-center gap-2 rounded-xl border border-rose-100/70 bg-white px-5 py-2.5 text-sm font-semibold text-ink-soft transition hover:bg-sand-100"
                   >
                     Réinitialiser les filtres
                   </button>
@@ -567,16 +570,92 @@ export default function ProgramsPage() {
                     <div
                       key={program.id}
                       style={{ animationDelay: `${(index % 6) * 60}ms` }}
-                      className="card-surface animate-rise group flex flex-col p-5 shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-bloom"
+                      className="
+                        card-plan
+                        group
+                        animate-rise
+                        relative
+                        flex
+                        flex-col
+                        overflow-hidden
+                        rounded-[2rem]
+                        border
+                        border-rose-100/70
+                        bg-white
+                        p-5
+                        shadow-card
+                        transition-all
+                        duration-300
+                        hover:-translate-y-1.5
+                        hover:border-rose-200
+                        hover:shadow-bloom
+                      "
                     >
+                      {/* decorative corner bloom */}
+                      <div
+                        aria-hidden
+                        className="
+                          pointer-events-none
+                          absolute
+                          -right-10
+                          -top-10
+                          h-32
+                          w-32
+                          rounded-full
+                          bg-rise-gradient-soft
+                          opacity-0
+                          blur-2xl
+                          transition-opacity
+                          duration-500
+                          group-hover:opacity-70
+                        "
+                      />
+
+                      {/* floating heart accent */}
+                      <Heart
+                        size={14}
+                        className="
+                          absolute
+                          right-5
+                          top-5
+                          text-rose-200
+                          opacity-0
+                          transition-all
+                          duration-300
+                          group-hover:translate-y-0.5
+                          group-hover:opacity-100
+                        "
+                        fill="currentColor"
+                      />
+
                       {/* Title */}
-                      <div className="mb-4 flex items-start gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rise-gradient-soft">
-                          <Landmark size={20} className="text-rose-500" />
+                      <div className="relative mb-4 flex items-start gap-3">
+                        <div
+                          className="
+                            flex
+                            h-12
+                            w-12
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-2xl
+                            bg-rise-gradient
+                            text-white
+                            shadow-sm
+                            transition-transform
+                            duration-300
+                            group-hover:scale-105
+                            group-hover:rotate-3
+                          "
+                        >
+                          <Landmark size={19} />
                         </div>
 
                         <div className="min-w-0">
-                          <h2 className="font-display text-lg font-semibold leading-snug text-ink">
+                          <p className="font-script text-base leading-none text-rose-400">
+                            Programme
+                          </p>
+                          <h2 className="mt-1 font-display text-lg font-semibold leading-snug text-ink">
                             {program.title}
                           </h2>
                           {program.institution?.name && (
@@ -605,7 +684,7 @@ export default function ProgramsPage() {
 
                       {/* Amount */}
                       {program.amountMax && (
-                        <div className="mb-3 rounded-xl bg-sand-100 p-3.5">
+                        <div className="mb-3 rounded-2xl bg-sand-50 p-3.5">
                           <div className="font-body flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-soft/70">
                             <Wallet size={13} />
                             Montant max
@@ -638,7 +717,7 @@ export default function ProgramsPage() {
                       <div className="flex-1" />
 
                       {/* Footer: deadline + apply */}
-                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-sand-200 pt-4">
+                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-rose-100/60 pt-4">
                         <DeadlineTag closingDate={program.closingDate} />
 
                         {alreadyApplied ? (
@@ -667,14 +746,14 @@ export default function ProgramsPage() {
           <>
             {myAppsLoading && (
               <div className="space-y-3">
-                <div className="h-20 animate-pulse rounded-2xl bg-sand-100" />
-                <div className="h-20 animate-pulse rounded-2xl bg-sand-100" />
-                <div className="h-20 animate-pulse rounded-2xl bg-sand-100" />
+                <div className="h-20 animate-pulse rounded-[2rem] bg-sand-100" />
+                <div className="h-20 animate-pulse rounded-[2rem] bg-sand-100" />
+                <div className="h-20 animate-pulse rounded-[2rem] bg-sand-100" />
               </div>
             )}
 
             {!myAppsLoading && myAppsError && (
-              <div className="font-body rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-wine-700">
+              <div className="font-body rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center text-sm text-wine-700">
                 {myAppsError}
                 <div className="mt-4">
                   <button
@@ -690,16 +769,16 @@ export default function ProgramsPage() {
             {!myAppsLoading &&
               !myAppsError &&
               myApplications.length === 0 && (
-                <div className="card-surface animate-rise flex flex-col items-center p-14 text-center shadow-card">
-                  <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-rise-gradient-soft text-2xl text-rose-500">
-                    <ListChecks size={26} />
+                <div className="animate-rise flex flex-col items-center rounded-[2rem] border border-dashed border-rose-200 bg-white/60 px-6 py-16 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-400">
+                    <ListChecks size={22} />
                   </div>
 
-                  <h2 className="font-display text-2xl font-semibold text-wine-700">
+                  <p className="font-script text-xl text-rose-500">
                     Aucune candidature pour l&apos;instant
-                  </h2>
+                  </p>
 
-                  <p className="font-body mt-2 max-w-sm text-ink-soft">
+                  <p className="font-body mt-2 max-w-sm text-sm text-ink-soft">
                     Parcourez les programmes disponibles et postulez pour les
                     voir apparaître ici.
                   </p>
@@ -720,7 +799,7 @@ export default function ProgramsPage() {
                   {myApplications.map((application) => (
                     <div
                       key={application.id}
-                      className="card-surface animate-rise flex flex-col gap-4 p-5 shadow-card sm:flex-row sm:items-center sm:justify-between"
+                      className="animate-rise flex flex-col gap-4 rounded-[2rem] border border-rose-100/70 bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
                         <h3 className="font-display text-lg font-semibold text-ink">
@@ -765,13 +844,13 @@ export default function ProgramsPage() {
 
       {applyTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-bloom">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-bloom">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-rose-500">
+                <p className="font-script text-lg leading-none text-rose-500">
                   Candidature
                 </p>
-                <h3 className="font-display mt-1 text-xl font-bold text-wine-700">
+                <h3 className="font-display mt-2 text-xl font-bold text-wine-700">
                   {applyTarget.title}
                 </h3>
               </div>
@@ -801,7 +880,7 @@ export default function ProgramsPage() {
                   value={amountRequested}
                   onChange={(e) => setAmountRequested(e.target.value)}
                   placeholder="Ex : 500000"
-                  className="w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink outline-none transition focus:border-rose-400 focus:bg-white"
+                  className="w-full rounded-xl border border-rose-100/70 bg-sand-50 p-3 text-ink outline-none transition focus:border-rose-400 focus:bg-white"
                 />
               </div>
 
@@ -814,7 +893,7 @@ export default function ProgramsPage() {
                   value={applyMessage}
                   onChange={(e) => setApplyMessage(e.target.value)}
                   placeholder="Présentez brièvement votre projet…"
-                  className="w-full resize-none rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink outline-none transition focus:border-rose-400 focus:bg-white"
+                  className="w-full resize-none rounded-xl border border-rose-100/70 bg-sand-50 p-3 text-ink outline-none transition focus:border-rose-400 focus:bg-white"
                 />
               </div>
             </div>
@@ -842,6 +921,6 @@ export default function ProgramsPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

@@ -20,10 +20,15 @@ import { Header } from "@/components/layout/Header";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/common/Avatar";
 import { EmptyState } from "@/components/common/EmptyState";
+
 import {
   listMyEntrepreneurs,
   EntrepreneurSummary,
 } from "@/lib/api/entrepreneurs";
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
 const planStatusLabel: Record<string, string> = {
   SUBMITTED: "Soumis",
@@ -31,14 +36,6 @@ const planStatusLabel: Record<string, string> = {
   APPROVED: "Approuvé",
   REJECTED: "Rejeté",
   DRAFT: "Brouillon",
-};
-
-const planStatusTone: Record<string, string> = {
-  SUBMITTED: "rose",
-  IN_REVIEW: "rose",
-  APPROVED: "rose",
-  REJECTED: "rose",
-  DRAFT: "rose",
 };
 
 function formatDate(date: string) {
@@ -66,6 +63,10 @@ function formatRelativeDate(date: string) {
   return formatDate(date);
 }
 
+/* ------------------------------------------------------------------ */
+/* Stat Card                                                          */
+/* ------------------------------------------------------------------ */
+
 function StatCard({
   icon: Icon,
   label,
@@ -78,32 +79,43 @@ function StatCard({
   description: string;
 }) {
   return (
-    <div className="card-surface group relative overflow-hidden p-5 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="absolute right-0 top-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-rose-50" />
+    <div className="group relative overflow-hidden rounded-2xl border border-rose-100/80 bg-white p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-rose-200 hover:shadow-bloom">
+      <div
+        aria-hidden
+        className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-rise-gradient-soft opacity-60 blur-xl"
+      />
 
       <div className="relative">
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sand-100 text-ink">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
             <Icon size={19} strokeWidth={1.8} />
           </div>
 
           <ArrowUpRight
             size={16}
-            className="text-ink-soft/40 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            className="text-rose-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
           />
         </div>
 
-        <p className="text-2xl font-semibold tracking-tight text-ink">
+        <p className="font-display text-2xl font-semibold text-wine-900">
           {value}
         </p>
 
-        <p className="mt-1 text-sm font-medium text-ink">{label}</p>
+        <p className="mt-1 text-sm font-semibold text-ink">
+          {label}
+        </p>
 
-        <p className="mt-1 text-xs text-ink-soft">{description}</p>
+        <p className="mt-1 text-xs text-ink-soft">
+          {description}
+        </p>
       </div>
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Entrepreneur Card                                                  */
+/* ------------------------------------------------------------------ */
 
 function EntrepreneurCard({
   entrepreneur,
@@ -119,74 +131,133 @@ function EntrepreneurCard({
   const hasSessions = entrepreneur.sessions.length > 0;
 
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-black/[0.09] hover:shadow-xl">
-      {/* Top accent */}
-      <div className="h-1 w-full bg-gradient-to-r from-rose-300 via-rose-200 to-transparent" />
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-rose-100/80 bg-white shadow-card transition-all duration-300 hover:-translate-y-1.5 hover:border-rose-200 hover:shadow-bloom">
+      {/* ------------------------------------------------------------ */}
+      {/* Decorative header                                            */}
+      {/* ------------------------------------------------------------ */}
 
-      <div className="p-5">
+      <div className="relative h-28 overflow-hidden bg-rise-gradient-soft">
+        <div
+          aria-hidden
+          className="absolute -right-10 -top-16 h-44 w-44 rounded-full bg-white/30 blur-2xl"
+        />
+
+        <div
+          aria-hidden
+          className="absolute -bottom-16 -left-10 h-36 w-36 rounded-full bg-rose-200/30 blur-2xl"
+        />
+
+        <div className="absolute left-5 top-5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-3 py-1.5 font-body text-[11px] font-semibold text-wine-700 shadow-sm backdrop-blur-sm">
+            <Users size={12} />
+            Entrepreneure
+          </span>
+        </div>
+
+        <div className="absolute right-5 top-5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-3 py-1.5 font-body text-[11px] font-medium text-rose-600 shadow-sm backdrop-blur-sm">
+            <Sparkles size={11} />
+            Accompagnement
+          </span>
+        </div>
+
+        {/* Floating avatar */}
+        <div className="absolute bottom-[-20px] left-5">
+          <div className="rounded-2xl border-4 border-white bg-white p-0.5 shadow-md">
+            <Avatar
+              name={entrepreneur.name}
+              size="sm"
+            />
+          </div>
+
+          <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------ */}
+      {/* Content                                                      */}
+      {/* ------------------------------------------------------------ */}
+
+      <div className="flex flex-1 flex-col p-5 pt-8">
         {/* Profile */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="relative shrink-0">
-              <div className="rounded-full p-0.5 ring-2 ring-sand-100">
-                <Avatar name={entrepreneur.name} size="sm" />
-              </div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate font-display text-xl font-semibold text-wine-900 transition-colors group-hover:text-rose-600">
+              {entrepreneur.name}
+            </h3>
 
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-            </div>
+            <p className="mt-1.5 flex min-w-0 items-center gap-1.5 truncate text-xs text-ink-soft">
+              <Mail
+                size={12}
+                className="shrink-0 text-rose-400"
+              />
 
-            <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-ink">
-                {entrepreneur.name}
-              </h3>
-
-              <p className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-xs text-ink-soft">
-                <Mail size={12} className="shrink-0" />
-                <span className="truncate">{entrepreneur.email}</span>
-              </p>
-            </div>
+              <span className="truncate">
+                {entrepreneur.email}
+              </span>
+            </p>
           </div>
 
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sand-50 text-ink-soft transition-colors group-hover:bg-rose-50 group-hover:text-rose-600">
-            <ChevronRight size={16} />
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                `/expert/messages?user=${entrepreneur.id}`
+              )
+            }
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition-all hover:bg-rose-100 hover:text-rose-600"
+            title="Contacter"
+          >
+            <ArrowUpRight size={16} />
+          </button>
         </div>
 
         {/* Relationship badges */}
         <div className="mt-5 flex flex-wrap gap-2">
           {hasPlans && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-2.5 py-1 text-[11px] font-medium text-ink-soft">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-600">
               <FileText size={11} />
+
               {entrepreneur.businessPlans.length} business plan
-              {entrepreneur.businessPlans.length > 1 ? "s" : ""}
+              {entrepreneur.businessPlans.length > 1
+                ? "s"
+                : ""}
             </span>
           )}
 
           {hasSessions && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-2.5 py-1 text-[11px] font-medium text-ink-soft">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-[11px] font-semibold text-ink-soft">
               <Calendar size={11} />
+
               {entrepreneur.sessions.length} session
-              {entrepreneur.sessions.length > 1 ? "s" : ""}
+              {entrepreneur.sessions.length > 1
+                ? "s"
+                : ""}
             </span>
           )}
         </div>
 
-        {/* Business plan */}
+        {/* ---------------------------------------------------------- */}
+        {/* Business plan                                              */}
+        {/* ---------------------------------------------------------- */}
+
         {latestPlan && (
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between">
+          <div className="mt-6">
+            <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-500">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-500">
                   <FileText size={14} />
                 </div>
 
-                <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                <span className="font-body text-[11px] font-bold uppercase tracking-[0.1em] text-ink-soft">
                   Business plan
                 </span>
               </div>
 
               <span className="text-[10px] text-ink-soft/60">
-                {formatRelativeDate(latestPlan.updatedAt)}
+                {formatRelativeDate(
+                  latestPlan.updatedAt
+                )}
               </span>
             </div>
 
@@ -197,67 +268,73 @@ function EntrepreneurCard({
                   `/expert/business-plans/${latestPlan.id}`
                 )
               }
-              className="group/plan w-full rounded-xl border border-black/[0.05] bg-sand-50/70 p-3 text-left transition-all hover:border-rose-100 hover:bg-rose-50/40"
+              className="group/plan w-full rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/70 to-sand-50 p-4 text-left transition-all hover:border-rose-200 hover:shadow-sm"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink">
+                  <p className="truncate font-body text-sm font-semibold text-wine-800">
                     {latestPlan.title}
                   </p>
 
-                  <p className="mt-1 text-[11px] text-ink-soft">
-                    Mis à jour le {formatDate(latestPlan.updatedAt)}
+                  <p className="mt-1.5 text-[11px] text-ink-soft">
+                    Mis à jour le{" "}
+                    {formatDate(
+                      latestPlan.updatedAt
+                    )}
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge
-                    tone={
-                      planStatusTone[latestPlan.status] as
-                        | "rose"
-                        | undefined
-                    }
-                  >
-                    {planStatusLabel[latestPlan.status] ??
-                      latestPlan.status}
-                  </Badge>
+                <ChevronRight
+                  size={16}
+                  className="shrink-0 text-rose-300 transition-transform group-hover/plan:translate-x-1"
+                />
+              </div>
 
-                  <ChevronRight
-                    size={14}
-                    className="text-ink-soft/40 transition-transform group-hover/plan:translate-x-0.5"
-                  />
-                </div>
+              <div className="mt-3">
+                <Badge tone="rose">
+                  {planStatusLabel[
+                    latestPlan.status
+                  ] ?? latestPlan.status}
+                </Badge>
               </div>
             </button>
           </div>
         )}
 
-        {/* Session */}
+        {/* ---------------------------------------------------------- */}
+        {/* Session                                                     */}
+        {/* ---------------------------------------------------------- */}
+
         {latestSession && (
-          <div className="mt-4">
-            <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sand-100 text-ink-soft">
+          <div className="mt-5">
+            <div className="mb-2.5 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sand-100 text-ink-soft">
                 <Calendar size={14} />
               </div>
 
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+              <span className="font-body text-[11px] font-bold uppercase tracking-[0.1em] text-ink-soft">
                 Dernière session
               </span>
             </div>
 
-            <div className="rounded-xl border border-black/[0.05] bg-white p-3">
+            <div className="rounded-2xl border border-sand-200 bg-white p-4">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sand-100">
-                  <Clock3 size={14} className="text-ink-soft" />
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sand-100">
+                  <Clock3
+                    size={14}
+                    className="text-ink-soft"
+                  />
                 </div>
 
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink">
+                  <p className="truncate font-body text-sm font-semibold text-ink">
                     {latestSession.topic}
                   </p>
 
                   <p className="mt-1 text-xs text-ink-soft">
-                    {formatDate(latestSession.scheduledAt)}
+                    {formatDate(
+                      latestSession.scheduledAt
+                    )}
                   </p>
                 </div>
               </div>
@@ -265,12 +342,22 @@ function EntrepreneurCard({
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-5 flex items-center justify-between border-t border-black/[0.05] pt-4">
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* ---------------------------------------------------------- */}
+        {/* Footer                                                     */}
+        {/* ---------------------------------------------------------- */}
+
+        <div className="mt-6 flex items-center justify-between border-t border-rose-100 pt-4">
           <div className="flex items-center gap-1.5 text-[11px] text-ink-soft">
             <Clock3 size={12} />
+
             <span>
-              Activité : {formatRelativeDate(entrepreneur.lastActivity)}
+              Activité :{" "}
+              {formatRelativeDate(
+                entrepreneur.lastActivity
+              )}
             </span>
           </div>
 
@@ -281,47 +368,65 @@ function EntrepreneurCard({
                 `/expert/messages?user=${entrepreneur.id}`
               )
             }
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-wine-700 transition-all hover:bg-rose-50 hover:text-rose-600"
           >
             Contacter
             <ArrowUpRight size={12} />
           </button>
         </div>
       </div>
+
+      {/* Bottom accent */}
+      <div className="h-1 w-full bg-rise-gradient opacity-70" />
     </article>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Skeleton                                                           */
+/* ------------------------------------------------------------------ */
+
 function EntrepreneurSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/[0.05] bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 animate-pulse rounded-full bg-sand-100" />
+    <div className="overflow-hidden rounded-[1.75rem] border border-rose-100 bg-white shadow-card">
+      <div className="h-28 animate-pulse bg-rose-50" />
 
-        <div className="flex-1 space-y-2">
-          <div className="h-3 w-32 animate-pulse rounded bg-sand-100" />
-          <div className="h-2.5 w-44 animate-pulse rounded bg-sand-100" />
+      <div className="p-5">
+        <div className="space-y-2">
+          <div className="h-5 w-36 animate-pulse rounded bg-sand-100" />
+          <div className="h-3 w-48 animate-pulse rounded bg-sand-100" />
         </div>
-      </div>
 
-      <div className="mt-5 h-7 w-28 animate-pulse rounded-full bg-sand-100" />
-      <div className="mt-5 h-20 animate-pulse rounded-xl bg-sand-50" />
-      <div className="mt-4 h-16 animate-pulse rounded-xl bg-sand-50" />
+        <div className="mt-5 h-7 w-32 animate-pulse rounded-full bg-sand-100" />
+
+        <div className="mt-5 h-24 animate-pulse rounded-2xl bg-sand-50" />
+
+        <div className="mt-4 h-16 animate-pulse rounded-2xl bg-sand-50" />
+      </div>
     </div>
   );
 }
 
-export default function EntrepreneursPage() {
-  const [entrepreneurs, setEntrepreneurs] = useState<
-    EntrepreneurSummary[]
-  >([]);
+/* ------------------------------------------------------------------ */
+/* Page                                                               */
+/* ------------------------------------------------------------------ */
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "plans" | "sessions">(
-    "all"
-  );
+export default function EntrepreneursPage() {
+  const [entrepreneurs, setEntrepreneurs] =
+    useState<EntrepreneurSummary[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [filter, setFilter] = useState<
+    "all" | "plans" | "sessions"
+  >("all");
 
   useEffect(() => {
     loadEntrepreneurs();
@@ -332,7 +437,9 @@ export default function EntrepreneursPage() {
       setLoading(true);
       setError(null);
 
-      const data = await listMyEntrepreneurs();
+      const data =
+        await listMyEntrepreneurs();
+
       setEntrepreneurs(data);
     } catch (err) {
       setError(
@@ -345,268 +452,369 @@ export default function EntrepreneursPage() {
     }
   }
 
-  const filteredEntrepreneurs = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const filteredEntrepreneurs =
+    useMemo(() => {
+      const query =
+        search.trim().toLowerCase();
 
-    return entrepreneurs.filter((entrepreneur) => {
-      const matchesSearch =
-        !query ||
-        entrepreneur.name.toLowerCase().includes(query) ||
-        entrepreneur.email.toLowerCase().includes(query) ||
-        entrepreneur.businessPlans.some((plan) =>
-          plan.title.toLowerCase().includes(query)
-        );
+      return entrepreneurs.filter(
+        (entrepreneur) => {
+          const matchesSearch =
+            !query ||
+            entrepreneur.name
+              .toLowerCase()
+              .includes(query) ||
+            entrepreneur.email
+              .toLowerCase()
+              .includes(query) ||
+            entrepreneur.businessPlans.some(
+              (plan) =>
+                plan.title
+                  .toLowerCase()
+                  .includes(query)
+            );
 
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "plans" &&
-          entrepreneur.businessPlans.length > 0) ||
-        (filter === "sessions" &&
-          entrepreneur.sessions.length > 0);
+          const matchesFilter =
+            filter === "all" ||
+            (filter === "plans" &&
+              entrepreneur.businessPlans
+                .length > 0) ||
+            (filter === "sessions" &&
+              entrepreneur.sessions
+                .length > 0);
 
-      return matchesSearch && matchesFilter;
-    });
-  }, [entrepreneurs, search, filter]);
+          return (
+            matchesSearch &&
+            matchesFilter
+          );
+        }
+      );
+    }, [entrepreneurs, search, filter]);
 
-  const totalPlans = entrepreneurs.reduce(
-    (sum, entrepreneur) =>
-      sum + entrepreneur.businessPlans.length,
-    0
-  );
+  const totalPlans =
+    entrepreneurs.reduce(
+      (sum, entrepreneur) =>
+        sum +
+        entrepreneur.businessPlans.length,
+      0
+    );
 
-  const totalSessions = entrepreneurs.reduce(
-    (sum, entrepreneur) => sum + entrepreneur.sessions.length,
-    0
-  );
+  const totalSessions =
+    entrepreneurs.reduce(
+      (sum, entrepreneur) =>
+        sum + entrepreneur.sessions.length,
+      0
+    );
 
   return (
     <>
-      <Header title="Mes entrepreneures" />
+      {/* Existing global/header component */}
 
-      <main className="space-y-7">
-        {/* Hero */}
-        <section className="relative overflow-hidden rounded-3xl border border-black/[0.05] bg-gradient-to-br from-white via-white to-sand-50 p-6 shadow-sm md:p-8">
-          <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-rose-100/40 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-sand-100/70 blur-3xl" />
+      <main className="min-h-screen bg-sand-50 px-6 py-8 md:px-8">
+        <div className="mx-auto max-w-7xl">
 
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600">
-                <Sparkles size={13} />
-                Votre réseau d'entrepreneures
-              </div>
+          {/* ====================================================== */}
+          {/* HOMOGENEOUS HEADER                                     */}
+          {/* ====================================================== */}
 
-              <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
-                Vue d’ensemble
-              </h1>
+          <div className="mb-10">
+            {/* Breadcrumb */}
+            <div className="mb-8 text-sm text-ink-soft">
+              <span>Espace Experte</span>
 
-              <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
-                Retrouvez les entrepreneures avec lesquelles vous
-                travaillez, leurs business plans et vos sessions
-                d’accompagnement.
-              </p>
+              <span className="mx-2 text-ink-soft/40">
+                /
+              </span>
+
+              <span className="font-medium text-wine-700">
+                Entrepreneures
+              </span>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-black/[0.05] bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sand-100">
-                <Users size={18} className="text-ink" />
-              </div>
-
-              <div>
-                <p className="text-xl font-semibold text-ink">
-                  {entrepreneurs.length}
-                </p>
-                <p className="text-xs text-ink-soft">
-                  entrepreneure
-                  {entrepreneurs.length > 1 ? "s" : ""}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Stats */}
-        {!loading && !error && (
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard
-              icon={Users}
-              label="Entrepreneures"
-              value={entrepreneurs.length}
-              description="Personnes accompagnées"
-            />
-
-            <StatCard
-              icon={FileText}
-              label="Business plans"
-              value={totalPlans}
-              description="Plans suivis ou révisés"
-            />
-
-            <StatCard
-              icon={Calendar}
-              label="Sessions"
-              value={totalSessions}
-              description="Sessions d'accompagnement"
-            />
-          </section>
-        )}
-
-        {/* Search + filters */}
-        {!loading && !error && entrepreneurs.length > 0 && (
-          <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:max-w-md">
-              <Search
-                size={17}
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-soft/50"
+            {/* Header Section */}
+            <div className="relative">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-10 -top-20 -z-10 h-64 w-64 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl"
               />
 
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher une entrepreneure..."
-                className="h-11 w-full rounded-xl border border-black/[0.07] bg-white pl-10 pr-4 text-sm text-ink outline-none transition-all placeholder:text-ink-soft/50 focus:border-rose-200 focus:ring-4 focus:ring-rose-50"
-              />
-            </div>
-
-            <div className="flex w-full gap-1 rounded-xl border border-black/[0.06] bg-white p-1 md:w-auto">
-              {[
-                { value: "all", label: "Toutes" },
-                { value: "plans", label: "Business plans" },
-                { value: "sessions", label: "Sessions" },
-              ].map((item) => {
-                const active = filter === item.value;
-
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() =>
-                      setFilter(
-                        item.value as
-                          | "all"
-                          | "plans"
-                          | "sessions"
-                      )
-                    }
-                    className={`rounded-lg px-3 py-2 text-xs font-medium transition-all ${
-                      active
-                        ? "bg-ink text-white shadow-sm"
-                        : "text-ink-soft hover:bg-sand-50 hover:text-ink"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-rose-700">
-                  Impossible de charger vos entrepreneures
-                </p>
-
-                <p className="mt-1 text-xs text-rose-600/80">
-                  {error}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={loadEntrepreneurs}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-medium text-ink shadow-sm transition hover:bg-sand-50"
-              >
-                <RefreshCw size={14} />
-                Réessayer
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <EntrepreneurSkeleton key={index} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty */}
-        {!loading &&
-          !error &&
-          entrepreneurs.length === 0 && (
-            <div className="rounded-3xl border border-black/[0.05] bg-white p-8 shadow-sm md:p-12">
-              <EmptyState
-                icon={Users}
-                title="Aucune entrepreneure pour le moment"
-                description="Les entrepreneures dont vous révisez le business plan ou avec qui vous avez une session apparaîtront automatiquement ici."
-              />
-            </div>
-          )}
-
-        {/* No search result */}
-        {!loading &&
-          !error &&
-          entrepreneurs.length > 0 &&
-          filteredEntrepreneurs.length === 0 && (
-            <div className="rounded-3xl border border-black/[0.05] bg-white px-6 py-14 text-center shadow-sm">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sand-100">
-                <Search size={22} className="text-ink-soft" />
-              </div>
-
-              <h3 className="mt-4 text-sm font-semibold text-ink">
-                Aucun résultat
-              </h3>
-
-              <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-ink-soft">
-                Aucune entrepreneure ne correspond à votre recherche
-                ou au filtre sélectionné.
-              </p>
-            </div>
-          )}
-
-        {/* Cards */}
-        {!loading &&
-          !error &&
-          filteredEntrepreneurs.length > 0 && (
-            <section>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-ink">
-                    Vos entrepreneures
-                  </h2>
+                  <p className="font-script text-2xl leading-none text-rose-500">
+                    Votre réseau
+                  </p>
 
-                  <p className="mt-0.5 text-xs text-ink-soft">
-                    {filteredEntrepreneurs.length} résultat
-                    {filteredEntrepreneurs.length > 1 ? "s" : ""}
+                  <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+                    Gestion -{" "}
+                    <span className="text-gradient-rise">
+                      Entrepreneures
+                    </span>
+                  </h1>
+
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+                    Retrouvez les entrepreneures que
+                    vous accompagnez, leurs business plans
+                    et vos sessions de suivi.
                   </p>
                 </div>
 
-                <div className="hidden items-center gap-2 text-xs text-ink-soft sm:flex">
-                  <BriefcaseBusiness size={14} />
-                  Accompagnement
+                {/* Small total */}
+                <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-rose-100 bg-white px-5 py-3 shadow-sm">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+                    <Users size={18} />
+                  </div>
+
+                  <div>
+                    <p className="font-display text-xl font-semibold text-wine-900">
+                      {entrepreneurs.length}
+                    </p>
+
+                    <p className="text-xs text-ink-soft">
+                      entrepreneure
+                      {entrepreneurs.length > 1
+                        ? "s"
+                        : ""}
+                    </p>
+                  </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {filteredEntrepreneurs.map((entrepreneur) => (
-                  <EntrepreneurCard
-                    key={entrepreneur.id}
-                    entrepreneur={entrepreneur}
-                  />
-                ))}
-              </div>
+          {/* ====================================================== */}
+          {/* STATS                                                   */}
+          {/* ====================================================== */}
+
+          {!loading && !error && (
+            <section className="mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <StatCard
+                icon={Users}
+                label="Entrepreneures"
+                value={entrepreneurs.length}
+                description="Personnes accompagnées"
+              />
+
+              <StatCard
+                icon={FileText}
+                label="Business plans"
+                value={totalPlans}
+                description="Plans suivis ou révisés"
+              />
+
+              <StatCard
+                icon={Calendar}
+                label="Sessions"
+                value={totalSessions}
+                description="Sessions d'accompagnement"
+              />
             </section>
           )}
+
+          {/* ====================================================== */}
+          {/* SEARCH + FILTERS                                       */}
+          {/* ====================================================== */}
+
+          {!loading &&
+            !error &&
+            entrepreneurs.length > 0 && (
+              <section className="mb-7 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                {/* Search */}
+                <div className="relative w-full md:max-w-md">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-rose-400"
+                  />
+
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Rechercher une entrepreneure..."
+                    className="h-11 w-full rounded-xl border border-rose-100 bg-white pl-11 pr-4 font-body text-sm text-ink outline-none shadow-sm transition-all placeholder:text-ink-soft/50 focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
+                  />
+                </div>
+
+                {/* Filters */}
+                <div className="flex w-full gap-1 rounded-xl border border-rose-100 bg-white p-1 shadow-sm md:w-auto">
+                  {[
+                    {
+                      value: "all",
+                      label: "Toutes",
+                    },
+                    {
+                      value: "plans",
+                      label: "Business plans",
+                    },
+                    {
+                      value: "sessions",
+                      label: "Sessions",
+                    },
+                  ].map((item) => {
+                    const active =
+                      filter === item.value;
+
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() =>
+                          setFilter(
+                            item.value as
+                              | "all"
+                              | "plans"
+                              | "sessions"
+                          )
+                        }
+                        className={`rounded-lg px-3 py-2 font-body text-xs font-medium transition-all ${
+                          active
+                            ? "bg-rise-gradient text-white shadow-sm"
+                            : "text-ink-soft hover:bg-rose-50 hover:text-wine-700"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+          {/* ====================================================== */}
+          {/* ERROR                                                   */}
+          {/* ====================================================== */}
+
+          {error && (
+            <div className="mb-7 rounded-2xl border border-rose-200 bg-rose-50/70 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-body text-sm font-semibold text-wine-700">
+                    Impossible de charger vos entrepreneures
+                  </p>
+
+                  <p className="mt-1 font-body text-xs text-rose-600/80">
+                    {error}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadEntrepreneurs}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 font-body text-xs font-semibold text-wine-700 shadow-sm transition hover:bg-rose-50"
+                >
+                  <RefreshCw size={14} />
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ====================================================== */}
+          {/* LOADING                                                 */}
+          {/* ====================================================== */}
+
+          {loading && (
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map(
+                (_, index) => (
+                  <EntrepreneurSkeleton
+                    key={index}
+                  />
+                )
+              )}
+            </div>
+          )}
+
+          {/* ====================================================== */}
+          {/* EMPTY                                                   */}
+          {/* ====================================================== */}
+
+          {!loading &&
+            !error &&
+            entrepreneurs.length === 0 && (
+              <div className="rounded-[1.75rem] border border-rose-100 bg-white p-8 shadow-card md:p-12">
+                <EmptyState
+                  icon={Users}
+                  title="Aucune entrepreneure pour le moment"
+                  description="Les entrepreneures dont vous révisez le business plan ou avec qui vous avez une session apparaîtront automatiquement ici."
+                />
+              </div>
+            )}
+
+          {/* ====================================================== */}
+          {/* NO SEARCH RESULTS                                       */}
+          {/* ====================================================== */}
+
+          {!loading &&
+            !error &&
+            entrepreneurs.length > 0 &&
+            filteredEntrepreneurs.length === 0 && (
+              <div className="rounded-[1.75rem] border border-rose-100 bg-white px-6 py-14 text-center shadow-card">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-400">
+                  <Search size={22} />
+                </div>
+
+                <h3 className="mt-4 font-display text-lg font-semibold text-wine-800">
+                  Aucun résultat
+                </h3>
+
+                <p className="mx-auto mt-1 max-w-sm font-body text-xs leading-5 text-ink-soft">
+                  Aucune entrepreneure ne
+                  correspond à votre recherche ou
+                  au filtre sélectionné.
+                </p>
+              </div>
+            )}
+
+          {/* ====================================================== */}
+          {/* ENTREPRENEUR CARDS                                     */}
+          {/* ====================================================== */}
+
+          {!loading &&
+            !error &&
+            filteredEntrepreneurs.length > 0 && (
+              <section>
+                <div className="mb-5 flex items-end justify-between">
+                  <div>
+                    <p className="font-script text-lg text-rose-400">
+                      Accompagnement
+                    </p>
+
+                    <h2 className="font-display text-xl font-semibold text-wine-900">
+                      Vos entrepreneures
+                    </h2>
+
+                    <p className="mt-1 text-xs text-ink-soft">
+                      {filteredEntrepreneurs.length} résultat
+                      {filteredEntrepreneurs.length > 1
+                        ? "s"
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="hidden items-center gap-2 text-xs text-ink-soft sm:flex">
+                    <BriefcaseBusiness size={14} />
+                    Suivi personnalisé
+                  </div>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {filteredEntrepreneurs.map(
+                    (entrepreneur) => (
+                      <EntrepreneurCard
+                        key={entrepreneur.id}
+                        entrepreneur={entrepreneur}
+                      />
+                    )
+                  )}
+                </div>
+              </section>
+            )}
+        </div>
       </main>
     </>
   );
 }
-

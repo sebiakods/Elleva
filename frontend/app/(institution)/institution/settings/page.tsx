@@ -228,6 +228,33 @@ export default function InstitutionSettingsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumb */}
+<div className="mb-8 text-sm text-ink-soft">
+  <span>Espace Institution</span>
+  <span className="mx-2 text-ink-soft/40">/</span>
+  <span className="font-medium text-wine-700">Paramètres</span>
+</div>
+
+{/* Header Section */}
+<div className="relative mb-10">
+  <div
+    aria-hidden
+    className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+  />
+
+  <p className="font-script text-2xl leading-none text-rose-500">
+    Votre espace
+  </p>
+
+  <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+    Paramètres -{" "}
+    <span className="text-gradient-rise">Mon compte</span>
+  </h1>
+
+  <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+    Gérez les informations et les préférences de votre compte institutionnel.
+  </p>
+</div>
 
       {/* ACCOUNT */}
       <section className="rounded-2xl border bg-white p-6 shadow-sm">

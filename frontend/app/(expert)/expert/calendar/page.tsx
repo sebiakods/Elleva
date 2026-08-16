@@ -544,96 +544,106 @@ export default function ExpertCalendarPage() {
     }
   };
 
-  return (
-    <>
-      <Header title="Calendrier" />
+return (
+  <>
+    <main className="space-y-6 px-4 pb-8 sm:px-6 lg:px-8">
+      {/* Page header */}
+{/* Breadcrumb */}
+<div className="mb-8 text-sm text-ink-soft">
+  <span>Espace Experte</span>
+  <span className="mx-2 text-ink-soft/40">/</span>
+  <span className="font-medium text-wine-700">Calendrier</span>
+</div>
+
+{/* Header */}
+<div className="relative mb-10">
+  <div
+    aria-hidden
+    className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+  />
+
+  <p className="font-script text-2xl leading-none text-rose-500">
+    Espace Experte,
+  </p>
+
+  <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+    Mon <span className="text-gradient-rise">calendrier</span>
+  </h1>
+
+  <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+    Organisez vos notes personnelles et gardez une vue claire sur vos
+    activités et vos rendez-vous.
+  </p>
+</div>
 
       {/* Error */}
       {error && (
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 text-sm text-rose-700">
           <span>{error}</span>
 
           <button
             type="button"
-            onClick={() =>
-              setError(null)
-            }
-            className="ml-4 rounded-full p-1 hover:bg-rose-100"
+            onClick={() => setError(null)}
+            className="ml-4 rounded-full p-1.5 transition-colors hover:bg-rose-100"
+            aria-label="Fermer"
           >
             <X size={15} />
           </button>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-
-        {/* =========================
-            CALENDAR
-        ========================== */}
-
-        <div className="card-surface p-6 shadow-card">
-
-          <div className="mb-5 flex items-center justify-between">
-
+      {/* Calendar + details */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Calendar */}
+        <section className="card-surface p-5 shadow-card sm:p-6">
+          <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <h2 className="font-display text-xl text-ink">
                 {MONTHS[month]} {year}
               </h2>
 
               <p className="mt-1 text-xs text-ink-soft">
-                Sélectionnez une date pour
-                ajouter une note.
+                Sélectionnez une date pour ajouter une note.
               </p>
             </div>
 
-            <div className="flex gap-2">
-
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={prev}
-                className="rounded-full p-2 transition-colors hover:bg-sand-100 focus-ring"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink focus-ring"
                 aria-label="Mois précédent"
               >
-                <ChevronLeft
-                  size={18}
-                />
+                <ChevronLeft size={18} />
               </button>
 
               <button
                 type="button"
                 onClick={next}
-                className="rounded-full p-2 transition-colors hover:bg-sand-100 focus-ring"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink focus-ring"
                 aria-label="Mois suivant"
               >
-                <ChevronRight
-                  size={18}
-                />
+                <ChevronRight size={18} />
               </button>
-
             </div>
           </div>
 
           {/* Week days */}
-
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center">
+          <div className="mb-2 grid grid-cols-7 gap-1.5 text-center">
             {DAYS.map((day) => (
               <p
                 key={day}
-                className="py-1 text-xs font-semibold text-ink-soft"
+                className="py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-soft"
               >
                 {day}
               </p>
             ))}
           </div>
 
-          {/* Calendar */}
-
-          <div className="grid grid-cols-7 gap-1">
-
+          {/* Calendar days */}
+          <div className="grid grid-cols-7 gap-1.5">
             {cells.map((_, index) => {
-
-              const day =
-                index - offset + 1;
+              const day = index - offset + 1;
 
               const valid =
                 day > 0 &&
@@ -643,7 +653,7 @@ export default function ExpertCalendarPage() {
                 return (
                   <div
                     key={index}
-                    className="h-10"
+                    className="h-11 sm:h-12"
                   />
                 );
               }
@@ -667,14 +677,14 @@ export default function ExpertCalendarPage() {
                     setError(null);
                   }}
                   className={cn(
-                    "relative flex h-10 w-full items-center justify-center rounded-xl text-sm transition-all focus-ring",
+                    "relative flex h-11 w-full items-center justify-center rounded-xl text-sm transition-all focus-ring sm:h-12",
 
                     isSelected &&
                       "bg-rise-gradient font-semibold text-white shadow-bloom",
 
                     !isSelected &&
                       todayCell &&
-                      "border-2 border-rose-400 font-semibold text-rose-600",
+                      "border-2 border-rose-400 bg-rose-50/40 font-semibold text-rose-600",
 
                     !isSelected &&
                       !todayCell &&
@@ -683,32 +693,24 @@ export default function ExpertCalendarPage() {
                 >
                   {day}
 
-                  {hasEvent &&
-                    !isSelected && (
-                      <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-rose-500" />
-                    )}
+                  {hasEvent && !isSelected && (
+                    <span className="absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-500" />
+                  )}
                 </button>
               );
             })}
           </div>
 
           {/* Legend */}
-
-          <div className="mt-5 flex items-center gap-2 text-xs text-ink-soft">
+          <div className="mt-6 flex items-center gap-2 border-t border-black/[0.05] pt-4 text-xs text-ink-soft">
             <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
             Date avec une note
           </div>
+        </section>
 
-        </div>
-
-        {/* =========================
-            DAY DETAILS
-        ========================== */}
-
-        <div className="card-surface p-6 shadow-card">
-
-          <div className="mb-4 flex items-center justify-between">
-
+        {/* Selected day */}
+        <section className="card-surface p-5 shadow-card sm:p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h3 className="font-display text-lg text-ink">
                 {selectedDay
@@ -716,7 +718,7 @@ export default function ExpertCalendarPage() {
                   : "Sélectionnez un jour"}
               </h3>
 
-              <p className="mt-1 text-xs text-ink-soft">
+              <p className="mt-1 text-xs leading-5 text-ink-soft">
                 Notes personnelles de votre calendrier.
               </p>
             </div>
@@ -724,52 +726,38 @@ export default function ExpertCalendarPage() {
             {!showForm && selectedDay && (
               <button
                 type="button"
-                onClick={() =>
-                  openForm()
-                }
-                className="rounded-full p-1.5 transition-colors hover:bg-sand-100 focus-ring"
+                onClick={() => openForm()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition-colors hover:bg-rose-100 focus-ring"
                 aria-label="Ajouter une note"
               >
-                <Plus
-                  size={18}
-                  className="text-rose-500"
-                />
+                <Plus size={18} />
               </button>
             )}
-
           </div>
 
-          {/* Add form */}
-
+          {/* Add note form */}
           {showForm && (
             <form
               onSubmit={handleAddNote}
-              className="mb-4 space-y-3 rounded-xl bg-sand-50 p-4"
+              className="mb-5 space-y-4 rounded-2xl border border-black/[0.05] bg-sand-50 p-4"
             >
-
               <div className="flex items-center justify-between">
-
-                <p className="text-xs font-semibold text-ink-soft">
+                <p className="text-sm font-semibold text-ink">
                   Nouvelle note
                 </p>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowForm(false)
-                  }
-                  className="rounded-full p-1 text-ink-soft hover:bg-white hover:text-ink"
+                  onClick={() => setShowForm(false)}
+                  className="rounded-full p-1.5 text-ink-soft transition-colors hover:bg-white hover:text-ink"
                   aria-label="Fermer"
                 >
                   <X size={16} />
                 </button>
-
               </div>
 
-              {/* Date */}
-
               <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">
+                <label className="mb-1.5 block text-xs font-medium text-ink-soft">
                   Date
                 </label>
 
@@ -777,19 +765,15 @@ export default function ExpertCalendarPage() {
                   type="date"
                   value={noteDate}
                   onChange={(event) =>
-                    setNoteDate(
-                      event.target.value
-                    )
+                    setNoteDate(event.target.value)
                   }
                   required
-                  className="w-full rounded-lg border border-sand-200 px-3 py-2 text-sm focus-ring"
+                  className="w-full rounded-xl border border-black/[0.07] bg-white px-3 py-2.5 text-sm text-ink outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
                 />
               </div>
 
-              {/* Title */}
-
               <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">
+                <label className="mb-1.5 block text-xs font-medium text-ink-soft">
                   Titre
                 </label>
 
@@ -798,21 +782,17 @@ export default function ExpertCalendarPage() {
                   placeholder="Ex : Suivi Amina K."
                   value={newTitle}
                   onChange={(event) =>
-                    setNewTitle(
-                      event.target.value
-                    )
+                    setNewTitle(event.target.value)
                   }
                   required
-                  className="w-full rounded-lg border border-sand-200 px-3 py-2 text-sm focus-ring"
+                  className="w-full rounded-xl border border-black/[0.07] bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-soft/50 focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
                 />
               </div>
 
-              {/* Description */}
-
               <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">
-                  Note
-                  <span className="ml-1 font-normal">
+                <label className="mb-1.5 block text-xs font-medium text-ink-soft">
+                  Note{" "}
+                  <span className="font-normal">
                     (optionnel)
                   </span>
                 </label>
@@ -821,21 +801,17 @@ export default function ExpertCalendarPage() {
                   placeholder="Détails optionnels..."
                   value={newDescription}
                   onChange={(event) =>
-                    setNewDescription(
-                      event.target.value
-                    )
+                    setNewDescription(event.target.value)
                   }
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-sand-200 px-3 py-2 text-sm focus-ring"
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-black/[0.07] bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-soft/50 focus:border-rose-300 focus:ring-4 focus:ring-rose-50"
                 />
               </div>
-
-              {/* Submit */}
 
               <button
                 type="submit"
                 disabled={saving}
-                className="flex w-full items-center justify-center rounded-xl bg-rise-gradient px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center rounded-xl bg-rise-gradient px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? (
                   <>
@@ -843,46 +819,52 @@ export default function ExpertCalendarPage() {
                       size={15}
                       className="mr-2 animate-spin"
                     />
-
                     Enregistrement...
                   </>
                 ) : (
-                  "Enregistrer la note"
+                  <>
+                    <Plus
+                      size={15}
+                      className="mr-2"
+                    />
+                    Enregistrer la note
+                  </>
                 )}
               </button>
-
             </form>
           )}
 
           {/* Loading */}
-
           {loading ? (
-            <div className="flex flex-col items-center py-8 text-center">
+            <div className="flex flex-col items-center py-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50">
+                <Loader2
+                  size={22}
+                  className="animate-spin text-rose-500"
+                />
+              </div>
 
-              <Loader2
-                size={25}
-                className="mb-3 animate-spin text-rose-500"
-              />
-
-              <p className="text-sm text-ink-soft">
+              <p className="mt-3 text-sm text-ink-soft">
                 Chargement...
               </p>
-
             </div>
-          ) : dayEvents.length === 0 &&
-            !showForm ? (
-
+          ) : dayEvents.length === 0 && !showForm ? (
             /* Empty */
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-black/[0.07] bg-sand-50/50 px-5 py-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sand-100">
+                <CalendarDays
+                  size={24}
+                  className="text-ink-soft"
+                />
+              </div>
 
-            <div className="flex flex-col items-center py-8 text-center">
-
-              <CalendarDays
-                size={28}
-                className="mb-3 text-sand-200"
-              />
-
-              <p className="text-sm text-ink-soft">
+              <p className="mt-3 text-sm font-medium text-ink">
                 Aucune note ce jour
+              </p>
+
+              <p className="mt-1 max-w-xs text-xs leading-5 text-ink-soft">
+                Ajoutez une note pour garder une trace de vos tâches
+                ou suivis importants.
               </p>
 
               {selectedDay && (
@@ -890,80 +872,64 @@ export default function ExpertCalendarPage() {
                   size="sm"
                   variant="secondary"
                   className="mt-4"
-                  onClick={() =>
-                    openForm()
-                  }
+                  onClick={() => openForm()}
                 >
                   <Plus
                     size={15}
                     className="mr-1"
                   />
-
                   Ajouter une note
                 </Button>
               )}
-
             </div>
-
           ) : (
-
             /* Notes */
-
             <div className="space-y-3">
-
               {dayEvents.map((event) => (
-
                 <div
                   key={event.id}
-                  className="group relative rounded-xl border-l-4 border-rose-400 bg-rose-50 p-4"
+                  className="group relative rounded-2xl border border-rose-100 bg-rose-50/60 p-4 transition-all hover:shadow-sm"
                 >
-
                   <button
                     type="button"
                     onClick={() =>
-                      handleDelete(
-                        event.id
-                      )
+                      handleDelete(event.id)
                     }
                     disabled={
-                      deletingId ===
-                      event.id
+                      deletingId === event.id
                     }
-                    className="absolute right-2 top-2 rounded-full p-1.5 text-ink-soft opacity-0 transition-all hover:bg-white hover:text-rose-600 group-hover:opacity-100 disabled:opacity-50"
+                    className="absolute right-2 top-2 rounded-lg p-1.5 text-ink-soft opacity-0 transition-all hover:bg-white hover:text-rose-600 group-hover:opacity-100 disabled:opacity-50"
                     aria-label="Supprimer"
                   >
-                    {deletingId ===
-                    event.id ? (
+                    {deletingId === event.id ? (
                       <Loader2
                         size={14}
                         className="animate-spin"
                       />
                     ) : (
-                      <Trash2
-                        size={14}
-                      />
+                      <Trash2 size={14} />
                     )}
                   </button>
 
-                  <p className="pr-8 text-sm font-semibold text-ink">
-                    {event.title}
-                  </p>
-
-                  {event.description && (
-                    <p className="mt-1 text-xs text-ink-soft">
-                      {event.description}
+                  <div className="pr-8">
+                    <p className="text-sm font-semibold text-ink">
+                      {event.title}
                     </p>
-                  )}
 
-                  <Badge
-                    tone="rose"
-                    className="mt-2"
-                  >
-                    Note
-                  </Badge>
+                    {event.description && (
+                      <p className="mt-1.5 text-xs leading-5 text-ink-soft">
+                        {event.description}
+                      </p>
+                    )}
 
+                    <Badge
+                      tone="rose"
+                      className="mt-3"
+                    >
+                      Note
+                    </Badge>
+                  </div>
                 </div>
-
               ))}
 
               {!showForm && (
@@ -971,24 +937,20 @@ export default function ExpertCalendarPage() {
                   size="sm"
                   variant="secondary"
                   className="mt-2 w-full"
-                  onClick={() =>
-                    openForm()
-                  }
+                  onClick={() => openForm()}
                 >
                   <Plus
                     size={15}
                     className="mr-1"
                   />
-
                   Ajouter une note
                 </Button>
               )}
-
             </div>
           )}
-
-        </div>
+        </section>
       </div>
-    </>
-  );
+    </main>
+  </>
+);
 }

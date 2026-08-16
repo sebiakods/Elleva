@@ -199,6 +199,12 @@ export default function ExpertMessagesPage() {
       <header className="relative z-10 flex-shrink-0 border-b border-sand-200 bg-white/70 px-5 py-5 backdrop-blur-md sm:px-8">
         <div className="flex items-center justify-between gap-3">
           <div>
+                    {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Experte</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Messages</span>
+        </div>
             <p className="font-script text-2xl leading-none text-rose-500">say hello,</p>
             <h1 className="font-display text-3xl text-ink">
               Your <span className="text-gradient-rise">Messages</span>

@@ -1,4 +1,3 @@
-
 import { Request, Response } from "express";
 import * as svc from "../services/applications.service";
 import * as R from "../utils/response";
@@ -10,9 +9,20 @@ import {
 } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HELPER - Sérialisation BigInt
+// ─────────────────────────────────────────────────────────────────────────────
+function serializeBigInt<T>(data: T): T {
+  if (data === undefined || data === null) return data;
+  return JSON.parse(
+    JSON.stringify(data, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EXPERT
 // ─────────────────────────────────────────────────────────────────────────────
-
 export async function applyExpertApplication(
   req: Request,
   res: Response
@@ -37,7 +47,7 @@ export async function applyExpertApplication(
 
     R.created(
       res,
-      application,
+      serializeBigInt(application),
       "Candidature experte envoyée avec succès"
     );
   } catch (err) {
@@ -55,11 +65,7 @@ export async function applyToProgram(
   res: Response
 ): Promise<void> {
   try {
-    const {
-      programId,
-      amountRequested,
-      coverLetter,
-    } = req.body as {
+    const { programId, amountRequested, coverLetter } = req.body as {
       programId: string;
       amountRequested: number;
       coverLetter?: string;
@@ -79,24 +85,18 @@ export async function applyToProgram(
 
     R.created(
       res,
-      application,
+      serializeBigInt(application),
       "Candidature soumise avec succès"
     );
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "PROGRAM_NOT_FOUND") {
-        R.notFound(
-          res,
-          "Programme introuvable ou non publié"
-        );
+        R.notFound(res, "Programme introuvable ou non publié");
         return;
       }
 
       if (err.message === "ALREADY_APPLIED") {
-        R.conflict(
-          res,
-          "Vous avez déjà candidaté à ce programme"
-        );
+        R.conflict(res, "Vous avez déjà candidaté à ce programme");
         return;
       }
     }
@@ -120,11 +120,9 @@ export async function listMyApplications(
       return;
     }
 
-    const applications = await svc.listMyApplications(
-      req.user.id
-    );
+    const applications = await svc.listMyApplications(req.user.id);
 
-    R.ok(res, applications);
+    R.ok(res, serializeBigInt(applications));
   } catch (err) {
     console.error("LIST MY APPLICATIONS ERROR:", err);
     R.serverError(res);
@@ -145,10 +143,7 @@ export async function withdrawApplication(
       return;
     }
 
-    await svc.withdrawApplication(
-      String(req.params.id),
-      req.user.id
-    );
+    await svc.withdrawApplication(String(req.params.id), req.user.id);
 
     R.noContent(res);
   } catch (err) {
@@ -193,55 +188,49 @@ export async function listInstitutionApplications(
 
     const { page, limit, skip } = getPagination(req);
 
-    const { status, programId } =
-      req.query as Record<string, string | undefined>;
+    const { status, programId } = req.query as Record<
+      string,
+      string | undefined
+    >;
 
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const profile =
-      await prisma.institutionProfile.findUnique({
-        where: {
-          userId: req.user.id,
-        },
-        select: {
-          id: true,
-        },
-      });
+    const profile = await prisma.institutionProfile.findUnique({
+      where: {
+        userId: req.user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
 
     if (!profile) {
-      R.forbidden(
-        res,
-        "Profil institution introuvable"
-      );
+      R.forbidden(res, "Profil institution introuvable");
       return;
     }
 
-    const { applications, total } =
-      await svc.listInstitutionApplications(
-        profile.id,
-        {
-          skip,
-          limit,
-          status,
-          programId,
-        }
-      );
+    const { applications, total } = await svc.listInstitutionApplications(
+      profile.id,
+      {
+        skip,
+        limit,
+        status,
+        programId,
+      }
+    );
 
     R.ok(
       res,
-      paginate(applications, total, {
-        page,
-        limit,
-        skip,
-      })
+      serializeBigInt(
+        paginate(applications, total, {
+          page,
+          limit,
+          skip,
+        })
+      )
     );
   } catch (err) {
-    console.error(
-      "LIST INSTITUTION APPLICATIONS ERROR:",
-      err
-    );
-
+    console.error("LIST INSTITUTION APPLICATIONS ERROR:", err);
     R.serverError(res);
   }
 }
@@ -265,38 +254,32 @@ export async function updateApplicationStatus(
       notes?: string;
     };
 
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const profile =
-      await prisma.institutionProfile.findUnique({
-        where: {
-          userId: req.user.id,
-        },
-        select: {
-          id: true,
-        },
-      });
+    const profile = await prisma.institutionProfile.findUnique({
+      where: {
+        userId: req.user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
 
     if (!profile) {
-      R.forbidden(
-        res,
-        "Profil institution introuvable"
-      );
+      R.forbidden(res, "Profil institution introuvable");
       return;
     }
 
-    const application =
-      await svc.updateApplicationStatus(
-        String(req.params.id),
-        profile.id,
-        status,
-        notes
-      );
+    const application = await svc.updateApplicationStatus(
+      String(req.params.id),
+      profile.id,
+      status,
+      notes
+    );
 
     R.ok(
       res,
-      application,
+      serializeBigInt(application),
       "Statut de la candidature mis à jour"
     );
   } catch (err) {
@@ -312,11 +295,7 @@ export async function updateApplicationStatus(
       }
     }
 
-    console.error(
-      "UPDATE APPLICATION STATUS ERROR:",
-      err
-    );
-
+    console.error("UPDATE APPLICATION STATUS ERROR:", err);
     R.serverError(res);
   }
 }
@@ -330,25 +309,20 @@ export async function getApplications(
   res: Response
 ): Promise<void> {
   try {
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const applications =
-      await prisma.expertApplication.findMany({
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+    const applications = await prisma.expertApplication.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
     res.json({
       success: true,
-      applications,
+      applications: serializeBigInt(applications),
     });
   } catch (error) {
-    console.error(
-      "GET EXPERT APPLICATIONS ERROR:",
-      error
-    );
+    console.error("GET EXPERT APPLICATIONS ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -366,15 +340,13 @@ export async function getApplication(
   res: Response
 ): Promise<void> {
   try {
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const application =
-      await prisma.expertApplication.findUnique({
-        where: {
-          id: String(req.params.id),
-        },
-      });
+    const application = await prisma.expertApplication.findUnique({
+      where: {
+        id: String(req.params.id),
+      },
+    });
 
     if (!application) {
       res.status(404).json({
@@ -386,13 +358,10 @@ export async function getApplication(
 
     res.json({
       success: true,
-      application,
+      application: serializeBigInt(application),
     });
   } catch (error) {
-    console.error(
-      "GET EXPERT APPLICATION ERROR:",
-      error
-    );
+    console.error("GET EXPERT APPLICATION ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -410,28 +379,23 @@ export async function approveApplication(
   res: Response
 ): Promise<void> {
   try {
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const application =
-      await prisma.expertApplication.update({
-        where: {
-          id: String(req.params.id),
-        },
-        data: {
-          status: ReviewStatus.APPROVED,
-        },
-      });
+    const application = await prisma.expertApplication.update({
+      where: {
+        id: String(req.params.id),
+      },
+      data: {
+        status: ReviewStatus.APPROVED,
+      },
+    });
 
     res.json({
       success: true,
-      application,
+      application: serializeBigInt(application),
     });
   } catch (error) {
-    console.error(
-      "APPROVE EXPERT APPLICATION ERROR:",
-      error
-    );
+    console.error("APPROVE EXPERT APPLICATION ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -449,28 +413,23 @@ export async function rejectApplication(
   res: Response
 ): Promise<void> {
   try {
-    const { default: prisma } =
-      await import("../config/database");
+    const { default: prisma } = await import("../config/database");
 
-    const application =
-      await prisma.expertApplication.update({
-        where: {
-          id: String(req.params.id),
-        },
-        data: {
-          status: ReviewStatus.REJECTED,
-        },
-      });
+    const application = await prisma.expertApplication.update({
+      where: {
+        id: String(req.params.id),
+      },
+      data: {
+        status: ReviewStatus.REJECTED,
+      },
+    });
 
     res.json({
       success: true,
-      application,
+      application: serializeBigInt(application),
     });
   } catch (error) {
-    console.error(
-      "REJECT EXPERT APPLICATION ERROR:",
-      error
-    );
+    console.error("REJECT EXPERT APPLICATION ERROR:", error);
 
     res.status(500).json({
       success: false,

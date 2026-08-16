@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { HelpCircle, ThumbsUp, Search, CheckCircle2, Clock } from "lucide-react";
-import { Header } from "@/components/layout/Header";
+import { HelpCircle, ThumbsUp, CheckCircle2, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -124,7 +123,6 @@ function QuestionCard({ q, onAnswered }: { q: QAQuestion; onAnswered: (updated: 
 }
 
 export default function ExpertQAPage() {
-  const [search, setSearch] = useState("");
   const [questions, setQuestions] = useState<QAQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,25 +145,65 @@ export default function ExpertQAPage() {
   }
 
   const filter = (answered: boolean) =>
-    questions.filter(
-      (q) => q.isAnswered === answered && q.question.toLowerCase().includes(search.toLowerCase())
-    );
+    questions.filter((q) => q.isAnswered === answered);
 
-  if (loading) return (<><Header title="Questions & Réponses" /><p className="text-sm text-ink-soft">Chargement...</p></>);
-  if (error) return (<><Header title="Questions & Réponses" /><p className="text-sm text-rose-600">{error}</p></>);
+  // Styled header matching your requested design pattern
+const renderHeader = () => (
+  <>
+    {/* Breadcrumb */}
+    <div className="mb-8 text-sm text-ink-soft">
+      <span>Espace Experte</span>
+      <span className="mx-2 text-ink-soft/40">/</span>
+      <span className="font-medium text-wine-700">
+        Questions & Réponses
+      </span>
+    </div>
+
+    {/* Header Section */}
+    <div className="relative mb-10">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+      />
+
+      <p className="font-script text-2xl leading-none text-rose-500">
+        Espace Experte
+      </p>
+
+      <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+        Questions &{" "}
+        <span className="text-gradient-rise">Réponses</span>
+      </h1>
+
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+        Répondez aux questions de la communauté et partagez votre
+        expertise pour accompagner les entrepreneures dans leur parcours.
+      </p>
+    </div>
+  </>
+);
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        {renderHeader()}
+        <p className="text-sm text-ink-soft">Chargement...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        {renderHeader()}
+        <p className="text-sm text-rose-600">{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Header title="Questions & Réponses" />
-      <div className="mb-6 flex items-center gap-2 rounded-full border border-sand-200 bg-white px-4 py-2 w-full max-w-xs">
-        <Search size={15} className="text-ink-soft" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher une question…"
-          className="bg-transparent text-sm outline-none placeholder:text-ink-soft/60 w-full"
-        />
-      </div>
+    <div className="p-6">
+      {renderHeader()}
       <Tabs
         tabs={[
           {
@@ -195,6 +233,6 @@ export default function ExpertQAPage() {
           },
         ]}
       />
-    </>
+    </div>
   );
 }

@@ -77,29 +77,65 @@ export default function NewEventPage() {
     setMessage(null);
   }
 
+  async function postEvent(status: "draft" | "published") {
+    const token =
+      localStorage.getItem("accessToken") ?? localStorage.getItem("token");
+
+    const res = await fetch("http://localhost:4000/api/institution/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: form.title,
+        description: form.description,
+        type: form.type,
+        date: form.date,
+        time: form.time,
+        format: form.format,
+        location: form.location,
+        meetingLink: form.meetingLink,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        speaker: form.speaker,
+        isPublished: status === "published",
+      }),
+    });
+
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message ?? "Failed to save event");
+    return json.data;
+  }
+
   async function saveDraft() {
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setSaving(false);
-
-    setForm((prev) => ({ ...prev, status: "draft" }));
-    setMessage({
-      type: "success",
-      text: "L'événement a été enregistré comme brouillon.",
-    });
+    try {
+      await postEvent("draft");
+      setForm((prev) => ({ ...prev, status: "draft" }));
+      setMessage({
+        type: "success",
+        text: "L'événement a été enregistré comme brouillon.",
+      });
+    } catch (err) {
+      setMessage({ type: "error", text: "Erreur lors de l'enregistrement." });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setSaving(false);
-
-    setForm((prev) => ({ ...prev, status: "published" }));
-    setMessage({
-      type: "success",
-      text: "L'événement est prêt à être publié lorsque le backend sera connecté.",
-    });
+    try {
+      await postEvent("published");
+      setForm((prev) => ({ ...prev, status: "published" }));
+      setMessage({ type: "success", text: "L'événement a été publié." });
+      router.push("/institution/events");
+    } catch (err) {
+      setMessage({ type: "error", text: "Erreur lors de la publication." });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -113,8 +149,6 @@ export default function NewEventPage() {
               <Badge tone="rose">Nouvel événement</Badge>
               <Badge tone="gold">Institution</Badge>
             </div>
-
-
 
             <p className="mt-3 max-w-3xl text-ink-soft">
               Publiez un webinaire, un atelier ou une séance d'information à
@@ -258,12 +292,9 @@ export default function NewEventPage() {
                   )}
                 </div>
                 <div>
-                  <h2 className="font-display text-2xl text-ink">
-                    Lieu
-                  </h2>
+                  <h2 className="font-display text-2xl text-ink">Lieu</h2>
                   <p className="text-sm text-ink-soft">
-                    Précisez si l'événement se déroule en ligne ou en
-                    présentiel.
+                    Précisez si l'événement se déroule en ligne ou en présentiel.
                   </p>
                 </div>
               </div>
@@ -305,9 +336,7 @@ export default function NewEventPage() {
                   <FileText size={22} />
                 </div>
                 <div>
-                  <h2 className="font-display text-2xl text-ink">
-                    Statut
-                  </h2>
+                  <h2 className="font-display text-2xl text-ink">Statut</h2>
                   <p className="text-sm text-ink-soft">
                     Choisissez si l'événement est visible immédiatement.
                   </p>
@@ -341,8 +370,11 @@ export default function NewEventPage() {
                 type="button"
                 onClick={saveDraft}
                 disabled={saving}
-                className="rounded-xl border border-sand-300 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-xl border border-sand-300 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
+                {saving && form.status === "draft" ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : null}
                 Enregistrer comme brouillon
               </button>
 
@@ -351,7 +383,7 @@ export default function NewEventPage() {
                 disabled={saving}
                 className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? (
+                {saving && form.status !== "draft" ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
                     Publication...
