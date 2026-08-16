@@ -37,14 +37,19 @@ const DASHBOARD_NAV_LINKS = [
     icon: "MessageSquare",
   },
   {
+    href: "/dashboard/communaute",
+    label: "Communauté",
+    icon: "Users",
+  },
+  {
     href: "/dashboard/notifications",
     label: "Notifications",
     icon: "Bell",
   },
   {
     href: "/dashboard/qa",
-    label: "Q&R", // or "Questions & Réponses"
-    icon: "HelpCircle", // or "CircleHelp" for newer Lucide versions
+    label: "Q&R",
+    icon: "HelpCircle",
   },
   {
     href: "/dashboard/profile",

@@ -1183,3 +1183,58 @@ async function updateCourseLessonCount(
     },
   });
 }
+export async function getPublishedCourseById(courseId: string) {
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, isPublished: true },
+    include: {
+      articles: { where: { isPublished: true }, orderBy: { order: "asc" } },
+      videos: { where: { isPublished: true }, orderBy: { order: "asc" } },
+      resources: { where: { isPublished: true }, orderBy: { order: "asc" } },
+    },
+  });
+
+  if (!course) {
+    throw new Error("Cours introuvable.");
+  }
+
+  return course;
+}
+export async function getPublishedLesson(
+  courseId: string,
+  lessonId: string
+) {
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, isPublished: true },
+    select: { id: true },
+  });
+
+  if (!course) {
+    throw new Error("Cours introuvable.");
+  }
+
+  const article = await prisma.article.findFirst({
+    where: { id: lessonId, courseId, isPublished: true },
+  });
+
+  if (article) {
+    return { type: "article" as const, data: article };
+  }
+
+  const video = await prisma.video.findFirst({
+    where: { id: lessonId, courseId, isPublished: true },
+  });
+
+  if (video) {
+    return { type: "video" as const, data: video };
+  }
+
+  const resource = await prisma.resource.findFirst({
+    where: { id: lessonId, courseId, isPublished: true },
+  });
+
+  if (resource) {
+    return { type: "resource" as const, data: resource };
+  }
+
+  throw new Error("Leçon introuvable.");
+}

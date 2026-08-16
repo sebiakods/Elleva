@@ -115,12 +115,28 @@ async function handleCreate() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-ink">Réunions</h1>
-          <p className="mt-2 text-gray-600">Organisez vos rendez-vous avec les entrepreneures.</p>
+              {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Experte</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Réunions</span>
         </div>
-      </div>
+
+        {/* Header */}
+        <div className="relative mb-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+          />
+
+          <p className="font-script text-2xl leading-none text-rose-500">Vue d'ensemble</p>
+          <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+            Mes <span className="text-gradient-rise">Réunions</span>
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+            Organisez vos rendez-vous avec les entrepreneures.
+          </p>
+        </div>
 
       {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
 

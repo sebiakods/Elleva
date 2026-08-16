@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { authFetch } from "@/lib/authFetch"; // Ajustez le chemin selon votre structure
 
 type DocCategory = "formulaire" | "guide" | "modele" | "reglementation";
 
@@ -31,6 +32,8 @@ type DocumentForm = {
   description: string;
   status: "draft" | "published";
 };
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 const PROGRAMS = [
   "Programme Innovation Femmes 2026",
@@ -98,16 +101,38 @@ export default function NewDocumentPage() {
     handleFileSelect(dropped);
   }
 
+  async function postDocument(form: DocumentForm, file: File | null) {
+    const fd = new FormData();
+    fd.append("name", form.name);
+    fd.append("category", form.category);
+    fd.append("description", form.description);
+    fd.append("isRequired", "false");
+    if (file) fd.append("file", file);
+
+    const res = await authFetch(`${API_BASE}/documents`, {
+      method: "POST",
+      body: fd,
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || "Échec de l'envoi du document");
+    }
+    return json.data;
+  }
+
   async function saveDraft() {
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setSaving(false);
-
-    setForm((prev) => ({ ...prev, status: "draft" }));
-    setMessage({
-      type: "success",
-      text: "Le document a été enregistré comme brouillon.",
-    });
+    try {
+      await postDocument(form, file);
+      setMessage({ type: "success", text: "Le document a été enregistré." });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Erreur",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -122,14 +147,18 @@ export default function NewDocumentPage() {
     }
 
     setSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setSaving(false);
-
-    setForm((prev) => ({ ...prev, status: "published" }));
-    setMessage({
-      type: "success",
-      text: "Le document est prêt à être publié lorsque le backend sera connecté.",
-    });
+    try {
+      await postDocument(form, file);
+      setMessage({ type: "success", text: "Le document a été publié." });
+      router.push("/institution/documents");
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Erreur",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const FileIcon = file ? getFileIcon(file.name) : FolderOpen;
@@ -145,8 +174,6 @@ export default function NewDocumentPage() {
               <Badge tone="rose">Nouveau document</Badge>
               <Badge tone="gold">Institution</Badge>
             </div>
-
-
 
             <p className="mt-3 max-w-3xl text-ink-soft">
               Mettez à disposition un formulaire, un guide ou un modèle pour

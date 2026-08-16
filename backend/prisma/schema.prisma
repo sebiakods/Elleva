@@ -41,6 +41,9 @@ model User {
   meetingInvitations     MeetingParticipant[] @relation("MeetingInvitee")
   @@index([email])
   @@index([role])
+  communityPosts       CommunityPost[]      @relation("CommunityPostAuthor")
+  communityComments    CommunityComment[]   @relation("CommunityCommentAuthor")
+  communityPostLikes   CommunityPostLike[]  @relation("CommunityPostLikeUser")
 }
 
 model RefreshToken {
@@ -694,4 +697,50 @@ model ExpertCalendarEvent {
   @@index([expertProfileId])
   @@index([date])
   @@index([expertProfileId, date])
+}
+
+model CommunityPost {
+  id            String   @id @default(cuid())
+  authorId      String
+  content       String
+  imageUrl      String?
+  likesCount    Int      @default(0)
+  commentsCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  author        User                @relation("CommunityPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  comments      CommunityComment[]
+  likes         CommunityPostLike[]
+
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model CommunityComment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User          @relation("CommunityCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([authorId])
+}
+
+model CommunityPostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation("CommunityPostLikeUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
 }

@@ -24,10 +24,8 @@ const links = [
 
   // New section
   { href: "/admin/requests", label: "Demandes", icon: UserCheck },
-
   { href: "/admin/programs", label: "Programmes", icon: Landmark },
   { href: "/admin/articles", label: "Articles", icon: Newspaper },
-  { href: "/admin/business-plans", label: "Business Plans", icon: FileText },
   { href: "/admin/categories", label: "Catégories", icon: Tag },
   { href: "/admin/messages", label: "Support", icon: MessageSquare },
   { href: "/admin/settings", label: "Paramètres", icon: Settings },

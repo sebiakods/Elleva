@@ -111,13 +111,12 @@ export async function getCourse(
   next: NextFunction
 ) {
   try {
-    const userId = getUserId(req);
     const courseId = getParam(req, "id");
 
-    const course = await coursesService.getCourseById(
-      courseId,
-      userId
-    );
+    const course =
+      req.user?.role === "EXPERT"
+        ? await coursesService.getCourseById(courseId, getUserId(req))
+        : await coursesService.getPublishedCourseById(courseId);
 
     const serializedCourse = JSON.parse(
       JSON.stringify(course, (_key, value) =>
@@ -125,10 +124,7 @@ export async function getCourse(
       )
     );
 
-    return res.json({
-      success: true,
-      data: serializedCourse,
-    });
+    return res.json({ success: true, data: serializedCourse });
   } catch (error) {
     next(error);
   }
@@ -1088,6 +1084,31 @@ export async function deleteResource(
       message:
         "Ressource supprimée avec succès.",
     });
+  } catch (error) {
+    next(error);
+  }
+}
+export async function getLesson(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const courseId = getParam(req, "id");
+    const lessonId = getParam(req, "lessonId");
+
+    const lesson = await coursesService.getPublishedLesson(
+      courseId,
+      lessonId
+    );
+
+    const serializedLesson = JSON.parse(
+      JSON.stringify(lesson, (_key, value) =>
+        typeof value === "bigint" ? Number(value) : value
+      )
+    );
+
+    return res.json({ success: true, data: serializedLesson });
   } catch (error) {
     next(error);
   }

@@ -1,7 +1,6 @@
 import { Router } from "express";
 
 import authRoutes from "./auth.routes";
-import accountRequestsRoutes from "./accountRequests.routes";
 import usersRoutes from "./users.routes";
 import programsRoutes from "./programs.routes";
 import applicationsRoutes from "./applications.routes";
@@ -18,6 +17,14 @@ import entrepreneursRoutes from "./entrepreneurs.routes";
 import calendarEventRoutes from "./expertCalendar.routes";
 import meetingsRoutes from "./meetings.routes";
 import qaRoutes from "./qa.routes";
+import eventsRoutes from "./events.routes";
+import communityRoutes from "./community.routes";
+import documentsRoutes from "./documents.routes";
+import analyticsRoutes from "./analytics.routes";
+import overviewRoutes from "./overview.routes";
+import institutionProfileRoutes from "./institutionProfile.routes";
+import expertProfileRoutes from "./expertProfile.routes";
+import expertsRoutes from "./experts.routes";
 
 const router = Router();
 
@@ -28,22 +35,25 @@ const router = Router();
 router.use("/auth", authRoutes);
 
 /* ========================================================================= */
-/* ACCOUNT REQUESTS                                                          */
-/* ========================================================================= */
-
-router.use("/account-requests", accountRequestsRoutes);
-
-/* ========================================================================= */
-/* EXPERT APPLICATIONS                                                       */
+/* EXPERT APPLICATIONS — source of truth for expert signup/approval         */
 /* ========================================================================= */
 
 router.use("/expert-applications", expertApplicationsRoutes);
 
 /* ========================================================================= */
-/* INSTITUTION APPLICATIONS                                                  */
+/* INSTITUTION APPLICATIONS — source of truth for institution signup/approval */
 /* ========================================================================= */
 
 router.use("/institution-applications", institutionApplicationsRoutes);
+
+/*
+ * NOTE: the AccountRequest model/controller/routes (`/account-requests`)
+ * are deprecated in favor of ExpertApplication / InstitutionApplication
+ * above and are intentionally not mounted here. Once you've confirmed
+ * nothing else reads from AccountRequest, it's safe to delete
+ * accountRequests.controller.ts, accountRequests.routes.ts, and drop the
+ * AccountRequest model via a Prisma migration.
+ */
 
 /* ========================================================================= */
 /* USERS                                                                     */
@@ -109,9 +119,11 @@ router.use("/settings", settingsRoutes);
 /* HEALTH CHECK                                                              */
 /* ========================================================================= */
 
-// meetings 
+// meetings
 router.use("/meetings", meetingsRoutes);
 
+// events
+router.use("/", eventsRoutes);
 
 router.use("/expert/calendar", calendarEventRoutes);
 
@@ -119,6 +131,23 @@ router.use("/expert/entrepreneurs", entrepreneursRoutes);
 
 // Q&A
 router.use("/qa", qaRoutes);
+// community
+router.use("/", communityRoutes);
+// document
+router.use("/documents", documentsRoutes);
+
+// analytics
+router.use("/", analyticsRoutes);
+
+// overview
+router.use("/", overviewRoutes);
+// institution profile
+router.use("/institution-profile", institutionProfileRoutes);
+
+// expert profile
+router.use("/expert-profile", expertProfileRoutes);
+//expert routes 
+router.use("/experts", expertsRoutes);
 
 router.get("/health", (_req, res) => {
   res.json({

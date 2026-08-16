@@ -1,26 +1,19 @@
 import { Router } from "express";
 import * as institutionController from "../controllers/institutionApplications.controller";
 import upload from "../middleware/upload";
+import { authenticate } from "../middleware/auth.middleware";
+import { requireRoles } from "../middleware/rbac";
 
 const router = Router();
 
-// Submit an institution application
-router.post(
-  "/",
-  upload.single("document"),
-  institutionController.createApplication
-);
+// Public: submit an institution application
+router.post("/", upload.single("document"), institutionController.createApplication);
 
-// Get all applications
-router.get("/", institutionController.getApplications);
-
-// Get one application
-router.get("/:id", institutionController.getApplication);
-
-// Approve
-router.patch("/:id/approve", institutionController.approveApplication);
-
-// Reject
-router.patch("/:id/reject", institutionController.rejectApplication);
+// Admin only
+router.get("/", authenticate, requireRoles("ADMIN"), institutionController.getApplications);
+router.get("/:id", authenticate, requireRoles("ADMIN"), institutionController.getApplication);
+router.patch("/:id/approve", authenticate, requireRoles("ADMIN"), institutionController.approveApplication);
+router.patch("/:id/reject", authenticate, requireRoles("ADMIN"), institutionController.rejectApplication);
+router.delete("/:id", authenticate, requireRoles("ADMIN"), institutionController.deleteApplication);
 
 export default router;

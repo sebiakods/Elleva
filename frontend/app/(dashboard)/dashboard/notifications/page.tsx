@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Bell, Sparkle } from "lucide-react";
 
 type NotificationType =
   | "SESSION_BOOKED"
@@ -255,29 +256,41 @@ export default function EntrepreneurNotificationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
+    <main className="min-h-screen bg-sand-50">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Entrepreneuse</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Notifications</span>
+        </div>
+
+        {/* Header */}
+        <div className="relative mb-10 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+          />
+
           <div>
-            <div className="mb-2 flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">
-                Notifications
+            <p className="font-script text-2xl leading-none text-rose-500">
+              Vue d&apos;ensemble
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+                Mes <span className="text-gradient-rise">notifications</span>
               </h1>
 
               {unreadCount > 0 && (
-                <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700">
+                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-600">
                   {unreadCount} non lue
-                  {unreadCount > 1
-                    ? "s"
-                    : ""}
+                  {unreadCount > 1 ? "s" : ""}
                 </span>
               )}
             </div>
-
-            <p className="text-sm text-slate-500">
-              Suivez vos messages,
-              candidatures, séances et
-              programmes.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+              Suivez vos messages, candidatures, séances et programmes en un
+              coup d&apos;œil.
             </p>
           </div>
 
@@ -285,111 +298,151 @@ export default function EntrepreneurNotificationsPage() {
             <button
               type="button"
               onClick={markAllAsRead}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
+              className="focus-ring shrink-0 rounded-xl border border-rose-100/70 bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft shadow-card transition hover:bg-sand-100"
             >
               Tout marquer comme lu
             </button>
           )}
         </div>
 
+        {/* Loading */}
         {loading && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-purple-600" />
-
-            <p className="text-sm text-slate-500">
-              Chargement des notifications...
-            </p>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-24 animate-pulse rounded-[2rem] border border-rose-100/60 bg-white/70"
+              />
+            ))}
           </div>
         )}
 
+        {/* Error */}
         {!loading && error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
-            <p className="mb-4 text-sm text-red-700">
-              {error}
-            </p>
+          <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
+            <p className="mb-4 text-sm text-wine-700">{error}</p>
 
             <button
               type="button"
               onClick={loadNotifications}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              className="focus-ring rounded-xl bg-rise-gradient px-5 py-2.5 text-sm font-semibold text-white shadow-bloom transition hover:brightness-105"
             >
               Réessayer
             </button>
           </div>
         )}
 
-        {!loading &&
-          !error &&
-          notifications.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <div className="mb-4 text-5xl">
-                🔔
-              </div>
-
-              <h2 className="mb-2 text-lg font-semibold text-slate-900">
-                Aucune notification
-              </h2>
-
-              <p className="text-sm text-slate-500">
-                Vous êtes à jour.
-              </p>
+        {/* Empty */}
+        {!loading && !error && notifications.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-rose-200 bg-white/60 px-6 py-16 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-400">
+              <Sparkle size={22} />
             </div>
-          )}
+            <p className="font-script text-xl text-rose-500">
+              Vous êtes à jour
+            </p>
+            <p className="mt-2 max-w-sm text-sm text-ink-soft">
+              Aucune notification pour le moment.
+            </p>
+          </div>
+        )}
 
-        {!loading &&
-          !error &&
-          notifications.length > 0 && (
-            <div className="space-y-3">
-              {notifications.map(
-                (notification) => (
-                  <button
-                    key={notification.id}
-                    type="button"
-                    onClick={() =>
-                      openNotification(
-                        notification
-                      )
-                    }
-                    className={`w-full rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-[1px] hover:shadow-md ${
-                      notification.isRead
-                        ? "border-slate-200 bg-white"
-                        : "border-purple-200 bg-purple-50/70"
-                    }`}
+        {/* Notifications list */}
+        {!loading && !error && notifications.length > 0 && (
+          <div className="space-y-4">
+            {notifications.map((notification) => (
+              <button
+                key={notification.id}
+                type="button"
+                onClick={() => openNotification(notification)}
+                className={`
+                  group
+                  relative
+                  block
+                  w-full
+                  overflow-hidden
+                  rounded-[2rem]
+                  border
+                  p-5
+                  text-left
+                  shadow-card
+                  transition-all
+                  duration-300
+                  hover:-translate-y-1
+                  hover:shadow-bloom
+                  ${
+                    notification.isRead
+                      ? "border-rose-100/70 bg-white"
+                      : "border-rose-200 bg-rose-50/60"
+                  }
+                `}
+              >
+                {/* decorative corner bloom */}
+                <div
+                  aria-hidden
+                  className="
+                    pointer-events-none
+                    absolute
+                    -right-10
+                    -top-10
+                    h-28
+                    w-28
+                    rounded-full
+                    bg-rise-gradient-soft
+                    opacity-0
+                    blur-2xl
+                    transition-opacity
+                    duration-500
+                    group-hover:opacity-70
+                  "
+                />
+
+                <div className="relative flex gap-4">
+                  <div
+                    className="
+                      flex
+                      h-12
+                      w-12
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      bg-white
+                      text-xl
+                      shadow-sm
+                      transition-transform
+                      duration-300
+                      group-hover:scale-105
+                      group-hover:rotate-3
+                    "
                   >
-                    <div className="flex gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xl shadow-sm">
-                        {getNotificationIcon(
-                          notification.type
-                        )}
-                      </div>
+                    {getNotificationIcon(notification.type)}
+                  </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-start justify-between gap-3">
-                          <h3 className="font-semibold text-slate-900">
-                            {notification.title}
-                          </h3>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-start justify-between gap-3">
+                      <h3 className="font-display text-base font-semibold text-wine-900">
+                        {notification.title}
+                      </h3>
 
-                          {!notification.isRead && (
-                            <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-purple-600" />
-                          )}
-                        </div>
-
-                        <p className="text-sm leading-6 text-slate-600">
-                          {notification.body}
-                        </p>
-
-                        <p className="mt-2 text-xs text-slate-400">
-                          {formatDate(
-                            notification.createdAt
-                          )}
-                        </p>
-                      </div>
+                      {!notification.isRead && (
+                        <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" />
+                      )}
                     </div>
-                  </button>
-                )
-              )}
-            </div>
-          )}
+
+                    <p className="text-sm leading-6 text-ink-soft">
+                      {notification.body}
+                    </p>
+
+                    <p className="mt-2 text-xs text-ink-soft/60">
+                      {formatDate(notification.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );

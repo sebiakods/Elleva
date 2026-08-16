@@ -262,28 +262,32 @@ export default function ExpertNotificationsPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 md:px-8">
       <div className="mx-auto max-w-4xl">
+                {/* Breadcrumb */}
+        <div className="mb-8 text-sm text-ink-soft">
+          <span>Espace Experte</span>
+          <span className="mx-2 text-ink-soft/40">/</span>
+          <span className="font-medium text-wine-700">Notifications</span>
+        </div>
+
+        {/* Header */}
+        <div className="relative mb-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+          />
+
+          <p className="font-script text-2xl leading-none text-rose-500">Vue d'ensemble</p>
+          <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+            Mes <span className="text-gradient-rise">notifications </span>
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+            Restez informée en temps réel de l'avancement de vos mentorées et des actions nécessitant votre attention.
+          </p>
+        </div>
+
+
         <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">
-                Notifications
-              </h1>
-
-              {unreadCount > 0 && (
-                <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700">
-                  {unreadCount} non lue
-                  {unreadCount > 1
-                    ? "s"
-                    : ""}
-                </span>
-              )}
-            </div>
-
-            <p className="text-sm text-slate-500">
-              Retrouvez ici toutes vos
-              notifications.
-            </p>
-          </div>
+  
 
           {unreadCount > 0 && (
             <button

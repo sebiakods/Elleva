@@ -193,60 +193,49 @@ export async function listInstitutionApplications(
     program: {
       institutionProfileId,
     },
-
     ...(params.status
-      ? {
-          status:
-            params.status as ApplicationStatus,
-        }
+      ? { status: params.status as ApplicationStatus }
       : {}),
-
     ...(params.programId
-      ? {
-          programId: params.programId,
-        }
+      ? { programId: params.programId }
       : {}),
   };
 
-  const [applications, total] =
-    await Promise.all([
-      prisma.application.findMany({
-        where,
-        skip: params.skip,
-        take: params.limit,
-
-        orderBy: {
-          createdAt: "desc",
-        },
-
-        include: {
-          program: {
-            select: {
-              title: true,
-              category: true,
-            },
-          },
-
-          applicant: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatarUrl: true,
-            },
+  const [applications, total] = await Promise.all([
+    prisma.application.findMany({
+      where,
+      skip: params.skip,
+      take: params.limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        program: {
+          select: {
+            title: true,
+            category: true,
+            sector: true,
+            region: true,
+            amountMin: true,
+            amountMax: true,
+            currency: true,
           },
         },
-      }),
+        applicant: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            bio: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
 
-      prisma.application.count({
-        where,
-      }),
-    ]);
+    prisma.application.count({ where }),
+  ]);
 
-  return {
-    applications,
-    total,
-  };
+  return { applications, total };
 }
 
 // ─────────────────────────────────────────────────────────────
