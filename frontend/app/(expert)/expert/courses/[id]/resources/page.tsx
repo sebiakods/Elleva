@@ -9,7 +9,6 @@ import {
   Download,
   Plus,
   Eye,
-  Pencil,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
@@ -33,17 +32,26 @@ type Resource = {
   createdAt?: string;
 };
 
-function getFileUrl(url?: string | null) {
-  if (!url) return null;
+/**
+ * Converts relative backend file paths into absolute URLs.
+ *
+ * Absolute URLs such as Backblaze B2 URLs are returned unchanged.
+ */
+function getFileUrl(url?: string | null): string | null {
+  if (!url) {
+    return null;
+  }
 
+  // B2 / S3 / external URLs
   if (
-    url.startsWith("http://") ||
     url.startsWith("https://") ||
+    url.startsWith("http://") ||
     url.startsWith("blob:")
   ) {
     return url;
   }
 
+  // Backend-relative URL
   if (url.startsWith("/")) {
     return `${BACKEND_URL}${url}`;
   }
@@ -51,20 +59,32 @@ function getFileUrl(url?: string | null) {
   return `${BACKEND_URL}/${url}`;
 }
 
-function formatFileSize(value?: number | string | null) {
-  if (value === null || value === undefined) return "";
+function formatFileSize(
+  value?: number | string | null
+): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
 
   const bytes = Number(value);
 
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "";
+  }
 
-  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
 
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 export default function ResourcesPage() {
@@ -78,35 +98,41 @@ export default function ResourcesPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!courseId) return;
+    if (!courseId) {
+      return;
+    }
 
     async function loadResources() {
       try {
         setLoading(true);
         setError("");
 
-        const token = localStorage.getItem("accessToken");
-
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
+        /**
+         * Authentication is handled by the HTTP-only cookie.
+         *
+         * Do NOT use localStorage or manually send Authorization.
+         */
         const response = await fetch(
           `${API_URL}/courses/${courseId}/resources`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: "include",
             cache: "no-store",
           }
         );
 
-        const json = await response.json().catch(() => ({}));
+        const json = await response
+          .json()
+          .catch(() => ({}));
 
         if (!response.ok) {
+          if (response.status === 401) {
+            router.push("/login");
+            return;
+          }
+
           throw new Error(
-            json?.message || "Impossible de charger les ressources."
+            json?.message ||
+              "Impossible de charger les ressources."
           );
         }
 
@@ -115,11 +141,19 @@ export default function ResourcesPage() {
           json?.resources ||
           [];
 
-        setResources(Array.isArray(data) ? data : []);
-      } catch (err: any) {
-        console.error("Erreur ressources:", err);
+        setResources(
+          Array.isArray(data) ? data : []
+        );
+      } catch (err) {
+        console.error(
+          "Erreur ressources:",
+          err
+        );
+
         setError(
-          err?.message || "Impossible de charger les ressources."
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger les ressources."
         );
       } finally {
         setLoading(false);
@@ -129,20 +163,35 @@ export default function ResourcesPage() {
     loadResources();
   }, [courseId, router]);
 
+  function goBackToCourse() {
+    router.push(
+      `/expert/courses/${courseId}`
+    );
+  }
+
+  function goToCreateResource() {
+    router.push(
+      `/expert/courses/${courseId}/resources/create`
+    );
+  }
+
+  function openResource(resourceId: string) {
+    router.push(
+      `/expert/courses/${courseId}/resources/${resourceId}`
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-8">
       <div className="mx-auto max-w-7xl">
-
         {/* HEADER */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
           <div className="flex items-start gap-4">
-
             <button
-              onClick={() =>
-                router.push(`/expert/courses/${courseId}`)
-              }
+              type="button"
+              onClick={goBackToCourse}
               className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50"
+              aria-label="Retour au cours"
             >
               <ArrowLeft size={18} />
             </button>
@@ -157,23 +206,19 @@ export default function ResourcesPage() {
               </h1>
 
               <p className="mt-2 text-sm text-gray-500">
-                Gérez les fichiers et documents pédagogiques de votre cours.
+                Gérez les fichiers et documents
+                pédagogiques de votre cours.
               </p>
             </div>
-
           </div>
 
           <Button
-            onClick={() =>
-              router.push(
-                `/expert/courses/${courseId}/resources/create`
-              )
-            }
+            type="button"
+            onClick={goToCreateResource}
           >
             <Plus size={17} />
             Ajouter une ressource
           </Button>
-
         </div>
 
         {/* ERROR */}
@@ -191,8 +236,8 @@ export default function ResourcesPage() {
             </p>
           </div>
         ) : resources.length === 0 ? (
+          /* EMPTY STATE */
           <div className="rounded-3xl border border-gray-200 bg-white p-12 text-center">
-
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-500">
               <File size={30} />
             </div>
@@ -202,62 +247,78 @@ export default function ResourcesPage() {
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-              Ajoutez des PDF, modèles, documents ou autres fichiers utiles
-              aux entrepreneures.
+              Ajoutez des PDF, modèles,
+              documents ou autres fichiers
+              utiles aux entrepreneures.
             </p>
 
             <button
-              onClick={() =>
-                router.push(
-                  `/expert/courses/${courseId}/resources/create`
-                )
-              }
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+              type="button"
+              onClick={goToCreateResource}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-purple-700"
             >
               <Plus size={16} />
               Ajouter une ressource
             </button>
-
           </div>
         ) : (
+          /* RESOURCE GRID */
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-
             {resources.map((resource) => {
-              const fileUrl = getFileUrl(resource.fileUrl);
+              const fileUrl = getFileUrl(
+                resource.fileUrl
+              );
+
+              const coverUrl = getFileUrl(
+                resource.coverUrl
+              );
 
               return (
                 <article
                   key={resource.id}
                   className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-
                   {/* COVER */}
                   <div className="relative h-48 overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50">
-
-                    {resource.coverUrl ? (
+                    {coverUrl ? (
                       <img
-                        src={getFileUrl(resource.coverUrl) || ""}
+                        src={coverUrl}
                         alt={resource.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition duration-300 hover:scale-105"
                       />
                     ) : (
                       <div className="flex h-full flex-col items-center justify-center text-purple-400">
                         <FileText size={48} />
+
                         <span className="mt-3 text-xs font-semibold uppercase">
-                          {resource.type || "Fichier"}
+                          {resource.type ||
+                            "Fichier"}
                         </span>
                       </div>
                     )}
 
-                    <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-purple-700">
-                      {resource.type || "Ressource"}
+                    {/* TYPE */}
+                    <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-purple-700 shadow-sm backdrop-blur-sm">
+                      {resource.type ||
+                        "Ressource"}
                     </span>
 
+                    {/* PUBLICATION STATUS */}
+                    <span
+                      className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold shadow-sm backdrop-blur-sm ${
+                        resource.isPublished
+                          ? "bg-green-100/95 text-green-700"
+                          : "bg-gray-100/95 text-gray-600"
+                      }`}
+                    >
+                      {resource.isPublished
+                        ? "Publié"
+                        : "Brouillon"}
+                    </span>
                   </div>
 
                   {/* CONTENT */}
                   <div className="p-5">
-
                     <h2 className="line-clamp-2 text-lg font-semibold text-gray-900">
                       {resource.title}
                     </h2>
@@ -268,25 +329,35 @@ export default function ResourcesPage() {
                       </p>
                     )}
 
-                    <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                    {/* META */}
+                    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-gray-500">
                       <span>
-                        {formatFileSize(resource.fileSizeBytes)}
+                        {formatFileSize(
+                          resource.fileSizeBytes
+                        )}
                       </span>
 
                       <span>
-                        {resource.downloadCount || 0} téléchargements
+                        {resource.downloadCount ||
+                          0}{" "}
+                        téléchargement
+                        {(resource.downloadCount ||
+                          0) !== 1
+                          ? "s"
+                          : ""}
                       </span>
                     </div>
 
+                    {/* ACTIONS */}
                     <div className="mt-5 flex gap-2">
-
                       <button
+                        type="button"
                         onClick={() =>
-                          router.push(
-                            `/expert/courses/${courseId}/resources/${resource.id}`
+                          openResource(
+                            resource.id
                           )
                         }
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                       >
                         <Eye size={15} />
                         Ouvrir
@@ -297,19 +368,18 @@ export default function ResourcesPage() {
                           href={fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-700 transition hover:bg-purple-100"
+                          title="Télécharger / ouvrir le fichier"
+                          aria-label={`Télécharger ${resource.title}`}
                         >
                           <Download size={15} />
                         </a>
                       )}
-
                     </div>
-
                   </div>
                 </article>
               );
             })}
-
           </div>
         )}
       </div>

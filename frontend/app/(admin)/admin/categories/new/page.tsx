@@ -118,57 +118,46 @@ export default function NewCategoryPage() {
     }));
   };
 
-  const handleSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
+const handleSubmit = async (
+  e: React.FormEvent<HTMLFormElement>
+) => {
+  e.preventDefault();
 
-    setError("");
+  setError("");
 
-    if (!form.name.trim()) {
-      setError("Le nom est obligatoire.");
-      return;
+  if (!form.name.trim()) {
+    setError("Le nom est obligatoire.");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const res = await fetch(`${API}/categories`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(form),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      throw new Error(
+        data.message || "Impossible de créer la catégorie."
+      );
     }
 
-    setLoading(true);
-
-    try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("accessToken")
-          : null;
-
-      const res = await fetch(`${API}/categories`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-
-        throw new Error(
-          data.message ||
-            "Impossible de créer la catégorie."
-        );
-      }
-
-      router.push("/admin/categories");
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message || "Une erreur est survenue.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    router.push("/admin/categories");
+    router.refresh();
+  } catch (err: any) {
+    setError(err.message || "Une erreur est survenue.");
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <>
       <Header title="Nouvelle catégorie" />

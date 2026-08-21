@@ -78,24 +78,14 @@ export function ProgramTable() {
 
       setError("");
 
-      const token =
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("token");
-
-      if (!token) {
-        throw new Error(
-          "Session expirée. Veuillez vous reconnecter."
-        );
-      }
-
       const response = await fetch(
         `${API_URL}/admin/programs?page=1&pageSize=100&sort=newest`,
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
+          credentials: "include",
           cache: "no-store",
         }
       );
@@ -206,23 +196,11 @@ export function ProgramTable() {
     try {
       setDeletingId(id);
 
-      const token =
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("token");
-
-      if (!token) {
-        throw new Error(
-          "Session expirée. Veuillez vous reconnecter."
-        );
-      }
-
       const response = await fetch(
         `${API_URL}/admin/programs/${id}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
         }
       );
 

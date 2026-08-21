@@ -69,28 +69,28 @@ interface Program {
   updatedAt?: string;
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
-}
-
 function formatAmount(
   amount?: string | number,
   currency?: string
 ): string {
   if (amount === undefined || amount === null) return "-";
+
   const numeric = Number(amount);
-  if (Number.isNaN(numeric)) return `${amount} ${currency || "DZD"}`;
+
+  if (Number.isNaN(numeric)) {
+    return `${amount} ${currency || "DZD"}`;
+  }
+
   return `${numeric.toLocaleString("fr-FR")} ${currency || "DZD"}`;
 }
 
 function formatDate(date?: string): string {
   if (!date) return "-";
+
   const parsed = new Date(date);
+
   if (Number.isNaN(parsed.getTime())) return "-";
+
   return parsed.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "long",
@@ -127,24 +127,16 @@ function StatusBadge({ program }: { program: Program }) {
 export default function AdminProgramDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+
+  const id = Array.isArray(params?.id)
+    ? params.id[0]
+    : params?.id;
 
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  /*
-   * IMPORTANT:
-   * There is currently no GET /admin/programs/:id route on the
-   * backend — only GET /admin/programs (list) exists. Hitting
-   * /admin/programs/:id returns a 404 from Express, which Next.js
-   * then renders as its own "page not found" screen.
-   *
-   * Until that route is added, we fetch the full (paginated) list
-   * and find the matching program client-side, the same workaround
-   * used on the institution program detail page.
-   */
   const loadProgram = useCallback(async () => {
     if (!id) return;
 
@@ -152,18 +144,12 @@ export default function AdminProgramDetailPage() {
       setLoading(true);
       setError("");
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error("Session expirée. Veuillez vous reconnecter.");
-      }
-
       const response = await fetch(
         `${API_URL}/admin/programs?page=1&pageSize=100&sort=newest`,
         {
           method: "GET",
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           cache: "no-store",
@@ -173,11 +159,15 @@ export default function AdminProgramDetailPage() {
       const result = await response.json().catch(() => ({}));
 
       if (response.status === 401) {
-        throw new Error("Session expirée. Veuillez vous reconnecter.");
+        throw new Error(
+          "Session expirée. Veuillez vous reconnecter."
+        );
       }
 
       if (response.status === 403) {
-        throw new Error("Accès refusé. Vous devez être administrateur.");
+        throw new Error(
+          "Accès refusé. Vous devez être administrateur."
+        );
       }
 
       if (!response.ok) {
@@ -204,8 +194,11 @@ export default function AdminProgramDetailPage() {
       setProgram(found);
     } catch (err) {
       console.error("ADMIN PROGRAM DETAIL ERROR:", err);
+
       setError(
-        err instanceof Error ? err.message : "Erreur inconnue."
+        err instanceof Error
+          ? err.message
+          : "Erreur inconnue."
       );
     } finally {
       setLoading(false);
@@ -228,23 +221,27 @@ export default function AdminProgramDetailPage() {
     try {
       setDeleting(true);
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error("Session expirée. Veuillez vous reconnecter.");
-      }
-
       const response = await fetch(
         `${API_URL}/admin/programs/${program.id}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
         }
       );
 
       const result = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        throw new Error(
+          "Session expirée. Veuillez vous reconnecter."
+        );
+      }
+
+      if (response.status === 403) {
+        throw new Error(
+          "Accès refusé. Vous devez être administrateur."
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -270,9 +267,12 @@ export default function AdminProgramDetailPage() {
       <div className="min-h-screen bg-sand-50 p-6 md:p-8">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 h-5 w-40 animate-pulse rounded bg-sand-200" />
+
           <div className="card-surface p-8 shadow-card">
             <div className="h-8 w-2/3 animate-pulse rounded bg-sand-200" />
+
             <div className="mt-4 h-4 w-1/3 animate-pulse rounded bg-sand-200" />
+
             <div className="mt-8 grid gap-5 md:grid-cols-3">
               <div className="h-24 animate-pulse rounded-xl bg-sand-100" />
               <div className="h-24 animate-pulse rounded-xl bg-sand-100" />
@@ -324,6 +324,7 @@ export default function AdminProgramDetailPage() {
   return (
     <div className="min-h-screen bg-sand-50">
       <div className="mx-auto max-w-5xl p-6 md:p-8">
+
         {/* Back */}
         <Link
           href="/admin/programs"
@@ -337,8 +338,10 @@ export default function AdminProgramDetailPage() {
         <div className="card-surface animate-rise shadow-card">
           <div className="p-6 md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+
               <div className="min-w-0">
                 <div className="mb-4 flex flex-wrap items-center gap-2">
+
                   <span className="font-body flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-500">
                     <ShieldCheck size={12} />
                     Vue admin
@@ -364,34 +367,51 @@ export default function AdminProgramDetailPage() {
                 )}
 
                 <div className="font-body mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-soft">
+
                   <span className="flex items-center gap-1.5">
-                    <Landmark size={14} className="text-rose-500" />
-                    {program.institutionProfile?.institutionName || "—"}
+                    <Landmark
+                      size={14}
+                      className="text-rose-500"
+                    />
+                    {program.institutionProfile?.institutionName ||
+                      "—"}
                   </span>
 
                   {program.institutionProfile?.city && (
                     <span className="flex items-center gap-1.5">
-                      <MapPin size={14} className="text-gold-500" />
+                      <MapPin
+                        size={14}
+                        className="text-gold-500"
+                      />
                       {program.institutionProfile.city}
                     </span>
                   )}
+
                 </div>
               </div>
 
               {/* Actions */}
               <div className="flex shrink-0 flex-wrap gap-3">
+
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
                   className="focus-ring font-body inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deleting ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2
+                      size={16}
+                      className="animate-spin"
+                    />
                   ) : (
                     <Trash2 size={16} />
                   )}
-                  {deleting ? "Suppression..." : "Supprimer"}
+
+                  {deleting
+                    ? "Suppression..."
+                    : "Supprimer"}
                 </button>
+
               </div>
             </div>
           </div>
@@ -399,30 +419,44 @@ export default function AdminProgramDetailPage() {
 
         {/* Summary cards */}
         <div className="mt-6 grid gap-5 md:grid-cols-3">
+
           <div className="card-surface p-6 shadow-card">
             <div className="flex items-center gap-3">
+
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rise-gradient-soft text-rose-500">
                 <Wallet size={20} />
               </div>
+
               <p className="font-body text-sm font-medium text-ink-soft">
                 Montant
               </p>
             </div>
+
             <p className="font-display mt-4 text-lg font-semibold text-wine-700">
-              {formatAmount(program.amountMin, program.currency)} –{" "}
-              {formatAmount(program.amountMax, program.currency)}
+              {formatAmount(
+                program.amountMin,
+                program.currency
+              )}{" "}
+              –{" "}
+              {formatAmount(
+                program.amountMax,
+                program.currency
+              )}
             </p>
           </div>
 
           <div className="card-surface p-6 shadow-card">
             <div className="flex items-center gap-3">
+
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
                 <Calendar size={20} />
               </div>
+
               <p className="font-body text-sm font-medium text-ink-soft">
                 Date d&apos;ouverture
               </p>
             </div>
+
             <p className="font-display mt-4 text-lg font-semibold text-wine-700">
               {formatDate(program.openingDate)}
             </p>
@@ -430,121 +464,173 @@ export default function AdminProgramDetailPage() {
 
           <div className="card-surface p-6 shadow-card">
             <div className="flex items-center gap-3">
+
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-400/20 text-gold-500">
                 <Calendar size={20} />
               </div>
+
               <p className="font-body text-sm font-medium text-ink-soft">
                 Date limite
               </p>
             </div>
+
             <p className="font-display mt-4 text-lg font-semibold text-wine-700">
               {formatDate(program.closingDate)}
             </p>
           </div>
+
         </div>
 
         {/* Description */}
         <section className="card-surface mt-6 p-6 shadow-card md:p-8">
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rise-gradient-soft text-rose-500">
               <FileText size={20} />
             </div>
+
             <h2 className="font-display text-xl font-semibold text-wine-700">
               Description
             </h2>
+
           </div>
 
           <p className="font-body mt-5 whitespace-pre-wrap text-sm leading-7 text-ink-soft">
-            {program.description || "Aucune description fournie."}
+            {program.description ||
+              "Aucune description fournie."}
           </p>
+
         </section>
 
         {/* Eligibility + Documents */}
         {(program.eligibility?.length ||
           program.requiredDocuments?.length) && (
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            {program.eligibility && program.eligibility.length > 0 && (
-              <section className="card-surface p-6 shadow-card">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <h2 className="font-display text-lg font-semibold text-wine-700">
-                    Éligibilité
-                  </h2>
-                </div>
 
-                <ul className="mt-5 space-y-3">
-                  {program.eligibility.map((item, i) => (
-                    <li
-                      key={`${item}-${i}`}
-                      className="font-body flex gap-3 text-sm leading-6 text-ink-soft"
-                    >
-                      <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600">
-                        <CheckCircle2 size={12} />
-                      </span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+            {program.eligibility &&
+              program.eligibility.length > 0 && (
+                <section className="card-surface p-6 shadow-card">
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                      <CheckCircle2 size={20} />
+                    </div>
+
+                    <h2 className="font-display text-lg font-semibold text-wine-700">
+                      Éligibilité
+                    </h2>
+
+                  </div>
+
+                  <ul className="mt-5 space-y-3">
+
+                    {program.eligibility.map(
+                      (item, i) => (
+                        <li
+                          key={`${item}-${i}`}
+                          className="font-body flex gap-3 text-sm leading-6 text-ink-soft"
+                        >
+                          <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600">
+                            <CheckCircle2 size={12} />
+                          </span>
+
+                          <span>{item}</span>
+                        </li>
+                      )
+                    )}
+
+                  </ul>
+
+                </section>
+              )}
 
             {program.requiredDocuments &&
               program.requiredDocuments.length > 0 && (
                 <section className="card-surface p-6 shadow-card">
+
                   <div className="flex items-center gap-3">
+
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-100 text-wine-500">
                       <FileText size={20} />
                     </div>
+
                     <h2 className="font-display text-lg font-semibold text-wine-700">
                       Documents requis
                     </h2>
+
                   </div>
 
                   <ul className="mt-5 space-y-3">
-                    {program.requiredDocuments.map((item, i) => (
-                      <li
-                        key={`${item}-${i}`}
-                        className="font-body flex gap-3 text-sm leading-6 text-ink-soft"
-                      >
-                        <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-wine-100 text-wine-500">
-                          <CheckCircle2 size={12} />
-                        </span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
+
+                    {program.requiredDocuments.map(
+                      (item, i) => (
+                        <li
+                          key={`${item}-${i}`}
+                          className="font-body flex gap-3 text-sm leading-6 text-ink-soft"
+                        >
+                          <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-wine-100 text-wine-500">
+                            <CheckCircle2 size={12} />
+                          </span>
+
+                          <span>{item}</span>
+                        </li>
+                      )
+                    )}
+
                   </ul>
+
                 </section>
               )}
+
           </div>
         )}
 
         {/* Applications count */}
         {program._count?.applications !== undefined && (
           <section className="card-surface mt-6 flex items-center gap-4 p-6 shadow-card">
+
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rise-gradient-soft text-rose-500">
               <Users size={20} />
             </div>
+
             <div>
+
               <p className="font-display text-lg font-semibold text-wine-700">
                 {program._count.applications} candidature
-                {program._count.applications !== 1 ? "s" : ""}
+                {program._count.applications !== 1
+                  ? "s"
+                  : ""}
               </p>
+
               <p className="font-body text-sm text-ink-soft">
-                reçue{program._count.applications !== 1 ? "s" : ""} pour ce programme
+                reçue
+                {program._count.applications !== 1
+                  ? "s"
+                  : ""}{" "}
+                pour ce programme
               </p>
+
             </div>
+
           </section>
         )}
 
         {/* Metadata */}
         <div className="font-body mt-6 pb-10 text-center text-xs text-ink-soft/70">
-          <p>Créé le {formatDate(program.createdAt)}</p>
-          <p className="mt-1">
-            Dernière mise à jour le {formatDate(program.updatedAt)}
+
+          <p>
+            Créé le {formatDate(program.createdAt)}
           </p>
+
+          <p className="mt-1">
+            Dernière mise à jour le{" "}
+            {formatDate(program.updatedAt)}
+          </p>
+
         </div>
+
       </div>
     </div>
   );

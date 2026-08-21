@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 
 const API =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+  (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(
+    /\/$/,
+    ""
+  );
 
 interface FinancingProgram {
   id: string;
@@ -28,19 +31,30 @@ interface FinancingProgram {
   isArchived: boolean;
 }
 
-function getToken() {
-  if (typeof window === "undefined") return null;
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
+async function parseResponse(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      message: text,
+    };
+  }
 }
 
 function formatAmount(value: string | number) {
   const num = Number(value);
 
-  if (Number.isNaN(num)) {
+  if (!Number.isFinite(num)) {
     return String(value);
   }
 
@@ -54,66 +68,82 @@ function formatCategory(category: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export default function InstitutionProgramsPage() {
   const [programs, setPrograms] = useState<FinancingProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /* ------------------------------------------------------------------------ */
+  /* Load programs                                                            */
+  /* ------------------------------------------------------------------------ */
+
   const loadPrograms = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = getToken();
-
-      if (!token) {
-        setError(
-          "Votre session a expiré. Veuillez vous reconnecter."
-        );
-        setPrograms([]);
-        return;
-      }
-
       const response = await fetch(`${API}/institution/programs`, {
         method: "GET",
+
+        /*
+         * IMPORTANT:
+         * Authentication is now handled by the HTTP-only cookie.
+         * There is NO localStorage accessToken anymore.
+         */
+        credentials: "include",
+
         headers: {
-          Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
+
         cache: "no-store",
       });
 
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(
-          "Le serveur a retourné une réponse invalide."
-        );
-      }
+      const json = await parseResponse(response);
 
       if (!response.ok) {
+        /*
+         * 401 means the cookie is missing/expired.
+         */
+        if (response.status === 401) {
+          throw new Error(
+            "Votre session a expiré. Veuillez vous reconnecter."
+          );
+        }
+
+        if (response.status === 403) {
+          throw new Error(
+            "Vous n'êtes pas autorisée à accéder à ces programmes."
+          );
+        }
+
         throw new Error(
           json?.message ||
             json?.error ||
-            `Impossible de charger les programmes (${response.status})`
+            `Impossible de charger les programmes (${response.status}).`
         );
       }
 
       const items = Array.isArray(json)
         ? json
-        : json.data ||
-          json.items ||
-          json.programs ||
-          [];
+        : Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json?.items)
+            ? json.items
+            : Array.isArray(json?.programs)
+              ? json.programs
+              : [];
 
-      setPrograms(Array.isArray(items) ? items : []);
+      setPrograms(items);
     } catch (err) {
       console.error("LOAD PROGRAMS ERROR:", err);
+
+      setPrograms([]);
 
       setError(
         err instanceof Error
@@ -125,14 +155,20 @@ export default function InstitutionProgramsPage() {
     }
   }, []);
 
+  /* ------------------------------------------------------------------------ */
+  /* Initial load                                                             */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
-    loadPrograms();
+    void loadPrograms();
   }, [loadPrograms]);
 
+  /* ------------------------------------------------------------------------ */
+  /* Delete program                                                           */
+  /* ------------------------------------------------------------------------ */
+
   async function deleteProgram(id: string) {
-    const program = programs.find(
-      (item) => item.id === id
-    );
+    const program = programs.find((item) => item.id === id);
 
     const confirmed = window.confirm(
       `Voulez-vous vraiment supprimer « ${
@@ -140,58 +176,60 @@ export default function InstitutionProgramsPage() {
       } » ?`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeletingId(id);
-
-      const token = getToken();
-
-      if (!token) {
-        alert(
-          "Votre session a expiré. Veuillez vous reconnecter."
-        );
-        return;
-      }
 
       const response = await fetch(
         `${API}/institution/programs/${encodeURIComponent(id)}`,
         {
           method: "DELETE",
+
+          /*
+           * IMPORTANT:
+           * Send the HTTP-only cookie automatically.
+           * No Authorization header.
+           */
+          credentials: "include",
+
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
         }
       );
 
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        // Ignore invalid JSON
-      }
+      const json = await parseResponse(response);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error(
+            "Votre session a expiré. Veuillez vous reconnecter."
+          );
+        }
+
+        if (response.status === 403) {
+          throw new Error(
+            "Vous n'êtes pas autorisée à supprimer ce programme."
+          );
+        }
+
         throw new Error(
           json?.message ||
             json?.error ||
-            `Impossible de supprimer le programme (${response.status})`
+            `Impossible de supprimer le programme (${response.status}).`
         );
       }
 
       setPrograms((current) =>
-        current.filter(
-          (program) => program.id !== id
-        )
+        current.filter((program) => program.id !== id)
       );
     } catch (err) {
       console.error("DELETE PROGRAM ERROR:", err);
 
-      alert(
+      window.alert(
         err instanceof Error
           ? err.message
           : "Impossible de supprimer le programme."
@@ -201,9 +239,9 @@ export default function InstitutionProgramsPage() {
     }
   }
 
-  /* -------------------------------------------------------------- */
-  /* Loading                                                         */
-  /* -------------------------------------------------------------- */
+  /* ------------------------------------------------------------------------ */
+  /* Loading                                                                  */
+  /* ------------------------------------------------------------------------ */
 
   if (loading) {
     return (
@@ -228,16 +266,20 @@ export default function InstitutionProgramsPage() {
     );
   }
 
+  /* ------------------------------------------------------------------------ */
+  /* Render                                                                   */
+  /* ------------------------------------------------------------------------ */
+
   return (
     <div className="min-h-screen bg-sand-50 px-6 py-8 md:px-8">
       <div className="mx-auto max-w-7xl">
-
         {/* ====================================================== */}
         {/* HEADER                                                  */}
         {/* ====================================================== */}
 
         <div className="mb-10">
           {/* Breadcrumb */}
+
           <div className="mb-8 text-sm text-ink-soft">
             <span>Espace Institution</span>
 
@@ -251,6 +293,7 @@ export default function InstitutionProgramsPage() {
           </div>
 
           {/* Header content */}
+
           <div className="relative">
             <div
               aria-hidden
@@ -315,7 +358,7 @@ export default function InstitutionProgramsPage() {
 
             <button
               type="button"
-              onClick={loadPrograms}
+              onClick={() => void loadPrograms()}
               className="rounded-xl bg-white px-4 py-2.5 font-body text-sm font-semibold text-wine-700 shadow-sm transition hover:bg-rose-50"
             >
               Réessayer
@@ -329,7 +372,6 @@ export default function InstitutionProgramsPage() {
 
         {!error && programs.length === 0 && (
           <div className="relative overflow-hidden rounded-[2rem] border border-rose-100 bg-white px-6 py-16 text-center shadow-card md:px-12">
-            {/* Decorative circles */}
             <div
               aria-hidden
               className="absolute -left-20 -top-20 h-52 w-52 rounded-full bg-rose-100/60 blur-3xl"
@@ -379,7 +421,6 @@ export default function InstitutionProgramsPage() {
 
         {programs.length > 0 && (
           <>
-            {/* Small section heading */}
             <div className="mb-6 flex items-end justify-between">
               <div>
                 <p className="font-script text-lg text-rose-500">
@@ -409,6 +450,7 @@ export default function InstitutionProgramsPage() {
                   className="group relative flex flex-col overflow-hidden rounded-[1.75rem] border border-rose-100/80 bg-white shadow-card transition-all duration-300 hover:-translate-y-1.5 hover:border-rose-200 hover:shadow-bloom"
                 >
                   {/* Top decorative area */}
+
                   <div className="relative h-28 overflow-hidden bg-rise-gradient-soft">
                     <div
                       aria-hidden
@@ -422,9 +464,7 @@ export default function InstitutionProgramsPage() {
 
                     <div className="absolute left-5 top-5 flex items-center gap-2">
                       <span className="rounded-full border border-white/70 bg-white/75 px-3 py-1.5 font-body text-[11px] font-semibold text-wine-700 shadow-sm backdrop-blur-sm">
-                        {formatCategory(
-                          program.category
-                        )}
+                        {formatCategory(program.category)}
                       </span>
                     </div>
 
@@ -448,8 +488,8 @@ export default function InstitutionProgramsPage() {
                   </div>
 
                   {/* Main content */}
+
                   <div className="flex flex-1 flex-col p-5 pt-7">
-                    {/* Title */}
                     <div>
                       <h3 className="font-display text-xl font-semibold leading-snug text-wine-900 transition-colors group-hover:text-rose-600">
                         {program.title}
@@ -459,6 +499,7 @@ export default function InstitutionProgramsPage() {
                     </div>
 
                     {/* Funding */}
+
                     <div className="mt-5 rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/80 to-sand-50 p-4">
                       <p className="font-body text-[10px] font-bold uppercase tracking-[0.14em] text-rose-500">
                         Montant du financement
@@ -466,9 +507,7 @@ export default function InstitutionProgramsPage() {
 
                       <div className="mt-1.5 flex items-baseline gap-1.5">
                         <p className="font-display text-lg font-semibold text-wine-800">
-                          {formatAmount(
-                            program.amountMin
-                          )}
+                          {formatAmount(program.amountMin)}
                         </p>
 
                         <span className="text-sm text-rose-300">
@@ -476,9 +515,7 @@ export default function InstitutionProgramsPage() {
                         </span>
 
                         <p className="font-display text-lg font-semibold text-wine-800">
-                          {formatAmount(
-                            program.amountMax
-                          )}
+                          {formatAmount(program.amountMax)}
                         </p>
                       </div>
 
@@ -488,6 +525,7 @@ export default function InstitutionProgramsPage() {
                     </div>
 
                     {/* Details */}
+
                     <div className="mt-4 space-y-3">
                       {program.region ? (
                         <div className="flex items-center gap-2.5 text-sm text-ink-soft">
@@ -537,39 +575,42 @@ export default function InstitutionProgramsPage() {
                     </div>
 
                     {/* Actions */}
+
                     <div className="mt-auto pt-6">
                       <div className="grid grid-cols-2 gap-2.5">
                         <Link
-                          href={`/institution/programs/${program.id}`}
+                          href={`/institution/programs/${encodeURIComponent(
+                            program.id
+                          )}`}
                           className="focus-ring group/button inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2.5 font-body text-xs font-semibold text-wine-700 transition hover:border-rose-300 hover:bg-rose-50"
                         >
                           <Eye
                             size={14}
                             className="transition-transform group-hover/button:scale-110"
                           />
+
                           Voir
                         </Link>
 
                         <Link
-                          href={`/institution/programs/${program.id}/edit`}
+                          href={`/institution/programs/${encodeURIComponent(
+                            program.id
+                          )}/edit`}
                           className="focus-ring group/button inline-flex items-center justify-center gap-1.5 rounded-xl bg-rise-gradient px-3 py-2.5 font-body text-xs font-semibold text-white shadow-sm transition hover:brightness-105"
                         >
                           <Edit3
                             size={14}
                             className="transition-transform group-hover/button:-rotate-6"
                           />
+
                           Modifier
                         </Link>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() =>
-                          deleteProgram(program.id)
-                        }
-                        disabled={
-                          deletingId === program.id
-                        }
+                        onClick={() => void deleteProgram(program.id)}
+                        disabled={deletingId === program.id}
                         className="focus-ring group/delete mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-2.5 font-body text-xs font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Trash2
@@ -585,6 +626,7 @@ export default function InstitutionProgramsPage() {
                   </div>
 
                   {/* Bottom decorative line */}
+
                   <div className="h-1 w-full bg-rise-gradient opacity-70" />
                 </div>
               ))}

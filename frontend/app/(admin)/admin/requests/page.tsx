@@ -11,7 +11,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-
 import { Badge } from "@/components/ui/Badge";
 
 const API_URL = (
@@ -19,6 +18,7 @@ const API_URL = (
 ).replace(/\/$/, "");
 
 type ApplicationType = "EXPERT" | "INSTITUTION";
+
 type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 interface ApplicationRequest {
@@ -51,14 +51,16 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   REJECTED: "Refusée",
 };
 
-function getAuthToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("accessToken") || localStorage.getItem("token");
-}
-
 function formatDate(date: string) {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("fr-FR", {
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return parsed.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -67,6 +69,7 @@ function formatDate(date: string) {
 
 function getInitials(name: string) {
   if (!name) return "?";
+
   return name
     .trim()
     .split(/\s+/)
@@ -75,7 +78,11 @@ function getInitials(name: string) {
     .join("");
 }
 
-function StatusBadge({ status }: { status: ApplicationStatus }) {
+function StatusBadge({
+  status,
+}: {
+  status: ApplicationStatus;
+}) {
   if (status === "APPROVED") {
     return (
       <Badge tone="wine">
@@ -103,18 +110,33 @@ function StatusBadge({ status }: { status: ApplicationStatus }) {
 }
 
 async function fetchApplications(
-  type: ApplicationType,
-  token: string | null
+  type: ApplicationType
 ): Promise<ApplicationRequest[]> {
-  const endpoint = type === "EXPERT" ? "expert-applications" : "institution-applications";
+  const endpoint =
+    type === "EXPERT"
+      ? "expert-applications"
+      : "institution-applications";
 
   const response = await fetch(`${API_URL}/${endpoint}`, {
+    method: "GET",
+    credentials: "include",
     headers: {
       Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     cache: "no-store",
   });
+
+  if (response.status === 401) {
+    throw new Error(
+      "Session expirée. Veuillez vous reconnecter."
+    );
+  }
+
+  if (response.status === 403) {
+    throw new Error(
+      "Accès refusé. Vous devez être administrateur."
+    );
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -124,15 +146,21 @@ async function fetchApplications(
     );
   }
 
-  const data: { applications?: RawApplication[] } = await response.json();
+  const data: {
+    applications?: RawApplication[];
+  } = await response.json();
 
-  return (data.applications ?? []).map((a) => ({
-    id: a.id,
+  return (data.applications ?? []).map((application) => ({
+    id: application.id,
     type,
-    status: a.status,
-    fullName: a.fullName || a.organizationName || a.contactName || a.email,
-    email: a.email,
-    createdAt: a.createdAt,
+    status: application.status,
+    fullName:
+      application.fullName ||
+      application.organizationName ||
+      application.contactName ||
+      application.email,
+    email: application.email,
+    createdAt: application.createdAt,
   }));
 }
 
@@ -147,21 +175,27 @@ export default function AdminRequestsPage() {
       setLoading(true);
       setError("");
 
-      const token = getAuthToken();
-
       const [experts, institutions] = await Promise.all([
-        fetchApplications("EXPERT", token),
-        fetchApplications("INSTITUTION", token),
+        fetchApplications("EXPERT"),
+        fetchApplications("INSTITUTION"),
       ]);
 
       const merged = [...experts, ...institutions].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
       );
 
       setRequests(merged);
     } catch (err) {
       console.error("FETCH REQUESTS ERROR:", err);
-      setError(err instanceof Error ? err.message : "Impossible de charger les demandes.");
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger les demandes."
+      );
+
       setRequests([]);
     } finally {
       setLoading(false);
@@ -172,44 +206,95 @@ export default function AdminRequestsPage() {
     loadRequests();
   }, []);
 
-  async function handleDelete(id: string, type: ApplicationType) {
-    const confirmed = window.confirm("Voulez-vous vraiment supprimer cette demande ?");
+  async function handleDelete(
+    id: string,
+    type: ApplicationType
+  ) {
+    const confirmed = window.confirm(
+      "Voulez-vous vraiment supprimer cette demande ?"
+    );
+
     if (!confirmed) return;
 
     try {
-      const token = getAuthToken();
-      const endpoint = type === "EXPERT" ? "expert-applications" : "institution-applications";
+      const endpoint =
+        type === "EXPERT"
+          ? "expert-applications"
+          : "institution-applications";
 
-      const response = await fetch(`${API_URL}/${endpoint}/${id}`, {
-        method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const response = await fetch(
+        `${API_URL}/${endpoint}/${id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        throw new Error(
+          "Session expirée. Veuillez vous reconnecter."
+        );
+      }
+
+      if (response.status === 403) {
+        throw new Error(
+          "Accès refusé. Vous devez être administrateur."
+        );
+      }
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(data?.message || "Erreur lors de la suppression.");
+
+        throw new Error(
+          data?.message ||
+            "Erreur lors de la suppression."
+        );
       }
 
-      setRequests((prev) => prev.filter((request) => request.id !== id));
+      setRequests((prev) =>
+        prev.filter(
+          (request) =>
+            !(
+              request.id === id &&
+              request.type === type
+            )
+        )
+      );
     } catch (err) {
       console.error("DELETE REQUEST ERROR:", err);
-      alert(err instanceof Error ? err.message : "Impossible de supprimer cette demande.");
+
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer cette demande."
+      );
     }
   }
 
   const filteredRequests = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return requests;
+
+    if (!query) {
+      return requests;
+    }
 
     return requests.filter((request) => {
       return (
-        request.fullName?.toLowerCase().includes(query) ||
-        request.email?.toLowerCase().includes(query) ||
-        TYPE_LABELS[request.type]?.toLowerCase().includes(query) ||
-        STATUS_LABELS[request.status]?.toLowerCase().includes(query)
+        request.fullName
+          ?.toLowerCase()
+          .includes(query) ||
+        request.email
+          ?.toLowerCase()
+          .includes(query) ||
+        TYPE_LABELS[request.type]
+          ?.toLowerCase()
+          .includes(query) ||
+        STATUS_LABELS[request.status]
+          ?.toLowerCase()
+          .includes(query)
       );
     });
   }, [requests, search]);
@@ -217,46 +302,72 @@ export default function AdminRequestsPage() {
   const stats = useMemo(
     () => ({
       total: requests.length,
-      pending: requests.filter((r) => r.status === "PENDING").length,
-      approved: requests.filter((r) => r.status === "APPROVED").length,
-      rejected: requests.filter((r) => r.status === "REJECTED").length,
+      pending: requests.filter(
+        (request) => request.status === "PENDING"
+      ).length,
+      approved: requests.filter(
+        (request) => request.status === "APPROVED"
+      ).length,
+      rejected: requests.filter(
+        (request) => request.status === "REJECTED"
+      ).length,
     }),
     [requests]
   );
 
   return (
     <div className="p-6 lg:p-8">
+      {/* Breadcrumb */}
       <div className="mb-8 text-sm text-ink-soft">
         <span>Espace Admin</span>
-        <span className="mx-2 text-ink-soft/40">/</span>
-        <span className="font-medium text-wine-700">Gestion des demandes</span>
+
+        <span className="mx-2 text-ink-soft/40">
+          /
+        </span>
+
+        <span className="font-medium text-wine-700">
+          Gestion des demandes
+        </span>
       </div>
 
+      {/* Header */}
       <div className="relative mb-10">
         <div
           aria-hidden
           className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
         />
 
-        <p className="font-script text-2xl leading-none text-rose-500">Administration,</p>
+        <p className="font-script text-2xl leading-none text-rose-500">
+          Administration,
+        </p>
 
         <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
-          Gestion des <span className="text-gradient-rise">demandes</span>
+          Gestion des{" "}
+          <span className="text-gradient-rise">
+            demandes
+          </span>
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-          Consultez, examinez et gérez les demandes d'inscription des expertes et des institutions
+          Consultez, examinez et gérez les demandes
+          d'inscription des expertes et des institutions
           sur Ellevadz.
         </p>
       </div>
 
+      {/* Search */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-sand-200 bg-white px-4 py-3 shadow-sm transition-all focus-within:border-rose-300 focus-within:shadow-card">
-          <Search size={17} className="shrink-0 text-ink-soft" />
+          <Search
+            size={17}
+            className="shrink-0 text-ink-soft"
+          />
 
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
             placeholder="Rechercher une demande..."
             className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft/60"
           />
@@ -274,14 +385,22 @@ export default function AdminRequestsPage() {
         </div>
 
         <p className="text-xs text-ink-soft">
-          {filteredRequests.length} demande{filteredRequests.length !== 1 ? "s" : ""} affichée
-          {filteredRequests.length !== 1 ? "s" : ""}
+          {filteredRequests.length} demande
+          {filteredRequests.length !== 1
+            ? "s"
+            : ""}{" "}
+          affichée
+          {filteredRequests.length !== 1
+            ? "s"
+            : ""}
         </p>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="mb-6 flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <span>{error}</span>
+
           <button
             type="button"
             onClick={() => setError("")}
@@ -293,78 +412,121 @@ export default function AdminRequestsPage() {
         </div>
       )}
 
+      {/* Statistics */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Total */}
         <div className="card-surface p-5 shadow-card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
                 Total demandes
               </p>
+
               <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
                 {loading ? "…" : stats.total}
               </p>
-              <p className="mt-1 text-xs text-ink-soft">Toutes les demandes</p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                Toutes les demandes
+              </p>
             </div>
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
-              <Users size={18} className="text-rose-500" />
+              <Users
+                size={18}
+                className="text-rose-500"
+              />
             </div>
           </div>
         </div>
 
+        {/* Pending */}
         <div className="card-surface p-5 shadow-card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
                 En attente
               </p>
+
               <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
                 {loading ? "…" : stats.pending}
               </p>
-              <p className="mt-1 text-xs text-ink-soft">À examiner</p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                À examiner
+              </p>
             </div>
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-              <Clock3 size={18} className="text-amber-600" />
+              <Clock3
+                size={18}
+                className="text-amber-600"
+              />
             </div>
           </div>
         </div>
 
+        {/* Approved */}
         <div className="card-surface p-5 shadow-card">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Validées</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                Validées
+              </p>
+
               <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
                 {loading ? "…" : stats.approved}
               </p>
-              <p className="mt-1 text-xs text-ink-soft">Demandes acceptées</p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                Demandes acceptées
+              </p>
             </div>
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50">
-              <FileCheck2 size={18} className="text-wine-700" />
+              <FileCheck2
+                size={18}
+                className="text-wine-700"
+              />
             </div>
           </div>
         </div>
 
+        {/* Rejected */}
         <div className="card-surface p-5 shadow-card">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Refusées</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                Refusées
+              </p>
+
               <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
                 {loading ? "…" : stats.rejected}
               </p>
-              <p className="mt-1 text-xs text-ink-soft">Demandes refusées</p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                Demandes refusées
+              </p>
             </div>
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
-              <X size={18} className="text-rose-500" />
+              <X
+                size={18}
+                className="text-rose-500"
+              />
             </div>
           </div>
         </div>
       </div>
 
+      {/* Requests table */}
       <div className="card-surface overflow-hidden shadow-card">
         <div className="flex flex-col gap-2 border-b border-sand-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-lg font-semibold text-ink">
               Demandes d'inscription
             </h2>
+
             <p className="mt-1 text-xs text-ink-soft">
               Liste des demandes reçues par la plateforme.
             </p>
@@ -378,15 +540,19 @@ export default function AdminRequestsPage() {
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Candidat
                 </th>
+
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Type
                 </th>
+
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Date
                 </th>
+
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Statut
                 </th>
+
                 <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   Actions
                 </th>
@@ -394,47 +560,73 @@ export default function AdminRequestsPage() {
             </thead>
 
             <tbody>
+              {/* Loading */}
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
+                  <td
+                    colSpan={5}
+                    className="px-5 py-12 text-center"
+                  >
                     <div className="flex flex-col items-center">
                       <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-sand-200 border-t-rose-500" />
-                      <p className="text-sm text-ink-soft">Chargement des demandes...</p>
+
+                      <p className="text-sm text-ink-soft">
+                        Chargement des demandes...
+                      </p>
                     </div>
                   </td>
                 </tr>
               )}
 
+              {/* Requests */}
               {!loading &&
                 filteredRequests.map((request) => (
                   <tr
                     key={`${request.type}-${request.id}`}
-                    className="group border-b border-sand-100 last:border-b-0 transition-colors hover:bg-rose-50/30"
+                    className="group border-b border-sand-100 transition-colors last:border-b-0 hover:bg-rose-50/30"
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rise-gradient text-xs font-semibold text-white shadow-sm">
-                          {getInitials(request.fullName)}
+                          {getInitials(
+                            request.fullName
+                          )}
                         </div>
+
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-ink">{request.fullName}</p>
-                          <p className="truncate text-xs text-ink-soft">{request.email}</p>
+                          <p className="truncate font-medium text-ink">
+                            {request.fullName}
+                          </p>
+
+                          <p className="truncate text-xs text-ink-soft">
+                            {request.email}
+                          </p>
                         </div>
                       </div>
                     </td>
 
                     <td className="px-5 py-4">
-                      <Badge tone={request.type === "EXPERT" ? "wine" : "gold"}>
+                      <Badge
+                        tone={
+                          request.type === "EXPERT"
+                            ? "wine"
+                            : "gold"
+                        }
+                      >
                         {TYPE_LABELS[request.type]}
                       </Badge>
                     </td>
 
                     <td className="px-5 py-4 text-sm text-ink-soft">
-                      {formatDate(request.createdAt)}
+                      {formatDate(
+                        request.createdAt
+                      )}
                     </td>
 
                     <td className="px-5 py-4">
-                      <StatusBadge status={request.status} />
+                      <StatusBadge
+                        status={request.status}
+                      />
                     </td>
 
                     <td className="px-5 py-4">
@@ -444,12 +636,20 @@ export default function AdminRequestsPage() {
                           className="inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-3 py-2 text-xs font-medium text-ink transition-all hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
                         >
                           <Eye size={15} />
-                          <span className="hidden sm:inline">Voir</span>
+
+                          <span className="hidden sm:inline">
+                            Voir
+                          </span>
                         </Link>
 
                         <button
                           type="button"
-                          onClick={() => handleDelete(request.id, request.type)}
+                          onClick={() =>
+                            handleDelete(
+                              request.id,
+                              request.type
+                            )
+                          }
                           className="inline-flex items-center justify-center rounded-xl border border-rose-100 bg-white p-2 text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-700"
                           aria-label="Supprimer la demande"
                           title="Supprimer"
@@ -461,32 +661,47 @@ export default function AdminRequestsPage() {
                   </tr>
                 ))}
 
-              {!loading && filteredRequests.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-14 text-center">
-                    <div className="mx-auto flex max-w-sm flex-col items-center">
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sand-50">
-                        <Search size={22} className="text-ink-soft" />
+              {/* Empty */}
+              {!loading &&
+                filteredRequests.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-14 text-center"
+                    >
+                      <div className="mx-auto flex max-w-sm flex-col items-center">
+                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sand-50">
+                          <Search
+                            size={22}
+                            className="text-ink-soft"
+                          />
+                        </div>
+
+                        <p className="font-medium text-ink">
+                          Aucune demande trouvée
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-ink-soft">
+                          {search
+                            ? "Essayez avec un autre terme de recherche."
+                            : "Aucune demande d'inscription n'est disponible pour le moment."}
+                        </p>
+
+                        {search && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSearch("")
+                            }
+                            className="mt-4 text-xs font-medium text-rose-600 hover:text-rose-700"
+                          >
+                            Effacer la recherche
+                          </button>
+                        )}
                       </div>
-                      <p className="font-medium text-ink">Aucune demande trouvée</p>
-                      <p className="mt-1 text-xs leading-5 text-ink-soft">
-                        {search
-                          ? "Essayez avec un autre terme de recherche."
-                          : "Aucune demande d'inscription n'est disponible pour le moment."}
-                      </p>
-                      {search && (
-                        <button
-                          type="button"
-                          onClick={() => setSearch("")}
-                          className="mt-4 text-xs font-medium text-rose-600 hover:text-rose-700"
-                        >
-                          Effacer la recherche
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
+                    </td>
+                  </tr>
+                )}
             </tbody>
           </table>
         </div>

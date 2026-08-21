@@ -12,7 +12,6 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-
 import { Badge } from "@/components/ui/Badge";
 
 const API_URL = (
@@ -28,15 +27,6 @@ type Article = {
   createdAt: string;
   isPublished: boolean;
 };
-
-function getAuthToken() {
-  if (typeof window === "undefined") return null;
-
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
-}
 
 function formatDate(date: string) {
   if (!date) return "-";
@@ -71,30 +61,29 @@ export default function AdminArticlesPage() {
       setLoading(true);
       setError("");
 
-      const token = getAuthToken();
-
       const res = await fetch(`${API_URL}/articles/all`, {
+        method: "GET",
+        credentials: "include",
         headers: {
           Accept: "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
         },
         cache: "no-store",
       });
 
-      if (!res.ok) {
-        throw new Error("Impossible de charger les articles.");
-      }
+      const data = await res.json().catch(() => null);
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Impossible de charger les articles."
+        );
+      }
 
       setArticles(
         Array.isArray(data)
           ? data
-          : data.data ?? data.articles ?? []
+          : data?.data ?? data?.articles ?? []
       );
     } catch (error) {
       console.error("FETCH ARTICLES ERROR:", error);
@@ -119,17 +108,11 @@ export default function AdminArticlesPage() {
     if (!confirmed) return;
 
     try {
-      const token = getAuthToken();
-
       const res = await fetch(`${API_URL}/articles/${id}`, {
         method: "DELETE",
+        credentials: "include",
         headers: {
           Accept: "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
         },
       });
 
@@ -149,7 +132,7 @@ export default function AdminArticlesPage() {
     } catch (error) {
       console.error("DELETE ARTICLE ERROR:", error);
 
-      alert(
+      window.alert(
         error instanceof Error
           ? error.message
           : "Impossible de supprimer l'article."
@@ -199,22 +182,16 @@ export default function AdminArticlesPage() {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden p-5 sm:p-6 lg:p-8">
-      {/* =====================================================
-          BREADCRUMB
-      ====================================================== */}
+      {/* BREADCRUMB */}
       <div className="mb-7 text-sm text-ink-soft">
         <span>Espace Admin</span>
-
         <span className="mx-2 text-ink-soft/40">/</span>
-
         <span className="font-medium text-wine-700">
           Gestion des articles
         </span>
       </div>
 
-      {/* =====================================================
-          HERO
-      ====================================================== */}
+      {/* HERO */}
       <div className="relative mb-8">
         <div
           aria-hidden
@@ -250,9 +227,7 @@ export default function AdminArticlesPage() {
         </p>
       </div>
 
-      {/* =====================================================
-          SEARCH + CREATE
-      ====================================================== */}
+      {/* SEARCH + CREATE */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
           className="
@@ -346,9 +321,7 @@ export default function AdminArticlesPage() {
         </div>
       </div>
 
-      {/* =====================================================
-          ERROR
-      ====================================================== */}
+      {/* ERROR */}
       {error && (
         <div
           className="
@@ -386,9 +359,7 @@ export default function AdminArticlesPage() {
         </div>
       )}
 
-      {/* =====================================================
-          STATS
-      ====================================================== */}
+      {/* STATS */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* TOTAL */}
         <div className="card-surface p-5 shadow-card">
@@ -497,9 +468,7 @@ export default function AdminArticlesPage() {
         </div>
       </div>
 
-      {/* =====================================================
-          TABLE
-      ====================================================== */}
+      {/* TABLE */}
       <div className="card-surface w-full max-w-full overflow-hidden shadow-card">
         {/* TABLE HEADER */}
         <div className="flex flex-col gap-2 border-b border-sand-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -521,14 +490,7 @@ export default function AdminArticlesPage() {
 
         {/* TABLE */}
         <div className="w-full overflow-x-auto">
-          <table
-            className="
-              w-full
-              min-w-[760px]
-              table-fixed
-              text-sm
-            "
-          >
+          <table className="w-full min-w-[760px] table-fixed text-sm">
             <colgroup>
               <col className="w-[32%]" />
               <col className="w-[15%]" />
@@ -661,6 +623,7 @@ export default function AdminArticlesPage() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1.5 whitespace-nowrap text-xs text-ink-soft">
                         <Clock3 size={13} />
+
                         <span>
                           {article.readTimeMinutes} min
                         </span>

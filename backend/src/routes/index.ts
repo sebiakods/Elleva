@@ -25,7 +25,8 @@ import overviewRoutes from "./overview.routes";
 import institutionProfileRoutes from "./institutionProfile.routes";
 import expertProfileRoutes from "./expertProfile.routes";
 import expertsRoutes from "./experts.routes";
-
+console.log("DEBUG expertsRoutes:", expertsRoutes);
+console.log("DEBUG expertsRoutes type:", typeof expertsRoutes);
 const router = Router();
 
 /* ========================================================================= */

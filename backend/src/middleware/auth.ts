@@ -3,32 +3,25 @@ import { verifyAccessToken } from "../services/token.service";
 import { unauthorized } from "../utils/response";
 import { AuthenticatedRequest } from "../types";
 
-/**
- * Verify Bearer access token
- */
 export function verifyToken(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void {
+  const token =
+    req.cookies?.accessToken;
 
-  const authHeader = req.headers.authorization;
-
-  console.log("========== AUTH DEBUG ==========");
-  console.log("Authorization:", authHeader);
-  console.log("================================");
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    unauthorized(res, "Token d'accès manquant");
+  if (!token) {
+    unauthorized(
+      res,
+      "Token d'accès manquant"
+    );
     return;
   }
 
-  const token = authHeader.substring(7);
-
   try {
-    const payload = verifyAccessToken(token);
-
-    console.log("JWT PAYLOAD:", payload);
+    const payload =
+      verifyAccessToken(token);
 
     req.user = {
       id: payload.sub,
@@ -37,16 +30,11 @@ export function verifyToken(
       name: payload.name,
     };
 
-    console.log("REQ.USER:", req.user);
-
     next();
-
   } catch (err: unknown) {
-
-    console.error("JWT ERROR:", err);
-
     const message =
-      err instanceof Error && err.name === "TokenExpiredError"
+      err instanceof Error &&
+      err.name === "TokenExpiredError"
         ? "Token expiré"
         : "Token invalide";
 
@@ -54,27 +42,18 @@ export function verifyToken(
   }
 }
 
-
-/**
- * Optional authentication
- */
 export function optionalToken(
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
+  const token =
+    req.cookies?.accessToken;
 
-  const authHeader = req.headers.authorization;
-
-  if (authHeader?.startsWith("Bearer ")) {
-
+  if (token) {
     try {
-
-      const payload = verifyAccessToken(
-        authHeader.substring(7)
-      );
-
-      console.log("OPTIONAL JWT:", payload);
+      const payload =
+        verifyAccessToken(token);
 
       req.user = {
         id: payload.sub,
@@ -82,7 +61,6 @@ export function optionalToken(
         role: payload.role,
         name: payload.name,
       };
-
     } catch {
       // Ignore invalid token
     }

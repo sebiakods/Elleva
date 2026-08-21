@@ -46,18 +46,6 @@ const institutions = [
     icon: BriefcaseBusiness,
   },
   {
-    name: "Incubateur Universitaire",
-    type: "Incubateur",
-    description:
-      "Structure d'accompagnement destinée aux porteuses de projets souhaitant transformer leurs idées en entreprises.",
-    services: [
-      "Incubation",
-      "Mentorat",
-      "Formation",
-    ],
-    icon: GraduationCap,
-  },
-  {
     name: "Algeria Venture",
     type: "Accompagnement & investissement",
     description:

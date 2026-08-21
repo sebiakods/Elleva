@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { GraduationCap, Building2 } from "lucide-react";
 
 import { AuthShell } from "@/components/forms/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+
 import { cn } from "@/lib/utils";
+import authService from "@/services/auth";
 
 export default function RegisterPage() {
-  const router = useRouter();
-
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -36,38 +35,26 @@ export default function RegisterPage() {
   ) => {
     e.preventDefault();
 
+    if (loading) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: form.name,
-            email: form.email,
-            password: form.password,
+      await authService.register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        role: "ENTREPRENEUR",
+      });
 
-            // Everyone registers as entrepreneur
-            role: "ENTREPRENEUR",
-          }),
-        }
+      window.location.href = "/login";
+    } catch (err: any) {
+      console.error("Register error:", err);
+
+      setError(
+        err?.message || "Une erreur est survenue."
       );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Une erreur est survenue.");
-        return;
-      }
-
-      router.push("/login");
-    } catch {
-      setError("Impossible de contacter le serveur.");
     } finally {
       setLoading(false);
     }
@@ -136,14 +123,14 @@ export default function RegisterPage() {
         </Link>
       </p>
 
-      {/* Professional accounts */}
       <div className="mt-8 rounded-2xl border border-sand-200 bg-sand-50 p-5">
         <h3 className="text-center text-base font-semibold text-ink">
           Vous souhaitez un compte professionnel ?
         </h3>
 
         <p className="mt-1 text-center text-sm text-ink-soft">
-          Les comptes Experte et Institution sont soumis à une validation par notre équipe.
+          Les comptes Experte et Institution sont
+          soumis à une validation par notre équipe.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -164,7 +151,8 @@ export default function RegisterPage() {
               </p>
 
               <p className="text-sm text-ink-soft">
-                Rejoignez notre réseau de mentores et accompagnez les entrepreneures.
+                Rejoignez notre réseau de mentores et
+                accompagnez les entrepreneures.
               </p>
             </div>
           </Link>
@@ -186,7 +174,8 @@ export default function RegisterPage() {
               </p>
 
               <p className="text-sm text-ink-soft">
-                Publiez vos programmes de financement et accompagnez les entrepreneures.
+                Publiez vos programmes de financement
+                et accompagnez les entrepreneures.
               </p>
             </div>
           </Link>

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 const CATEGORIES = [
   { value: "BANK_LOAN", label: "Bank Loan" },
@@ -23,13 +24,38 @@ interface Program {
   isPublished?: boolean;
 }
 
-function getToken() {
-  if (typeof window === "undefined") return null;
+interface ApiResponse {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  data?: Program[] | Program;
+  items?: Program[];
+  programs?: Program[];
+}
 
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
+/**
+ * Parse API responses safely.
+ */
+async function parseApiResponse(response: Response): Promise<ApiResponse> {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as ApiResponse;
+  } catch {
+    throw new Error("Le serveur a retourné une réponse invalide.");
+  }
+}
+
+/**
+ * Redirect the user when the HTTP-only session cookie
+ * is missing or expired.
+ */
+function redirectToLogin(router: ReturnType<typeof useRouter>) {
+  router.push("/login?redirect=/institution/programs");
 }
 
 export default function EditInstitutionProgramPage() {
@@ -57,17 +83,17 @@ export default function EditInstitutionProgramPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /*
-   * We intentionally load from the working
-   * institution list endpoint.
+  /**
+   * Load the program.
    *
-   * This avoids the BigInt serialization
-   * problem currently present in the direct
-   * GET /institution/programs/:id endpoint.
+   * IMPORTANT:
+   * We no longer read any token from localStorage.
+   *
+   * Authentication is handled by the HTTP-only cookie.
    */
   const loadProgram = useCallback(async () => {
     if (!id) {
-      setLoadError("Program ID is missing.");
+      setLoadError("L'identifiant du programme est manquant.");
       setLoading(false);
       return;
     }
@@ -76,43 +102,70 @@ export default function EditInstitutionProgramPage() {
       setLoading(true);
       setLoadError(null);
 
-      const token = getToken();
-
-      if (!token) {
-        setLoadError("Authentication required. Please log in again.");
-        return;
-      }
-
       const response = await fetch(`${API}/institution/programs`, {
         method: "GET",
+
+        /*
+         * This is the replacement for Authorization: Bearer ...
+         *
+         * The browser automatically sends the HTTP-only
+         * authentication cookie.
+         */
+        credentials: "include",
+
         headers: {
-          Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
+
         cache: "no-store",
       });
 
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error("The server returned an invalid response.");
+      /*
+       * Authentication failed / session expired.
+       */
+      if (response.status === 401) {
+        redirectToLogin(router);
+        return;
       }
+
+      const json = await parseApiResponse(response);
 
       if (!response.ok) {
         throw new Error(
-          json?.message ||
-            json?.error ||
-            `Failed to load programs (${response.status})`
+          json.message ||
+            json.error ||
+            `Impossible de charger les programmes (${response.status}).`
         );
       }
 
-      const programs: Program[] = Array.isArray(json)
-        ? json
-        : json.data || json.items || json.programs || [];
+      /*
+       * The backend may return:
+       *
+       * [
+       *   ...
+       * ]
+       *
+       * or:
+       *
+       * {
+       *   data: [...]
+       * }
+       *
+       * or:
+       *
+       * {
+       *   items: [...]
+       * }
+       */
+      const programs: Program[] = Array.isArray(json.data)
+        ? json.data
+        : Array.isArray(json.items)
+          ? json.items
+          : Array.isArray(json.programs)
+            ? json.programs
+            : Array.isArray(json)
+              ? (json as unknown as Program[])
+              : [];
 
       const program = programs.find(
         (item) => String(item.id) === String(id)
@@ -120,7 +173,7 @@ export default function EditInstitutionProgramPage() {
 
       if (!program) {
         throw new Error(
-          "Program not found or you do not have access to it."
+          "Programme introuvable ou vous n'avez pas accès à ce programme."
         );
       }
 
@@ -135,13 +188,15 @@ export default function EditInstitutionProgramPage() {
       );
 
       setAmountMin(
-        program.amountMin !== null && program.amountMin !== undefined
+        program.amountMin !== null &&
+          program.amountMin !== undefined
           ? String(program.amountMin)
           : ""
       );
 
       setAmountMax(
-        program.amountMax !== null && program.amountMax !== undefined
+        program.amountMax !== null &&
+          program.amountMax !== undefined
           ? String(program.amountMax)
           : ""
       );
@@ -151,69 +206,92 @@ export default function EditInstitutionProgramPage() {
       console.error("LOAD PROGRAM ERROR:", err);
 
       setLoadError(
-        err instanceof Error ? err.message : "Failed to load program."
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger le programme."
       );
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, router]);
 
   useEffect(() => {
     loadProgram();
   }, [loadProgram]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
 
     setError(null);
 
     const cleanTitle = title.trim();
     const cleanDescription = description.trim();
 
+    /*
+     * Validate title.
+     */
     if (!cleanTitle) {
-      setError("Please enter a program title.");
+      setError("Veuillez saisir le titre du programme.");
       return;
     }
 
-    const min = amountMin.trim() === "" ? null : Number(amountMin);
-    const max = amountMax.trim() === "" ? null : Number(amountMax);
+    /*
+     * Convert amounts safely.
+     */
+    const min =
+      amountMin.trim() === ""
+        ? null
+        : Number(amountMin);
+
+    const max =
+      amountMax.trim() === ""
+        ? null
+        : Number(amountMax);
 
     if (min !== null && Number.isNaN(min)) {
-      setError("Minimum amount must be a valid number.");
+      setError("Le montant minimum doit être un nombre valide.");
       return;
     }
 
     if (max !== null && Number.isNaN(max)) {
-      setError("Maximum amount must be a valid number.");
+      setError("Le montant maximum doit être un nombre valide.");
       return;
     }
 
     if (min !== null && min < 0) {
-      setError("Minimum amount cannot be negative.");
+      setError("Le montant minimum ne peut pas être négatif.");
       return;
     }
 
     if (max !== null && max < 0) {
-      setError("Maximum amount cannot be negative.");
+      setError("Le montant maximum ne peut pas être négatif.");
       return;
     }
 
     if (min !== null && max !== null && min > max) {
-      setError("Minimum amount cannot be greater than maximum amount.");
+      setError(
+        "Le montant minimum ne peut pas être supérieur au montant maximum."
+      );
       return;
     }
 
-    const token = getToken();
-
-    if (!token) {
-      setError("Your session has expired. Please log in again.");
+    if (!id) {
+      setError("L'identifiant du programme est manquant.");
       return;
     }
 
     try {
       setSubmitting(true);
 
-      // Safe slug generation with diacritics stripping & fallback
+      /*
+       * Generate a safe slug.
+       */
       const generatedSlug = cleanTitle
         .toLowerCase()
         .normalize("NFD")
@@ -221,17 +299,28 @@ export default function EditInstitutionProgramPage() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
 
-      const slug = generatedSlug || `program-${Date.now()}`;
+      const slug =
+        generatedSlug || `program-${id}`;
 
       const response = await fetch(
         `${API}/institution/programs/${encodeURIComponent(id)}`,
         {
           method: "PUT",
+
+          /*
+           * IMPORTANT:
+           * Authentication cookie is automatically sent.
+           *
+           * There is NO:
+           * Authorization: Bearer token
+           */
+          credentials: "include",
+
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
             Accept: "application/json",
           },
+
           body: JSON.stringify({
             title: cleanTitle,
             slug,
@@ -244,15 +333,15 @@ export default function EditInstitutionProgramPage() {
         }
       );
 
-      const text = await response.text();
-
-      let data: any = {};
-
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        console.error("Invalid update response:", text);
+      /*
+       * Session expired / user is not authenticated.
+       */
+      if (response.status === 401) {
+        redirectToLogin(router);
+        return;
       }
+
+      const data = await parseApiResponse(response);
 
       console.log("UPDATE PROGRAM:", {
         status: response.status,
@@ -261,23 +350,34 @@ export default function EditInstitutionProgramPage() {
 
       if (!response.ok) {
         setError(
-          data?.message ||
-            data?.error ||
-            `Update failed (${response.status}).`
+          data.message ||
+            data.error ||
+            `La modification a échoué (${response.status}).`
         );
         return;
       }
 
+      /*
+       * Update succeeded.
+       */
       router.push(`/institution/programs/${id}`);
       router.refresh();
     } catch (err) {
       console.error("UPDATE PROGRAM ERROR:", err);
 
-      setError("Failed to connect to the server.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de contacter le serveur."
+      );
     } finally {
       setSubmitting(false);
     }
   }
+
+  /* ---------------------------------------------------------------- */
+  /* Loading                                                          */
+  /* ---------------------------------------------------------------- */
 
   if (loading) {
     return (
@@ -286,12 +386,16 @@ export default function EditInstitutionProgramPage() {
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
 
           <p className="font-body text-sm text-ink-soft">
-            Loading program…
+            Chargement du programme…
           </p>
         </div>
       </div>
     );
   }
+
+  /* ---------------------------------------------------------------- */
+  /* Loading error                                                    */
+  /* ---------------------------------------------------------------- */
 
   if (loadError) {
     return (
@@ -301,16 +405,28 @@ export default function EditInstitutionProgramPage() {
             href="/institution/programs"
             className="font-body inline-flex items-center text-sm font-medium text-ink-soft hover:text-rose-500"
           >
-            ← Back to Programs
+            ← Retour aux programmes
           </Link>
 
           <div className="font-body mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-wine-700">
             {loadError}
           </div>
+
+          <button
+            type="button"
+            onClick={loadProgram}
+            className="font-body mt-4 rounded-xl bg-rise-gradient px-5 py-3 text-sm font-semibold text-white shadow-bloom transition hover:brightness-105"
+          >
+            Réessayer
+          </button>
         </div>
       </div>
     );
   }
+
+  /* ---------------------------------------------------------------- */
+  /* Page                                                             */
+  /* ---------------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-sand-50 p-6 md:p-8">
@@ -319,20 +435,20 @@ export default function EditInstitutionProgramPage() {
           href={`/institution/programs/${id}`}
           className="font-body inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-rose-500"
         >
-          ← Back to Program
+          ← Retour au programme
         </Link>
 
         <div className="mb-8 mt-4">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-rose-500">
-            Institution Dashboard
+            Tableau de bord institution
           </p>
 
           <h1 className="font-display mt-1 text-3xl font-semibold text-wine-700 md:text-4xl">
-            Edit Financing Program
+            Modifier le programme de financement
           </h1>
 
           <p className="font-body mt-2 text-ink-soft">
-            Update the details below.
+            Modifiez les informations du programme ci-dessous.
           </p>
         </div>
 
@@ -341,30 +457,41 @@ export default function EditInstitutionProgramPage() {
           className="card-surface animate-rise space-y-6 p-6 shadow-card md:p-8"
         >
           {error && (
-            <div className="font-body rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-wine-700">
+            <div
+              role="alert"
+              className="font-body rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-wine-700"
+            >
               {error}
             </div>
           )}
 
-          {/* Title */}
+          {/* -------------------------------------------------------- */}
+          {/* Title                                                    */}
+          {/* -------------------------------------------------------- */}
+
           <div>
             <label
               htmlFor="title"
               className="font-body mb-1.5 block text-sm font-semibold text-ink"
             >
-              Program title
+              Titre du programme
             </label>
 
             <input
               id="title"
               type="text"
+              required
+              disabled={submitting}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white"
+              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink placeholder:text-ink-soft/60 transition focus:border-rose-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
-          {/* Description */}
+          {/* -------------------------------------------------------- */}
+          {/* Description                                               */}
+          {/* -------------------------------------------------------- */}
+
           <div>
             <label
               htmlFor="description"
@@ -376,50 +503,66 @@ export default function EditInstitutionProgramPage() {
             <textarea
               id="description"
               rows={6}
+              disabled={submitting}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="focus-ring font-body w-full resize-none rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white"
+              className="focus-ring font-body w-full resize-none rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
-          {/* Category */}
+          {/* -------------------------------------------------------- */}
+          {/* Category                                                  */}
+          {/* -------------------------------------------------------- */}
+
           <div>
             <label
               htmlFor="category"
               className="font-body mb-1.5 block text-sm font-semibold text-ink"
             >
-              Category
+              Catégorie
             </label>
 
             <select
               id="category"
+              disabled={submitting}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white"
+              className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 text-ink transition focus:border-rose-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {CATEGORIES.map((item) => (
-                <option key={item.value} value={item.value}>
+                <option
+                  key={item.value}
+                  value={item.value}
+                >
                   {item.label}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Amount */}
+          {/* -------------------------------------------------------- */}
+          {/* Amount                                                    */}
+          {/* -------------------------------------------------------- */}
+
           <div>
             <span className="font-body mb-1.5 block text-sm font-semibold text-ink">
-              Funding amount
+              Montant du financement
             </span>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="relative">
                 <input
+                  id="amountMin"
                   type="number"
                   min={0}
+                  step="1"
+                  disabled={submitting}
                   value={amountMin}
-                  onChange={(e) => setAmountMin(e.target.value)}
+                  onChange={(e) =>
+                    setAmountMin(e.target.value)
+                  }
                   placeholder="Minimum"
-                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink"
+                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink disabled:cursor-not-allowed disabled:opacity-60"
                 />
 
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs font-semibold text-ink-soft">
@@ -429,12 +572,17 @@ export default function EditInstitutionProgramPage() {
 
               <div className="relative">
                 <input
+                  id="amountMax"
                   type="number"
                   min={0}
+                  step="1"
+                  disabled={submitting}
                   value={amountMax}
-                  onChange={(e) => setAmountMax(e.target.value)}
+                  onChange={(e) =>
+                    setAmountMax(e.target.value)
+                  }
                   placeholder="Maximum"
-                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink"
+                  className="focus-ring font-body w-full rounded-xl border border-sand-200 bg-sand-50 p-3 pr-14 text-ink disabled:cursor-not-allowed disabled:opacity-60"
                 />
 
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-body text-xs font-semibold text-ink-soft">
@@ -444,41 +592,60 @@ export default function EditInstitutionProgramPage() {
             </div>
           </div>
 
-          {/* Published */}
+          {/* -------------------------------------------------------- */}
+          {/* Published                                                 */}
+          {/* -------------------------------------------------------- */}
+
           <div className="flex items-center justify-between rounded-xl bg-sand-100 p-4">
             <div>
               <p className="font-body text-sm font-semibold text-ink">
-                Published
+                Publié
               </p>
 
               <p className="font-body mt-0.5 text-xs text-ink-soft">
-                Visible to entrepreneurs when published.
+                Le programme sera visible par les entrepreneures
+                lorsqu&apos;il est publié.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setIsPublished((value) => !value)}
+              disabled={submitting}
+              onClick={() =>
+                setIsPublished((value) => !value)
+              }
               aria-pressed={isPublished}
+              aria-label={
+                isPublished
+                  ? "Dépublier le programme"
+                  : "Publier le programme"
+              }
               className={`relative h-7 w-12 rounded-full transition ${
-                isPublished ? "bg-rise-gradient" : "bg-sand-200"
-              }`}
+                isPublished
+                  ? "bg-rise-gradient"
+                  : "bg-sand-200"
+              } disabled:cursor-not-allowed disabled:opacity-60`}
             >
               <span
                 className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-card transition ${
-                  isPublished ? "left-[22px]" : "left-0.5"
+                  isPublished
+                    ? "left-[22px]"
+                    : "left-0.5"
                 }`}
               />
             </button>
           </div>
 
-          {/* Actions */}
+          {/* -------------------------------------------------------- */}
+          {/* Actions                                                   */}
+          {/* -------------------------------------------------------- */}
+
           <div className="flex justify-end gap-3 border-t border-sand-200 pt-6">
             <Link
               href={`/institution/programs/${id}`}
               className="font-body rounded-xl px-5 py-3 text-sm font-semibold text-ink-soft hover:text-ink"
             >
-              Cancel
+              Annuler
             </Link>
 
             <button
@@ -490,7 +657,9 @@ export default function EditInstitutionProgramPage() {
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               )}
 
-              {submitting ? "Saving…" : "Save Changes"}
+              {submitting
+                ? "Enregistrement…"
+                : "Enregistrer les modifications"}
             </button>
           </div>
         </form>

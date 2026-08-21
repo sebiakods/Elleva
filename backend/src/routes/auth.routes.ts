@@ -39,10 +39,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().optional(),
-});
-
+const refreshSchema = z.object({});
 // ─────────────────────────────────────────────────────────────
 // Debug middleware
 // ─────────────────────────────────────────────────────────────
@@ -55,7 +52,6 @@ router.use((req, _res, next) => {
 // ─────────────────────────────────────────────────────────────
 // Authentication
 // ─────────────────────────────────────────────────────────────
-
 router.post(
   "/register",
   validate(registerSchema),
@@ -85,5 +81,4 @@ router.get(
   verifyToken,
   ctrl.me
 );
-
 export default router;

@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -16,18 +21,33 @@ import { Button } from "@/components/ui/Button";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+
 type Course = {
   id: string;
   title: string;
+};
+
+type ApiResponse<T = unknown> = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  data?: T;
 };
 
 export default function CreateResourcePage() {
   const params = useParams();
   const router = useRouter();
 
-  const courseId = params.id as string;
+  const courseId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+        ? params.id[0]
+        : "";
 
   const [course, setCourse] = useState<Course | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -39,72 +59,153 @@ export default function CreateResourcePage() {
 
   const [file, setFile] = useState<File | null>(null);
 
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  /**
+   * --------------------------------------------------------------------------
+   * Load course
+   * --------------------------------------------------------------------------
+   *
+   * Authentication is handled by the HTTP-only cookie.
+   *
+   * IMPORTANT:
+   * Do NOT read accessToken from localStorage.
+   */
   useEffect(() => {
+    if (!courseId) {
+      setLoading(false);
+      setError("Identifiant du cours invalide.");
+      return;
+    }
+
+    let cancelled = false;
+
     async function loadCourse() {
       try {
-        const token = localStorage.getItem("accessToken");
+        setLoading(true);
+        setError("");
 
-        const res = await fetch(
-          `${API_URL}/courses/${courseId}`,
+        const response = await fetch(
+          `${API_URL}/courses/${encodeURIComponent(courseId)}`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            method: "GET",
+            credentials: "include",
             cache: "no-store",
           }
         );
 
-        const json = await res.json();
+        const data =
+          (await response.json().catch(() => null)) as ApiResponse<Course> | null;
 
-        if (!res.ok) {
+        if (!response.ok) {
           throw new Error(
-            json.message ||
+            data?.message ||
+              data?.error ||
               "Impossible de charger le cours."
           );
         }
 
-        setCourse(json.data);
-      } catch (error) {
-        console.error(error);
+        if (!data?.data) {
+          throw new Error("Les informations du cours sont introuvables.");
+        }
 
-        alert(
-          error instanceof Error
-            ? error.message
+        if (!cancelled) {
+          setCourse(data.data);
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Load course error:", err);
+
+        setError(
+          err instanceof Error
+            ? err.message
             : "Impossible de charger le cours."
         );
+
+        setCourse(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    if (courseId) {
-      loadCourse();
-    }
+    loadCourse();
+
+    return () => {
+      cancelled = true;
+    };
   }, [courseId]);
 
+  /**
+   * --------------------------------------------------------------------------
+   * File selection
+   * --------------------------------------------------------------------------
+   */
   function handleFileChange(
-    e: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>
   ) {
-    const selectedFile = e.target.files?.[0];
+    setError("");
+    setSuccess("");
 
-    if (!selectedFile) return;
+    const selectedFile = event.target.files?.[0];
 
-    const maxSize = 100 * 1024 * 1024;
+    if (!selectedFile) {
+      setFile(null);
+      return;
+    }
 
-    if (selectedFile.size > maxSize) {
-      alert(
-        "Le fichier ne doit pas dépasser 100 MB."
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      setError("Le fichier ne doit pas dépasser 100 MB.");
+
+      event.target.value = "";
+      setFile(null);
+
+      return;
+    }
+
+    const fileName = selectedFile.name.toLowerCase();
+
+    const allowedExtensions = [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".ppt",
+      ".pptx",
+      ".txt",
+      ".zip",
+    ];
+
+    const isAllowed = allowedExtensions.some((extension) =>
+      fileName.endsWith(extension)
+    );
+
+    if (!isAllowed) {
+      setError(
+        "Format de fichier non pris en charge. Utilisez PDF, Word, Excel, PowerPoint, TXT ou ZIP."
       );
 
-      e.target.value = "";
+      event.target.value = "";
+      setFile(null);
+
       return;
     }
 
     setFile(selectedFile);
   }
 
+  /**
+   * --------------------------------------------------------------------------
+   * Remove selected file
+   * --------------------------------------------------------------------------
+   */
   function removeFile() {
     setFile(null);
+    setError("");
 
     const input = document.getElementById(
       "resource-file"
@@ -115,92 +216,135 @@ export default function CreateResourcePage() {
     }
   }
 
-  async function createResource(e: FormEvent) {
-    e.preventDefault();
+  /**
+   * --------------------------------------------------------------------------
+   * Create resource
+   * --------------------------------------------------------------------------
+   */
+  async function createResource(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    if (!courseId) {
+      setError("Identifiant du cours invalide.");
+      return;
+    }
 
     if (!title.trim()) {
-      alert("Veuillez renseigner le titre de la ressource.");
+      setError("Veuillez renseigner le titre de la ressource.");
       return;
     }
 
     if (!file) {
-      alert("Veuillez sélectionner un fichier.");
+      setError("Veuillez sélectionner un fichier.");
+      return;
+    }
+
+    if (order < 0 || !Number.isInteger(order)) {
+      setError("La position doit être un nombre entier positif.");
       return;
     }
 
     try {
       setSaving(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        throw new Error(
-          "Votre session a expiré. Veuillez vous reconnecter."
-        );
-      }
+      /**
+       * FormData is required because we are uploading a real file.
+       *
+       * DO NOT set:
+       *
+       * Content-Type: multipart/form-data
+       *
+       * The browser automatically creates the correct boundary.
+       */
 
       const formData = new FormData();
 
       formData.append("title", title.trim());
-      formData.append(
-        "description",
-        description.trim()
-      );
-      formData.append("type", type.trim());
-      formData.append("order", String(Number(order)));
-      formData.append(
-        "isPublished",
-        String(isPublished)
-      );
 
-      /*
+      if (description.trim()) {
+        formData.append("description", description.trim());
+      }
+
+      formData.append("type", type);
+      formData.append("order", String(order));
+      formData.append("isPublished", String(isPublished));
+
+      /**
        * IMPORTANT:
-       * Send the real file as "files".
        *
-       * This follows the same multipart convention
-       * already used by the article system.
+       * The backend Multer field name must be "file".
+       *
+       * Therefore this must stay:
+       *
+       * formData.append("file", file);
        */
       formData.append("file", file);
 
-      const res = await fetch(
-        `${API_URL}/courses/${courseId}/resources`,
+      const response = await fetch(
+        `${API_URL}/courses/${encodeURIComponent(courseId)}/resources`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+
+          /**
+           * Send the HTTP-only authentication cookie.
+           */
+          credentials: "include",
+
+          /**
+           * Do NOT set Content-Type here.
+           */
           body: formData,
+
+          cache: "no-store",
         }
       );
 
-      const json = await res.json();
+      const data =
+        (await response.json().catch(() => null)) as ApiResponse | null;
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          json.message ||
-            "Impossible de créer la ressource."
+          data?.message ||
+            data?.error ||
+            `Impossible de créer la ressource (${response.status}).`
         );
       }
 
-      router.push(
-        `/expert/courses/${courseId}/resources`
-      );
-    } catch (error) {
-      console.error(
-        "Create resource error:",
-        error
-      );
+      setSuccess("La ressource a été créée avec succès.");
 
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Une erreur est survenue."
+      /**
+       * Small delay so the success message can be displayed.
+       */
+      setTimeout(() => {
+        router.push(
+          `/expert/courses/${encodeURIComponent(courseId)}/resources`
+        );
+
+        router.refresh();
+      }, 500);
+    } catch (err) {
+      console.error("Create resource error:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Une erreur est survenue lors de la création de la ressource."
       );
     } finally {
       setSaving(false);
     }
   }
 
+  /**
+   * --------------------------------------------------------------------------
+   * Loading state
+   * --------------------------------------------------------------------------
+   */
   if (loading) {
     return (
       <main className="p-6">
@@ -210,6 +354,7 @@ export default function CreateResourcePage() {
               size={20}
               className="animate-spin"
             />
+
             Chargement du cours...
           </div>
         </div>
@@ -217,22 +362,44 @@ export default function CreateResourcePage() {
     );
   }
 
+  /**
+   * --------------------------------------------------------------------------
+   * Course not found
+   * --------------------------------------------------------------------------
+   */
   if (!course) {
     return (
       <main className="p-6">
         <div className="card-surface p-10 text-center">
-          <p className="text-sm text-gray-500">
-            Cours introuvable.
+          <FileText
+            size={40}
+            className="mx-auto mb-4 text-gray-300"
+          />
+
+          <h1 className="text-lg font-semibold text-gray-900">
+            Cours introuvable
+          </h1>
+
+          <p className="mt-2 text-sm text-gray-500">
+            Impossible de charger les informations de ce cours.
           </p>
+
+          {error && (
+            <p className="mx-auto mt-3 max-w-lg text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <button
             type="button"
             onClick={() =>
               router.push(
-                `/expert/courses/${courseId}/resources`
+                `/expert/courses/${encodeURIComponent(
+                  courseId
+                )}/resources`
               )
             }
-            className="mt-4 text-sm font-medium text-purple-600 hover:text-purple-700"
+            className="mt-5 text-sm font-medium text-purple-600 transition hover:text-purple-700"
           >
             Retour aux ressources
           </button>
@@ -241,22 +408,33 @@ export default function CreateResourcePage() {
     );
   }
 
+  /**
+   * --------------------------------------------------------------------------
+   * Main page
+   * --------------------------------------------------------------------------
+   */
   return (
     <main className="p-6">
       <div className="mx-auto max-w-4xl">
 
-        {/* Header */}
+        {/* ------------------------------------------------------------------ */}
+        {/* Header                                                             */}
+        {/* ------------------------------------------------------------------ */}
+
         <div className="mb-6">
           <button
             type="button"
             onClick={() =>
               router.push(
-                `/expert/courses/${courseId}/resources`
+                `/expert/courses/${encodeURIComponent(
+                  courseId
+                )}/resources`
               )
             }
             className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-purple-600"
           >
             <ArrowLeft size={16} />
+
             Retour aux ressources
           </button>
 
@@ -272,34 +450,58 @@ export default function CreateResourcePage() {
           </p>
         </div>
 
-        {/* Form */}
+        {/* ------------------------------------------------------------------ */}
+        {/* Messages                                                           */}
+        {/* ------------------------------------------------------------------ */}
+
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {success}
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* Form                                                               */}
+        {/* ------------------------------------------------------------------ */}
+
         <form
           onSubmit={createResource}
           className="card-surface space-y-6 p-6"
         >
-
           {/* Title */}
+
           <div className="space-y-2">
             <label
               htmlFor="resource-title"
               className="text-sm font-medium text-gray-800"
             >
               Titre de la ressource
+              <span className="ml-1 text-red-500">*</span>
             </label>
 
             <input
               id="resource-title"
               type="text"
               value={title}
-              onChange={(e) =>
-                setTitle(e.target.value)
+              onChange={(event) =>
+                setTitle(event.target.value)
               }
               placeholder="Ex. Guide du Business Plan"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              maxLength={200}
+              disabled={saving}
+              required
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
           </div>
 
           {/* Description */}
+
           <div className="space-y-2">
             <label
               htmlFor="resource-description"
@@ -311,16 +513,19 @@ export default function CreateResourcePage() {
             <textarea
               id="resource-description"
               value={description}
-              onChange={(e) =>
-                setDescription(e.target.value)
+              onChange={(event) =>
+                setDescription(event.target.value)
               }
               placeholder="Décrivez brièvement cette ressource..."
               rows={4}
-              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 leading-6 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              maxLength={2000}
+              disabled={saving}
+              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 leading-6 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
           </div>
 
           {/* Type + order */}
+
           <div className="grid gap-5 md:grid-cols-2">
 
             <div className="space-y-2">
@@ -334,23 +539,28 @@ export default function CreateResourcePage() {
               <select
                 id="resource-type"
                 value={type}
-                onChange={(e) =>
-                  setType(e.target.value)
+                onChange={(event) =>
+                  setType(event.target.value)
                 }
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                disabled={saving}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
               >
                 <option value="PDF">PDF</option>
                 <option value="DOCUMENT">
                   Document
                 </option>
-                <option value="GUIDE">Guide</option>
+                <option value="GUIDE">
+                  Guide
+                </option>
                 <option value="TEMPLATE">
                   Template
                 </option>
                 <option value="CHECKLIST">
                   Checklist
                 </option>
-                <option value="OTHER">Autre</option>
+                <option value="OTHER">
+                  Autre
+                </option>
               </select>
             </div>
 
@@ -366,25 +576,39 @@ export default function CreateResourcePage() {
                 id="resource-order"
                 type="number"
                 min={0}
+                step={1}
                 value={order}
-                onChange={(e) =>
-                  setOrder(Number(e.target.value))
-                }
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+
+                  setOrder(
+                    Number.isFinite(value) && value >= 0
+                      ? Math.floor(value)
+                      : 0
+                  );
+                }}
+                disabled={saving}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
               />
             </div>
           </div>
 
           {/* File */}
+
           <div className="space-y-3">
             <label className="text-sm font-medium text-gray-800">
               Fichier
+              <span className="ml-1 text-red-500">*</span>
             </label>
 
             {!file ? (
               <label
                 htmlFor="resource-file"
-                className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center transition hover:border-purple-300 hover:bg-purple-50"
+                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${
+                  saving
+                    ? "cursor-not-allowed border-gray-200 bg-gray-100"
+                    : "cursor-pointer border-gray-200 bg-gray-50 hover:border-purple-300 hover:bg-purple-50"
+                }`}
               >
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
                   <Upload size={22} />
@@ -399,19 +623,20 @@ export default function CreateResourcePage() {
                 </p>
 
                 <p className="mt-2 text-xs text-gray-400">
-                  Maximum 100 MB
+                  PDF, Word, Excel, PowerPoint, TXT ou ZIP — maximum 100 MB
                 </p>
 
                 <input
                   id="resource-file"
                   type="file"
+                  disabled={saving}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
                   onChange={handleFileChange}
                   className="hidden"
                 />
               </label>
             ) : (
               <div className="flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 p-4">
-
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-purple-600 shadow-sm">
                     <FileText size={22} />
@@ -423,10 +648,7 @@ export default function CreateResourcePage() {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(
-                        2
-                      )}{" "}
-                      MB
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                 </div>
@@ -434,8 +656,10 @@ export default function CreateResourcePage() {
                 <button
                   type="button"
                   onClick={removeFile}
-                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white hover:text-red-600"
+                  disabled={saving}
+                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Supprimer le fichier"
+                  aria-label="Supprimer le fichier"
                 >
                   <X size={18} />
                 </button>
@@ -444,6 +668,7 @@ export default function CreateResourcePage() {
           </div>
 
           {/* Published */}
+
           <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <div>
               <p className="text-sm font-semibold text-gray-900">
@@ -456,24 +681,25 @@ export default function CreateResourcePage() {
             </div>
 
             <input
+              id="resource-published"
               type="checkbox"
               checked={isPublished}
-              onChange={(e) =>
-                setIsPublished(e.target.checked)
+              onChange={(event) =>
+                setIsPublished(event.target.checked)
               }
-              className="h-5 w-5 accent-purple-600"
+              disabled={saving}
+              className="h-5 w-5 accent-purple-600 disabled:cursor-not-allowed"
             />
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">
+
+          <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="secondary"
               onClick={() =>
-                router.push(
-                  `/expert/courses/${courseId}/resources`
-                )
+                router.push(`/expert/courses/${encodeURIComponent(courseId)}/resources`)
               }
             >
               Annuler
@@ -481,21 +707,25 @@ export default function CreateResourcePage() {
 
             <button
               type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={saving || !file}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
-                <Loader2
-                  size={17}
-                  className="animate-spin"
-                />
-              ) : (
-                <Save size={17} />
-              )}
+                <>
+                  <Loader2
+                    size={17}
+                    className="animate-spin"
+                  />
 
-              {saving
-                ? "Création..."
-                : "Créer la ressource"}
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Save size={17} />
+
+                  Créer la ressource
+                </>
+              )}
             </button>
           </div>
         </form>

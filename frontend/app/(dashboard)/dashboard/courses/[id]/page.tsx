@@ -9,29 +9,28 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Loader2,
   PlayCircle,
   Sparkles,
-  Lock,
-  Loader2,
 } from "lucide-react";
 
 interface Lesson {
   id: string;
   title: string;
-  description?: string;
-  duration?: string;
+  description?: string | null;
+  duration?: string | null;
   type?: "article" | "video" | "resource" | string;
 }
 
 interface Course {
   id: string;
-  slug?: string;
+  slug?: string | null;
   title: string;
-  description?: string;
-  category?: string;
-  level?: string;
-  duration?: string;
-  coverUrl?: string;
+  description?: string | null;
+  category?: string | null;
+  level?: string | null;
+  duration?: string | null;
+  coverUrl?: string | null;
   lessons?: Lesson[];
   articles?: Lesson[];
   videos?: Lesson[];
@@ -46,130 +45,143 @@ export default function CoursePage() {
   const params = useParams();
   const router = useRouter();
 
-  const courseId = params.id as string;
+  const courseId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+        ? params.id[0]
+        : "";
 
-  const [course, setCourse] =
-    useState<Course | null>(null);
+  const [course, setCourse] = useState<Course | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [hasAccess, setHasAccess] =
-    useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   /*
    * ============================================================
-   * CHECK LOCAL PAYMENT
+   * LOAD COURSE
    * ============================================================
+   *
+   * Authentication is handled by the HTTP-only session cookie.
+   *
+   * IMPORTANT:
+   * We do NOT read accessToken/token from localStorage.
+   *
+   * credentials: "include" tells the browser to send the
+   * authentication cookie with the request.
    */
-
   useEffect(() => {
     if (!courseId) {
+      setLoading(false);
+      setError("Identifiant du cours manquant.");
       return;
     }
 
-    const paid =
-      localStorage.getItem(
-        `course_payment_${courseId}`
-      ) === "true";
-
-    /*
-     * NOT PAID
-     * → send to payment page
-     */
-
-    if (!paid) {
-      router.replace(
-        `/dashboard/courses/${courseId}/payment`
-      );
-
-      return;
-    }
-
-    setHasAccess(true);
-  }, [courseId, router]);
-
-  /*
-   * ============================================================
-   * LOAD COURSE FROM BACKEND
-   * ============================================================
-   *
-   * Backend is used ONLY for course content.
-   *
-   * No enrollment.
-   * No payment.
-   * No payment validation.
-   */
-
-  useEffect(() => {
-    if (!courseId || !hasAccess) {
-      return;
-    }
+    let cancelled = false;
 
     async function fetchCourse() {
       try {
-        const token =
-          localStorage.getItem("token") ||
-          localStorage.getItem("accessToken");
+        setLoading(true);
+        setError(null);
 
         const res = await fetch(
-          `${API_URL}/courses/${courseId}`,
+          `${API_URL}/courses/${encodeURIComponent(courseId)}`,
           {
+            method: "GET",
+            credentials: "include",
             headers: {
-              "Content-Type": "application/json",
-              ...(token
-                ? {
-                    Authorization: `Bearer ${token}`,
-                  }
-                : {}),
+              Accept: "application/json",
             },
             cache: "no-store",
           }
         );
 
+        let json: unknown = null;
+
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+
         if (!res.ok) {
+          const message =
+            typeof json === "object" &&
+            json !== null &&
+            "message" in json &&
+            typeof json.message === "string"
+              ? json.message
+              : res.status === 401
+                ? "Votre session a expiré. Veuillez vous reconnecter."
+                : `Erreur ${res.status}: Impossible de charger la formation.`;
+
+          throw new Error(message);
+        }
+
+        const responseData =
+          typeof json === "object" &&
+          json !== null &&
+          "data" in json
+            ? json.data
+            : json;
+
+        if (
+          !responseData ||
+          typeof responseData !== "object" ||
+          !("id" in responseData) ||
+          !("title" in responseData)
+        ) {
           throw new Error(
-            `Erreur ${res.status}: Impossible de charger la formation.`
+            "Les données de la formation sont invalides."
           );
         }
 
-        const json = await res.json();
-
-        const data = (json.data ||
-          json) as Course;
-
-        setCourse(data);
+        if (!cancelled) {
+          setCourse(responseData as Course);
+        }
       } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
         console.error(
           "Erreur de chargement du cours:",
           err
         );
 
         setError(
-          "Impossible de charger le contenu de cette formation."
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger le contenu de cette formation."
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchCourse();
-  }, [courseId, hasAccess]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
 
   /*
    * ============================================================
    * NORMALIZE LESSONS
    * ============================================================
    */
-
-  const lessons = useMemo(() => {
+  const lessons = useMemo<Lesson[]>(() => {
     if (!course) {
       return [];
     }
 
     /*
-     * If backend already returns lessons.
+     * If the backend already returns a normalized lessons array,
+     * use it directly.
      */
     if (
       Array.isArray(course.lessons) &&
@@ -179,29 +191,29 @@ export default function CoursePage() {
     }
 
     /*
-     * Otherwise support separate content arrays.
+     * Otherwise build the list from articles/videos/resources.
      */
     return [
-      ...(course.articles || []).map(
-        (item) => ({
-          ...item,
-          type: "article" as const,
-        })
-      ),
+      ...(Array.isArray(course.articles)
+        ? course.articles.map((item) => ({
+            ...item,
+            type: "article" as const,
+          }))
+        : []),
 
-      ...(course.videos || []).map(
-        (item) => ({
-          ...item,
-          type: "video" as const,
-        })
-      ),
+      ...(Array.isArray(course.videos)
+        ? course.videos.map((item) => ({
+            ...item,
+            type: "video" as const,
+          }))
+        : []),
 
-      ...(course.resources || []).map(
-        (item) => ({
-          ...item,
-          type: "resource" as const,
-        })
-      ),
+      ...(Array.isArray(course.resources)
+        ? course.resources.map((item) => ({
+            ...item,
+            type: "resource" as const,
+          }))
+        : []),
     ];
   }, [course]);
 
@@ -210,8 +222,7 @@ export default function CoursePage() {
    * LOADING
    * ============================================================
    */
-
-  if (loading || !hasAccess) {
+  if (loading) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
         <Loader2
@@ -231,7 +242,6 @@ export default function CoursePage() {
    * ERROR
    * ============================================================
    */
-
   if (error || !course) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-10">
@@ -262,7 +272,7 @@ export default function CoursePage() {
 
           <Link
             href="/dashboard/courses"
-            className="mt-6 inline-flex rounded-full bg-gradient-to-r from-[#e0156a] to-[#7a1352] px-6 py-3 font-body text-sm font-semibold text-white hover:brightness-105"
+            className="mt-6 inline-flex rounded-full bg-gradient-to-r from-[#e0156a] to-[#7a1352] px-6 py-3 font-body text-sm font-semibold text-white transition hover:brightness-105"
           >
             Voir les formations
           </Link>
@@ -273,27 +283,37 @@ export default function CoursePage() {
 
   /*
    * ============================================================
-   * COURSE
+   * COURSE PAGE
    * ============================================================
    */
-
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
+      {/* Back */}
       <Link
         href="/dashboard/courses"
-        className="mb-6 inline-flex items-center gap-1.5 font-body text-sm font-medium text-[#e0156a] hover:text-[#7a1352]"
+        className="mb-6 inline-flex items-center gap-1.5 font-body text-sm font-medium text-[#e0156a] transition hover:text-[#7a1352]"
       >
         <ArrowLeft size={15} />
         Retour aux formations
       </Link>
 
-      {/* HERO */}
+      {/* ========================================================
+          HERO
+      ======================================================== */}
       <section className="card-surface mb-8 overflow-hidden">
         <div className="relative bg-gradient-to-br from-[#e0156a] via-[#c4136a] to-[#7a1352] px-7 py-10 md:px-10">
-          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10" />
-          <div className="absolute -bottom-16 -left-10 h-36 w-36 rounded-full bg-white/10" />
+          <div
+            aria-hidden
+            className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10"
+          />
+
+          <div
+            aria-hidden
+            className="absolute -bottom-16 -left-10 h-36 w-36 rounded-full bg-white/10"
+          />
 
           <div className="relative z-10">
+            {/* Badges */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {course.category && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-body text-xs font-semibold text-white backdrop-blur">
@@ -314,21 +334,28 @@ export default function CoursePage() {
               </span>
             </div>
 
+            {/* Title */}
             <h1 className="max-w-3xl font-display text-3xl font-bold leading-tight text-white md:text-4xl">
               {course.title}
             </h1>
 
+            {/* Description */}
             {course.description && (
               <p className="mt-4 max-w-2xl font-body text-sm leading-relaxed text-white/80 md:text-base">
                 {course.description}
               </p>
             )}
 
+            {/* Stats */}
             <div className="mt-6 flex flex-wrap items-center gap-5 font-body text-sm text-white/85">
               <div className="flex items-center gap-2">
                 <BookOpen size={16} />
+
                 <span>
-                  {lessons.length} leçons
+                  {lessons.length}{" "}
+                  {lessons.length > 1
+                    ? "leçons"
+                    : "leçon"}
                 </span>
               </div>
 
@@ -343,8 +370,13 @@ export default function CoursePage() {
         </div>
       </section>
 
-      {/* CONTENT */}
+      {/* ========================================================
+          CONTENT
+      ======================================================== */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* ======================================================
+            LESSONS
+        ====================================================== */}
         <div className="lg:col-span-2">
           <div className="mb-5">
             <span className="font-script text-lg text-[#e0156a]">
@@ -385,16 +417,17 @@ export default function CoursePage() {
 
                 return (
                   <button
-                    key={lesson.id}
+                    key={`${lesson.type ?? "lesson"}-${lesson.id}`}
                     type="button"
-                    onClick={() => {
+                    onClick={() =>
                       router.push(
                         `/dashboard/courses/${course.id}/lesson/${lesson.id}`
-                      );
-                    }}
+                      )
+                    }
                     className="group card-surface w-full p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-15px_rgba(224,21,106,0.25)] md:p-5"
                   >
                     <div className="flex items-center gap-4">
+                      {/* Number */}
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ffe3ee] font-display font-bold text-[#e0156a]">
                         {String(index + 1).padStart(
                           2,
@@ -402,27 +435,33 @@ export default function CoursePage() {
                         )}
                       </div>
 
+                      {/* Icon */}
                       <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#f1e9de] bg-[#fdfbf8] text-[#7a1352] sm:flex">
                         <Icon size={18} />
                       </div>
 
+                      {/* Content */}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-display text-sm font-bold text-[#1e1620] transition-colors group-hover:text-[#e0156a] md:text-base">
                             {lesson.title}
                           </h3>
 
-                          {lesson.type ===
-                            "video" && (
+                          {lesson.type === "video" && (
                             <span className="rounded-full bg-[#ffe3ee] px-2 py-0.5 font-body text-[10px] font-semibold text-[#7a1352]">
                               Vidéo
                             </span>
                           )}
 
-                          {lesson.type ===
-                            "resource" && (
+                          {lesson.type === "resource" && (
                             <span className="rounded-full bg-[#f6efe1] px-2 py-0.5 font-body text-[10px] font-semibold text-[#8a6d1f]">
                               Ressource
+                            </span>
+                          )}
+
+                          {lesson.type === "article" && (
+                            <span className="rounded-full bg-[#f3eafa] px-2 py-0.5 font-body text-[10px] font-semibold text-[#7a1352]">
+                              Article
                             </span>
                           )}
                         </div>
@@ -448,7 +487,9 @@ export default function CoursePage() {
           )}
         </div>
 
-        {/* SIDEBAR */}
+        {/* ======================================================
+            SIDEBAR
+        ====================================================== */}
         <aside>
           <div className="card-surface sticky top-6 p-6">
             <div className="mb-5 flex items-center gap-2">
@@ -470,6 +511,7 @@ export default function CoursePage() {
               </div>
             </div>
 
+            {/* Access status */}
             <div className="mb-6 flex items-center gap-3 rounded-xl border border-[#86cfa5] bg-[#e9f9ef] p-3">
               <CheckCircle2
                 size={18}
@@ -482,12 +524,13 @@ export default function CoursePage() {
                 </p>
 
                 <p className="mt-0.5 font-body text-[10px] text-[#176b3a]/70">
-                  Votre accès est enregistré sur cet
-                  appareil.
+                  Votre accès est enregistré sur
+                  votre compte.
                 </p>
               </div>
             </div>
 
+            {/* Stats */}
             <div className="space-y-3 border-t border-[#f1e9de] pt-5">
               <div className="flex items-center justify-between">
                 <span className="font-body text-sm text-[#1e1620]/55">
@@ -524,6 +567,7 @@ export default function CoursePage() {
               )}
             </div>
 
+            {/* Start */}
             {lessons.length > 0 && (
               <Link
                 href={`/dashboard/courses/${course.id}/lesson/${lessons[0].id}`}
@@ -533,13 +577,16 @@ export default function CoursePage() {
                   Commencer la formation
                 </span>
 
-                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
+                <span
+                  aria-hidden
+                  className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full"
+                />
               </Link>
             )}
 
             <p className="mt-4 text-center font-body text-[10px] leading-relaxed text-[#1e1620]/35">
               Vous avez accès à cette formation
-              depuis cet appareil.
+              depuis votre compte.
             </p>
           </div>
         </aside>

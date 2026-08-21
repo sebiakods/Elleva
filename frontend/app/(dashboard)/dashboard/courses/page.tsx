@@ -1,482 +1,595 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import Link from "next/link";
+import {
+  Search,
+  Eye,
+  Trash2,
+  FileCheck2,
+  Clock3,
+  Users,
+  X,
+} from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 
-interface Course {
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+).replace(/\/$/, "");
+
+type ApplicationType = "EXPERT" | "INSTITUTION";
+type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+interface ApplicationRequest {
   id: string;
-  title: string;
-  description: string;
-  category?: string;
-  level?: string;
-  coverUrl?: string;
-  price?: number;
+  type: ApplicationType;
+  status: ApplicationStatus;
+  fullName: string;
+  email: string;
+  createdAt: string;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4000/api";
-
-function isCoursePaid(courseId: string): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return (
-    localStorage.getItem(`course_payment_${courseId}`) === "true"
-  );
+interface RawApplication {
+  id: string;
+  status: ApplicationStatus;
+  createdAt: string;
+  email: string;
+  fullName?: string;
+  organizationName?: string;
+  contactName?: string;
 }
 
-export default function CoursesCatalogPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [paidCourses, setPaidCourses] = useState<
-    Record<string, boolean>
-  >({});
+const TYPE_LABELS: Record<ApplicationType, string> = {
+  EXPERT: "Experte",
+  INSTITUTION: "Institution",
+};
 
-  const [loading, setLoading] = useState(true);
+const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  PENDING: "En attente",
+  APPROVED: "Validée",
+  REJECTED: "Refusée",
+};
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] =
-    useState("all");
-  const [selectedLevel, setSelectedLevel] =
-    useState("all");
+function formatDate(date: string) {
+  if (!date) return "-";
 
-  /*
-   * ============================================================
-   * LOAD COURSES
-   * ============================================================
-   *
-   * Backend is used ONLY to display course information.
-   *
-   * There is NO payment request here.
-   */
+  const parsed = new Date(date);
 
-  useEffect(() => {
-    async function fetchCourses() {
-      try {
-        const token =
-          localStorage.getItem("token") ||
-          localStorage.getItem("accessToken");
+  if (Number.isNaN(parsed.getTime())) return "-";
 
-        const res = await fetch(`${API_URL}/courses`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
-          },
-          cache: "no-store",
-        });
+  return parsed.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
-        if (!res.ok) {
-          throw new Error(
-            `Erreur ${res.status}: Impossible de charger les formations.`
-          );
-        }
+function getInitials(name: string) {
+  if (!name) return "?";
 
-        const json = await res.json();
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
 
-        const data: Course[] = Array.isArray(json)
-          ? json
-          : json.data || [];
-
-        setCourses(data);
-
-        /*
-         * Read local payment state for every course.
-         */
-        const paymentState: Record<string, boolean> = {};
-
-        data.forEach((course) => {
-          paymentState[course.id] =
-            isCoursePaid(course.id);
-        });
-
-        setPaidCourses(paymentState);
-      } catch (err) {
-        console.error(
-          "Erreur de chargement des cours :",
-          err
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCourses();
-  }, []);
-
-  /*
-   * ============================================================
-   * HANDLE COURSE
-   * ============================================================
-   *
-   * NOT PAID
-   *     → Payment page
-   *
-   * PAID
-   *     → Course page
-   */
-
-  const handleJoinCourse = (course: Course) => {
-    const paid = isCoursePaid(course.id);
-
-    /*
-     * Keep the selected course available to the payment page.
-     * This is NOT payment data.
-     */
-    if (!paid) {
-      sessionStorage.setItem(
-        "paymentCourse",
-        JSON.stringify(course)
-      );
-
-      window.location.href =
-        `/dashboard/courses/${course.id}/payment`;
-
-      return;
-    }
-
-    /*
-     * Already paid.
-     */
-    window.location.href =
-      `/dashboard/courses/${course.id}`;
-  };
-
-  /*
-   * ============================================================
-   * FILTERS
-   * ============================================================
-   */
-
-  const categories = useMemo(() => {
-    const cats = courses
-      .map((course) => course.category)
-      .filter(
-        (category): category is string =>
-          Boolean(category)
-      );
-
-    return Array.from(new Set(cats));
-  }, [courses]);
-
-  const levels = useMemo(() => {
-    const levels = courses
-      .map((course) => course.level)
-      .filter(
-        (level): level is string => Boolean(level)
-      );
-
-    return Array.from(new Set(levels));
-  }, [courses]);
-
-  const filteredCourses = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-
-    return courses.filter((course) => {
-      const matchesSearch =
-        !query ||
-        course.title
-          .toLowerCase()
-          .includes(query) ||
-        course.description
-          .toLowerCase()
-          .includes(query);
-
-      const matchesCategory =
-        selectedCategory === "all" ||
-        course.category === selectedCategory;
-
-      const matchesLevel =
-        selectedLevel === "all" ||
-        course.level === selectedLevel;
-
-      return (
-        matchesSearch &&
-        matchesCategory &&
-        matchesLevel
-      );
-    });
-  }, [
-    courses,
-    searchQuery,
-    selectedCategory,
-    selectedLevel,
-  ]);
-
-  const hasActiveFilters =
-    searchQuery !== "" ||
-    selectedCategory !== "all" ||
-    selectedLevel !== "all";
-
-  /*
-   * ============================================================
-   * LOADING
-   * ============================================================
-   */
-
-  if (loading) {
+function StatusBadge({ status }: { status: ApplicationStatus }) {
+  if (status === "APPROVED") {
     return (
-      <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#f1e9de] border-t-[#e0156a]" />
-
-        <p className="font-body text-sm font-medium text-[#7a1352]/70">
-          Chargement de vos formations...
-        </p>
-      </div>
+      <Badge tone="wine">
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+        Validée
+      </Badge>
     );
   }
 
-  /*
-   * ============================================================
-   * PAGE
-   * ============================================================
-   */
+  if (status === "REJECTED") {
+    return (
+      <Badge tone="rose">
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+        Refusée
+      </Badge>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-7xl">
-      {/* Header */}
-      <div className="relative mb-8 px-6 pt-6">
-        <span className="mb-1 block font-script text-2xl text-[#e0156a]">
-          Apprendre, grandir, oser
-        </span>
+    <Badge tone="gold">
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+      En attente
+    </Badge>
+  );
+}
 
-        <h1 className="mb-2 font-display text-4xl font-bold text-[#1e1620]">
-          Nos{" "}
-          <span className="text-gradient-rise">
-            Formations
-          </span>
+async function fetchApplications(
+  type: ApplicationType
+): Promise<ApplicationRequest[]> {
+  const endpoint =
+    type === "EXPERT"
+      ? "expert-applications"
+      : "institution-applications";
+
+  const response = await fetch(`${API_URL}/${endpoint}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        (type === "EXPERT"
+          ? "Impossible de charger les candidatures expertes."
+          : "Impossible de charger les candidatures institutions.")
+    );
+  }
+
+  const applications: RawApplication[] =
+    data?.applications ?? data?.data ?? data?.items ?? [];
+
+  return applications.map((application) => ({
+    id: application.id,
+    type,
+    status: application.status,
+    fullName:
+      application.fullName ||
+      application.organizationName ||
+      application.contactName ||
+      application.email,
+    email: application.email,
+    createdAt: application.createdAt,
+  }));
+}
+
+export default function AdminRequestsPage() {
+  const [requests, setRequests] = useState<ApplicationRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  async function loadRequests() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [experts, institutions] = await Promise.all([
+        fetchApplications("EXPERT"),
+        fetchApplications("INSTITUTION"),
+      ]);
+
+      const merged = [...experts, ...institutions].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+      );
+
+      setRequests(merged);
+    } catch (err) {
+      console.error("FETCH REQUESTS ERROR:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger les demandes."
+      );
+
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadRequests();
+  }, []);
+
+  async function handleDelete(
+    id: string,
+    type: ApplicationType
+  ) {
+    const confirmed = window.confirm(
+      "Voulez-vous vraiment supprimer cette demande ?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const endpoint =
+        type === "EXPERT"
+          ? "expert-applications"
+          : "institution-applications";
+
+      const response = await fetch(
+        `${API_URL}/${endpoint}/${id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || "Erreur lors de la suppression."
+        );
+      }
+
+      setRequests((previous) =>
+        previous.filter((request) => request.id !== id)
+      );
+    } catch (err) {
+      console.error("DELETE REQUEST ERROR:", err);
+
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer cette demande."
+      );
+    }
+  }
+
+  const filteredRequests = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) return requests;
+
+    return requests.filter((request) => {
+      return (
+        request.fullName.toLowerCase().includes(query) ||
+        request.email.toLowerCase().includes(query) ||
+        TYPE_LABELS[request.type].toLowerCase().includes(query) ||
+        STATUS_LABELS[request.status].toLowerCase().includes(query)
+      );
+    });
+  }, [requests, search]);
+
+  const stats = useMemo(
+    () => ({
+      total: requests.length,
+      pending: requests.filter((r) => r.status === "PENDING").length,
+      approved: requests.filter((r) => r.status === "APPROVED").length,
+      rejected: requests.filter((r) => r.status === "REJECTED").length,
+    }),
+    [requests]
+  );
+
+  return (
+    <div className="p-6 lg:p-8">
+      <div className="mb-8 text-sm text-ink-soft">
+        <span>Espace Admin</span>
+        <span className="mx-2 text-ink-soft/40">/</span>
+        <span className="font-medium text-wine-700">
+          Gestion des demandes
+        </span>
+      </div>
+
+      <div className="relative mb-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+        />
+
+        <p className="font-script text-2xl leading-none text-rose-500">
+          Administration,
+        </p>
+
+        <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+          Gestion des{" "}
+          <span className="text-gradient-rise">demandes</span>
         </h1>
 
-        <p className="font-body text-[#1e1620]/60">
-          Découvrez tous les cours disponibles pour
-          accélérer votre projet.
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+          Consultez, examinez et gérez les demandes d'inscription
+          des expertes et des institutions sur Ellevadz.
         </p>
       </div>
 
-      {/* Search / filters */}
-      <section className="mb-10 px-6">
-        <div className="card-surface shadow-bloom flex flex-col gap-2 p-2.5 sm:flex-row sm:items-center">
-          <div className="flex flex-1 items-center gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-[#fdfbf8]">
-            <Search
-              size={18}
-              className="shrink-0 text-[#e0156a]/70"
-            />
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-sand-200 bg-white px-4 py-3 shadow-sm transition-all focus-within:border-rose-300 focus-within:shadow-card">
+          <Search size={17} className="shrink-0 text-ink-soft" />
 
-            <input
-              type="text"
-              placeholder="Rechercher une formation..."
-              value={searchQuery}
-              onChange={(e) =>
-                setSearchQuery(e.target.value)
-              }
-              className="w-full bg-transparent font-body text-[15px] text-[#1e1620] outline-none placeholder:text-[#1e1620]/40"
-            />
-          </div>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Rechercher une demande..."
+            className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft/60"
+          />
 
-          <div className="my-2 hidden w-px self-stretch bg-[#f1e9de] sm:block" />
-
-          <div className="flex items-center gap-2 px-1 sm:px-2">
-            <SlidersHorizontal
-              size={15}
-              className="hidden shrink-0 text-[#1e1620]/30 sm:block"
-            />
-
-            <select
-              value={selectedCategory}
-              onChange={(e) =>
-                setSelectedCategory(e.target.value)
-              }
-              className="cursor-pointer rounded-xl bg-transparent px-3 py-2.5 font-body text-sm font-medium text-[#7a1352] transition-colors hover:bg-[#fdfbf8] focus:bg-[#fdfbf8] focus:outline-none"
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="rounded-full p-1 text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink"
+              aria-label="Effacer la recherche"
             >
-              <option value="all">
-                Toutes les catégories
-              </option>
+              <X size={14} />
+            </button>
+          )}
+        </div>
 
-              {categories.map((category) => (
-                <option
-                  key={category}
-                  value={category}
-                >
-                  {category}
-                </option>
-              ))}
-            </select>
+        <p className="text-xs text-ink-soft">
+          {filteredRequests.length} demande
+          {filteredRequests.length !== 1 ? "s" : ""} affichée
+          {filteredRequests.length !== 1 ? "s" : ""}
+        </p>
+      </div>
 
-            <select
-              value={selectedLevel}
-              onChange={(e) =>
-                setSelectedLevel(e.target.value)
-              }
-              className="cursor-pointer rounded-xl bg-transparent px-3 py-2.5 font-body text-sm font-medium text-[#7a1352] transition-colors hover:bg-[#fdfbf8] focus:bg-[#fdfbf8] focus:outline-none"
-            >
-              <option value="all">
-                Tous les niveaux
-              </option>
+      {error && (
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span>{error}</span>
 
-              {levels.map((level) => (
-                <option
-                  key={level}
-                  value={level}
-                >
-                  {level}
-                </option>
-              ))}
-            </select>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="rounded-full p-1 transition-colors hover:bg-rose-100"
+            aria-label="Fermer"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("all");
-                  setSelectedLevel("all");
-                }}
-                aria-label="Réinitialiser les filtres"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#1e1620]/40 transition-colors hover:bg-[#ffe3ee] hover:text-[#e0156a]"
-              >
-                <X size={16} />
-              </button>
-            )}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="card-surface p-5 shadow-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                Total demandes
+              </p>
+
+              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
+                {loading ? "…" : stats.total}
+              </p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                Toutes les demandes
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
+              <Users size={18} className="text-rose-500" />
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* Courses */}
-      <div className="px-6">
-        {filteredCourses.length === 0 ? (
-          <div className="card-surface p-12 text-center">
-            <p className="mb-4 font-body text-lg text-[#1e1620]/50">
-              Aucun cours ne correspond à vos critères.
-            </p>
+        <div className="card-surface p-5 shadow-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                En attente
+              </p>
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("all");
-                  setSelectedLevel("all");
-                }}
-                className="font-body text-sm font-medium text-[#e0156a] underline-rise hover:text-[#7a1352]"
-              >
-                Réinitialiser les filtres
-              </button>
-            )}
+              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
+                {loading ? "…" : stats.pending}
+              </p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                À examiner
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
+              <Clock3 size={18} className="text-amber-600" />
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-7 pb-10 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCourses.map((course) => {
-              const paid =
-                paidCourses[course.id] === true;
+        </div>
 
-              return (
-                <div
-                  key={course.id}
-                  className="group card-surface flex flex-col justify-between overflow-hidden transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_40px_-15px_rgba(224,21,106,0.25)]"
-                >
-                  <div>
-                    {/* Cover */}
-                    <div className="relative h-48 w-full overflow-hidden">
-                      {course.coverUrl ? (
-                        <img
-                          src={course.coverUrl}
-                          alt={course.title}
-                          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-                        />
-                      ) : (
-                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-br from-[#e0156a] via-[#c4136a] to-[#7a1352]">
-                          <span className="z-10 font-script text-3xl text-white/95">
-                            {course.category ||
-                              "Formation"}
-                          </span>
+        <div className="card-surface p-5 shadow-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                Validées
+              </p>
 
-                          <div className="absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-white/10 transition-transform duration-700 group-hover:scale-125" />
+              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
+                {loading ? "…" : stats.approved}
+              </p>
 
-                          <div className="absolute -left-4 -top-4 h-16 w-16 rounded-full bg-white/10 transition-transform duration-700 group-hover:scale-125" />
-                        </div>
-                      )}
+              <p className="mt-1 text-xs text-ink-soft">
+                Demandes acceptées
+              </p>
+            </div>
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50">
+              <FileCheck2 size={18} className="text-wine-700" />
+            </div>
+          </div>
+        </div>
 
-                      {/* Paid badge */}
-                      {paid && (
-                        <div className="absolute left-3 top-3 rounded-full bg-[#e9f9ef] px-3 py-1.5 font-body text-[11px] font-bold text-[#176b3a] shadow-sm">
-                          ✓ Accès acquis
-                        </div>
-                      )}
+        <div className="card-surface p-5 shadow-card">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                Refusées
+              </p>
 
-                      <div className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur transition-transform duration-500 group-hover:scale-110">
-                        <svg
-                          viewBox="0 0 24 24"
-                          className="h-3.5 w-3.5 text-[#e0156a]"
-                          fill="currentColor"
-                        >
-                          <path d="M12 21s-6.716-4.35-9.428-8.06C.29 9.51 1.02 5.6 4.318 4.09c2.1-.96 4.42-.29 5.682 1.51C11.262 3.8 13.582 3.13 15.682 4.09c3.298 1.51 4.028 5.42 1.746 8.85C18.716 16.65 12 21 12 21z" />
-                        </svg>
-                      </div>
+              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
+                {loading ? "…" : stats.rejected}
+              </p>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                Demandes refusées
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
+              <X size={18} className="text-rose-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card-surface overflow-hidden shadow-card">
+        <div className="flex flex-col gap-2 border-b border-sand-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-ink">
+              Demandes d'inscription
+            </h2>
+
+            <p className="mt-1 text-xs text-ink-soft">
+              Liste des demandes reçues par la plateforme.
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-sand-100 bg-sand-50/70">
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                  Candidat
+                </th>
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                  Type
+                </th>
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                  Date
+                </th>
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                  Statut
+                </th>
+                <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-12 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-sand-200 border-t-rose-500" />
+                      <p className="text-sm text-ink-soft">
+                        Chargement des demandes...
+                      </p>
                     </div>
+                  </td>
+                </tr>
+              )}
 
-                    {/* Information */}
-                    <div className="p-5">
-                      <div className="mb-3 flex items-center gap-2">
-                        {course.category && (
-                          <span className="rounded-full bg-[#ffe3ee] px-3 py-1 font-body text-[11px] font-semibold tracking-wide text-[#7a1352]">
-                            {course.category}
-                          </span>
-                        )}
+              {!loading &&
+                filteredRequests.map((request) => (
+                  <tr
+                    key={`${request.type}-${request.id}`}
+                    className="group border-b border-sand-100 transition-colors last:border-b-0 hover:bg-rose-50/30"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rise-gradient text-xs font-semibold text-white shadow-sm">
+                          {getInitials(request.fullName)}
+                        </div>
 
-                        {course.level && (
-                          <span className="rounded-full bg-[#f6efe1] px-3 py-1 font-body text-[11px] font-semibold tracking-wide text-[#8a6d1f]">
-                            {course.level}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-ink">
+                            {request.fullName}
+                          </p>
+
+                          <p className="truncate text-xs text-ink-soft">
+                            {request.email}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <Badge
+                        tone={
+                          request.type === "EXPERT"
+                            ? "wine"
+                            : "gold"
+                        }
+                      >
+                        {TYPE_LABELS[request.type]}
+                      </Badge>
+                    </td>
+
+                    <td className="px-5 py-4 text-sm text-ink-soft">
+                      {formatDate(request.createdAt)}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <StatusBadge status={request.status} />
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/admin/requests/${request.type.toLowerCase()}/${request.id}`}
+                          className="inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-3 py-2 text-xs font-medium text-ink transition-all hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Eye size={15} />
+                          <span className="hidden sm:inline">
+                            Voir
                           </span>
-                        )}
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDelete(
+                              request.id,
+                              request.type
+                            )
+                          }
+                          className="inline-flex items-center justify-center rounded-xl border border-rose-100 bg-white p-2 text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-700"
+                          aria-label="Supprimer la demande"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+              {!loading && filteredRequests.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-14 text-center">
+                    <div className="mx-auto flex max-w-sm flex-col items-center">
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sand-50">
+                        <Search
+                          size={22}
+                          className="text-ink-soft"
+                        />
                       </div>
 
-                      <h2 className="mb-2 font-display text-xl font-bold leading-snug text-[#1e1620]">
-                        {course.title}
-                      </h2>
-
-                      <p className="line-clamp-3 font-body text-sm leading-relaxed text-[#1e1620]/60">
-                        {course.description}
+                      <p className="font-medium text-ink">
+                        Aucune demande trouvée
                       </p>
 
-                      {course.price !== undefined && (
-                        <p className="mt-4 font-body text-sm font-semibold text-[#7a1352]">
-                          {course.price === 0
-                            ? "Gratuit"
-                            : `${course.price} DZD`}
-                        </p>
+                      <p className="mt-1 text-xs leading-5 text-ink-soft">
+                        {search
+                          ? "Essayez avec un autre terme de recherche."
+                          : "Aucune demande d'inscription n'est disponible pour le moment."}
+                      </p>
+
+                      {search && (
+                        <button
+                          type="button"
+                          onClick={() => setSearch("")}
+                          className="mt-4 text-xs font-medium text-rose-600 hover:text-rose-700"
+                        >
+                          Effacer la recherche
+                        </button>
                       )}
                     </div>
-                  </div>
-
-                  {/* Action */}
-                  <div className="mt-auto p-5 pt-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleJoinCourse(course)
-                      }
-                      className="focus-ring group/btn relative block w-full overflow-hidden rounded-full bg-gradient-to-r from-[#e0156a] to-[#7a1352] py-2.5 text-center font-body font-medium text-white transition-all duration-300 hover:brightness-105 hover:shadow-[0_10px_25px_-8px_rgba(224,21,106,0.55)]"
-                    >
-                      <span className="relative z-10">
-                        {paid
-                          ? "Ouvrir le cours"
-                          : "Rejoindre le cours"}
-                      </span>
-
-                      <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

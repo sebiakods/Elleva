@@ -25,14 +25,14 @@ const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 type Video = {
   id: string;
   title: string;
-  description?: string;
-  durationSeconds?: number;
+  description?: string | null;
+  durationSeconds?: number | null;
   thumbnailUrl?: string | null;
   videoUrl?: string | null;
-  views?: number;
-  category?: string;
+  views?: number | null;
+  category?: string | null;
   isPublished?: boolean;
-  order?: number;
+  order?: number | null;
 };
 
 type Course = {
@@ -40,46 +40,82 @@ type Course = {
   title: string;
 };
 
-function getFileUrl(url?: string | null) {
-  if (!url) return null;
+/**
+ * Converts a stored file URL/path into a usable browser URL.
+ *
+ * - Full HTTP/HTTPS URLs are returned unchanged.
+ * - blob URLs are returned unchanged.
+ * - Relative backend paths are prefixed with the backend URL.
+ */
+function getFileUrl(url?: string | null): string | null {
+  if (!url) {
+    return null;
+  }
+
+  const trimmedUrl = url.trim();
+
+  if (!trimmedUrl) {
+    return null;
+  }
 
   if (
-    url.startsWith("http://") ||
-    url.startsWith("https://") ||
-    url.startsWith("blob:")
+    trimmedUrl.startsWith("http://") ||
+    trimmedUrl.startsWith("https://") ||
+    trimmedUrl.startsWith("blob:")
   ) {
-    return url;
+    return trimmedUrl;
   }
 
-  if (url.startsWith("/")) {
-    return `${BACKEND_URL}${url}`;
+  if (trimmedUrl.startsWith("/")) {
+    return `${BACKEND_URL}${trimmedUrl}`;
   }
 
-  return `${BACKEND_URL}/${url}`;
+  return `${BACKEND_URL}/${trimmedUrl}`;
 }
 
-function formatDuration(seconds?: number) {
-  if (!seconds || seconds <= 0) return "Vidéo";
+function formatDuration(seconds?: number | null): string {
+  if (!seconds || seconds <= 0) {
+    return "Vidéo";
+  }
 
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
 
-  if (minutes === 0) return `${remaining}s`;
+  if (minutes === 0) {
+    return `${remaining}s`;
+  }
 
   return `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
 
 const PLACEHOLDER_PALETTES = [
-  { bg: "from-purple-500 to-purple-700", accent: "bg-purple-400" },
-  { bg: "from-rose-500 to-rose-700", accent: "bg-rose-400" },
-  { bg: "from-indigo-500 to-indigo-700", accent: "bg-indigo-400" },
-  { bg: "from-amber-500 to-orange-600", accent: "bg-amber-400" },
-  { bg: "from-teal-500 to-cyan-700", accent: "bg-teal-400" },
+  {
+    bg: "from-purple-500 to-purple-700",
+    accent: "bg-purple-400",
+  },
+  {
+    bg: "from-rose-500 to-rose-700",
+    accent: "bg-rose-400",
+  },
+  {
+    bg: "from-indigo-500 to-indigo-700",
+    accent: "bg-indigo-400",
+  },
+  {
+    bg: "from-amber-500 to-orange-600",
+    accent: "bg-amber-400",
+  },
+  {
+    bg: "from-teal-500 to-cyan-700",
+    accent: "bg-teal-400",
+  },
 ];
 
 function pickPalette(title: string) {
   const index =
-    title.split("").reduce((sum, ch) => sum + ch.charCodeAt(0), 0) %
+    title
+      .split("")
+      .reduce((sum, ch) => sum + ch.charCodeAt(0), 0) %
     PLACEHOLDER_PALETTES.length;
 
   return PLACEHOLDER_PALETTES[index];
@@ -90,7 +126,7 @@ function VideoCoverPlaceholder({
   category,
 }: {
   title: string;
-  category?: string;
+  category?: string | null;
 }) {
   const palette = pickPalette(title);
 
@@ -99,6 +135,7 @@ function VideoCoverPlaceholder({
       className={`relative flex h-full w-full flex-col justify-between overflow-hidden bg-gradient-to-br ${palette.bg} p-5`}
     >
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+
       <div className="absolute -bottom-10 -left-6 h-28 w-28 rounded-full bg-white/10" />
 
       <div className="relative z-10 flex items-center justify-between">
@@ -146,57 +183,105 @@ export default function CourseVideosPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!courseId) return;
+    if (!courseId) {
+      return;
+    }
 
     loadData();
   }, [courseId]);
 
+  /**
+   * Authentication:
+   *
+   * We DO NOT read localStorage anymore.
+   *
+   * The backend authentication cookie is HTTP-only,
+   * so the browser sends it automatically with:
+   *
+   * credentials: "include"
+   */
   async function loadData() {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-      };
-
       const [courseResponse, videosResponse] = await Promise.all([
-        fetch(`${API_URL}/courses/${courseId}`, {
-          headers,
+        fetch(`${API_URL}/courses/${encodeURIComponent(courseId)}`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
           cache: "no-store",
         }),
 
-        fetch(`${API_URL}/courses/${courseId}/videos`, {
-          headers,
-          cache: "no-store",
-        }),
+        fetch(
+          `${API_URL}/courses/${encodeURIComponent(courseId)}/videos`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+            cache: "no-store",
+          }
+        ),
       ]);
 
-      const courseJson = await courseResponse.json();
-      const videosJson = await videosResponse.json();
+      const courseText = await courseResponse.text();
+      const videosText = await videosResponse.text();
+
+      let courseJson: any = {};
+      let videosJson: any = {};
+
+      try {
+        courseJson = courseText ? JSON.parse(courseText) : {};
+      } catch {
+        throw new Error(
+          "Le serveur a retourné une réponse invalide pour le cours."
+        );
+      }
+
+      try {
+        videosJson = videosText ? JSON.parse(videosText) : {};
+      } catch {
+        throw new Error(
+          "Le serveur a retourné une réponse invalide pour les vidéos."
+        );
+      }
 
       if (!courseResponse.ok) {
         throw new Error(
-          courseJson.message || "Impossible de charger le cours."
+          courseJson?.message ||
+            courseJson?.error ||
+            `Impossible de charger le cours (${courseResponse.status}).`
         );
       }
 
       if (!videosResponse.ok) {
         throw new Error(
-          videosJson.message || "Impossible de charger les vidéos."
+          videosJson?.message ||
+            videosJson?.error ||
+            `Impossible de charger les vidéos (${videosResponse.status}).`
         );
       }
 
-      setCourse(courseJson.data);
+      setCourse(courseJson?.data ?? courseJson);
 
-      const videosData = Array.isArray(videosJson.data)
+      const videosData = Array.isArray(videosJson?.data)
         ? videosJson.data
-        : [];
+        : Array.isArray(videosJson)
+          ? videosJson
+          : [];
 
       setVideos(videosData);
     } catch (error) {
       console.error("Error loading videos:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger les vidéos."
+      );
     } finally {
       setLoading(false);
     }
@@ -207,28 +292,41 @@ export default function CourseVideosPage() {
       "Voulez-vous vraiment supprimer cette vidéo ?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeletingId(videoId);
 
-      const token = localStorage.getItem("accessToken");
-
       const response = await fetch(
-        `${API_URL}/courses/${courseId}/videos/${videoId}`,
+        `${API_URL}/courses/${encodeURIComponent(
+          courseId
+        )}/videos/${encodeURIComponent(videoId)}`,
         {
           method: "DELETE",
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         }
       );
 
-      const json = await response.json();
+      const text = await response.text();
+
+      let json: any = {};
+
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        // The response may be empty.
+      }
 
       if (!response.ok) {
         throw new Error(
-          json.message || "Impossible de supprimer la vidéo."
+          json?.message ||
+            json?.error ||
+            `Impossible de supprimer la vidéo (${response.status}).`
         );
       }
 
@@ -255,7 +353,11 @@ export default function CourseVideosPage() {
 
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-ink-soft">
-            <Loader2 size={20} className="animate-spin text-wine-700" />
+            <Loader2
+              size={20}
+              className="animate-spin text-wine-700"
+            />
+
             Chargement des vidéos...
           </div>
         </div>
@@ -269,14 +371,18 @@ export default function CourseVideosPage() {
         <Header title="Vidéos" />
 
         <div className="mx-auto max-w-5xl px-6 py-16 text-center">
-          <Film size={42} className="mx-auto mb-4 text-ink-soft/50" />
+          <Film
+            size={42}
+            className="mx-auto mb-4 text-ink-soft/50"
+          />
 
           <h1 className="font-display text-2xl font-semibold text-wine-900">
             Cours introuvable
           </h1>
 
           <p className="mt-2 text-sm text-ink-soft">
-            Le cours demandé n'existe pas ou n'est plus disponible.
+            Le cours demandé n&apos;existe pas ou n&apos;est plus
+            disponible.
           </p>
 
           <button
@@ -309,7 +415,7 @@ export default function CourseVideosPage() {
           <span>/</span>
 
           <Link
-            href={`/expert/courses/${courseId}`}
+            href={`/expert/courses/${encodeURIComponent(courseId)}`}
             className="max-w-[220px] truncate transition hover:text-wine-700"
           >
             {course.title}
@@ -317,7 +423,9 @@ export default function CourseVideosPage() {
 
           <span>/</span>
 
-          <span className="font-medium text-wine-900">Vidéos</span>
+          <span className="font-medium text-wine-900">
+            Vidéos
+          </span>
         </div>
 
         {/* Header */}
@@ -325,7 +433,11 @@ export default function CourseVideosPage() {
           <div>
             <button
               type="button"
-              onClick={() => router.push(`/expert/courses/${courseId}`)}
+              onClick={() =>
+                router.push(
+                  `/expert/courses/${encodeURIComponent(courseId)}`
+                )
+              }
               className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-ink-soft transition hover:text-wine-700"
             >
               <ArrowLeft size={17} />
@@ -345,7 +457,11 @@ export default function CourseVideosPage() {
             type="button"
             variant="primary"
             onClick={() =>
-              router.push(`/expert/courses/${courseId}/videos/create`)
+              router.push(
+                `/expert/courses/${encodeURIComponent(
+                  courseId
+                )}/videos/create`
+              )
             }
           >
             <Plus size={17} />
@@ -368,12 +484,17 @@ export default function CourseVideosPage() {
 
             <div className="flex items-center gap-3">
               <span className="rounded-full bg-sand-100 px-3 py-1.5 text-xs font-semibold text-ink-soft">
-                {videos.length} vidéo{videos.length !== 1 ? "s" : ""}
+                {videos.length} vidéo
+                {videos.length !== 1 ? "s" : ""}
               </span>
 
               <button
                 type="button"
-                onClick={() => router.push(`/expert/courses/${courseId}`)}
+                onClick={() =>
+                  router.push(
+                    `/expert/courses/${encodeURIComponent(courseId)}`
+                  )
+                }
                 className="rounded-xl border border-sand-200 px-4 py-2 text-sm font-medium text-ink-soft transition hover:bg-sand-50"
               >
                 Voir le cours
@@ -394,14 +515,18 @@ export default function CourseVideosPage() {
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">
-              Ajoutez des vidéos pédagogiques pour enrichir le parcours
-              d'apprentissage de vos entrepreneures.
+              Ajoutez des vidéos pédagogiques pour enrichir le
+              parcours d&apos;apprentissage de vos entrepreneures.
             </p>
 
             <button
               type="button"
               onClick={() =>
-                router.push(`/expert/courses/${courseId}/videos/create`)
+                router.push(
+                  `/expert/courses/${encodeURIComponent(
+                    courseId
+                  )}/videos/create`
+                )
               }
               className="mt-6 inline-flex items-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800"
             >
@@ -414,6 +539,10 @@ export default function CourseVideosPage() {
             {videos.map((video) => {
               const videoUrl = getFileUrl(video.videoUrl);
 
+              const thumbnailUrl = getFileUrl(
+                video.thumbnailUrl
+              );
+
               return (
                 <article
                   key={video.id}
@@ -421,9 +550,9 @@ export default function CourseVideosPage() {
                 >
                   {/* Cover */}
                   <div className="relative h-40 overflow-hidden bg-wine-50">
-                    {video.thumbnailUrl ? (
+                    {thumbnailUrl ? (
                       <img
-                        src={getFileUrl(video.thumbnailUrl) || ""}
+                        src={thumbnailUrl}
                         alt={video.title}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       />
@@ -435,14 +564,24 @@ export default function CourseVideosPage() {
                     )}
 
                     <div className="absolute left-4 top-4">
-                      <Badge tone={video.isPublished ? "rose" : "neutral"}>
-                        {video.isPublished ? "Publié" : "Brouillon"}
+                      <Badge
+                        tone={
+                          video.isPublished
+                            ? "rose"
+                            : "neutral"
+                        }
+                      >
+                        {video.isPublished
+                          ? "Publié"
+                          : "Brouillon"}
                       </Badge>
                     </div>
 
                     {video.durationSeconds ? (
                       <span className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white">
-                        {formatDuration(video.durationSeconds)}
+                        {formatDuration(
+                          video.durationSeconds
+                        )}
                       </span>
                     ) : null}
                   </div>
@@ -454,11 +593,12 @@ export default function CourseVideosPage() {
                         {video.category || "Vidéo"}
                       </span>
 
-                      {video.order != null && video.order > 0 && (
-                        <span className="text-xs text-ink-soft">
-                          #{video.order}
-                        </span>
-                      )}
+                      {video.order != null &&
+                        video.order > 0 && (
+                          <span className="text-xs text-ink-soft">
+                            #{video.order}
+                          </span>
+                        )}
                     </div>
 
                     <h2 className="line-clamp-2 font-display text-lg font-semibold text-wine-900">
@@ -472,14 +612,25 @@ export default function CourseVideosPage() {
                     )}
 
                     <div className="mt-4 flex items-center justify-between text-xs text-ink-soft">
-                      <span>{formatDuration(video.durationSeconds)}</span>
-                      <span>{video.views || 0} vues</span>
+                      <span>
+                        {formatDuration(
+                          video.durationSeconds
+                        )}
+                      </span>
+
+                      <span>
+                        {video.views ?? 0} vues
+                      </span>
                     </div>
 
                     {/* Actions */}
                     <div className="mt-5 flex items-center gap-2">
                       <Link
-                        href={`/expert/courses/${courseId}/videos/${video.id}`}
+                        href={`/expert/courses/${encodeURIComponent(
+                          courseId
+                        )}/videos/${encodeURIComponent(
+                          video.id
+                        )}`}
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-sand-200 px-3 py-2.5 text-sm font-semibold text-wine-900 transition hover:bg-sand-50"
                       >
                         Ouvrir
@@ -492,6 +643,7 @@ export default function CourseVideosPage() {
                           rel="noopener noreferrer"
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-wine-50 text-wine-700 transition hover:bg-wine-100"
                           title="Voir la vidéo"
+                          aria-label="Voir la vidéo"
                         >
                           <ExternalLink size={16} />
                         </a>
@@ -499,13 +651,21 @@ export default function CourseVideosPage() {
 
                       <button
                         type="button"
-                        onClick={() => deleteVideo(video.id)}
-                        disabled={deletingId === video.id}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-soft transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        onClick={() =>
+                          deleteVideo(video.id)
+                        }
+                        disabled={
+                          deletingId === video.id
+                        }
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-soft transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                         title="Supprimer"
+                        aria-label="Supprimer la vidéo"
                       >
                         {deletingId === video.id ? (
-                          <Loader2 size={17} className="animate-spin" />
+                          <Loader2
+                            size={17}
+                            className="animate-spin"
+                          />
                         ) : (
                           <Trash2 size={17} />
                         )}

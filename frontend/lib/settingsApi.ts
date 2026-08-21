@@ -1,69 +1,89 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-function getToken() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('accessToken') || localStorage.getItem('token');
-}
-
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+
     headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
       ...(options.headers || {}),
     },
-    cache: 'no-store',
+
+    // Send HttpOnly authentication cookies automatically
+    credentials: "include",
+
+    cache: "no-store",
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+
+  let data: any = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Une erreur est survenue');
+    throw new Error(
+      data?.message || "Une erreur est survenue"
+    );
   }
 
   return data;
 }
 
 export function getSettings() {
-  return request('/settings/me');
+  return request("/settings/me");
 }
 
 export function saveSettings(data: unknown) {
-  return request('/settings/me', {
-    method: 'PUT',
+  return request("/settings/me", {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }
 
 export function getNotificationSettings() {
-  return request('/settings/notifications');
+  return request("/settings/notifications");
 }
 
-export function saveNotificationSettings(data: Record<string, boolean>) {
-  return request('/settings/notifications', {
-    method: 'PUT',
+export function saveNotificationSettings(
+  data: Record<string, boolean>
+) {
+  return request("/settings/notifications", {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }
 
-export function changePassword(currentPassword: string, newPassword: string) {
-  return request('/settings/password', {
-    method: 'PUT',
-    body: JSON.stringify({ currentPassword, newPassword }),
+export function changePassword(
+  currentPassword: string,
+  newPassword: string
+) {
+  return request("/settings/password", {
+    method: "PUT",
+    body: JSON.stringify({
+      currentPassword,
+      newPassword,
+    }),
   });
 }
 
 export function getAdminSettings() {
-  return request('/settings/system');
+  return request("/settings/system");
 }
 
-export function saveAdminSettings(data: Array<{ key: string; value: unknown }>) {
-  return request('/settings/system', {
-    method: 'PUT',
+export function saveAdminSettings(
+  data: Array<{ key: string; value: unknown }>
+) {
+  return request("/settings/system", {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }
