@@ -76,7 +76,7 @@ await prisma.$transaction([
         create: {
           title: "Consultante en financement d'entreprise",
           specialties: ["financement", "business-plan", "comptabilite"],
-          sessionRateDA: 3500,
+          sessionRateDA: 1900,
           availableForBooking: true,
           rating: 4.9,
           reviewCount: 87,

@@ -1,6 +1,6 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:4000/api";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -8,122 +8,103 @@ export interface ApiResponse<T = unknown> {
   data: T;
 }
 
-
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const headers = new Headers(options.headers || {});
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("accessToken")
-      : null;
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    options.body instanceof FormData;
 
-
-  const headers = new Headers(
-    options.headers || {}
-  );
-
-
-  headers.set(
-    "Content-Type",
-    "application/json"
-  );
-
-
-  if(token){
-    headers.set(
-      "Authorization",
-      `Bearer ${token}`
-    );
+  if (
+    options.body &&
+    !isFormData &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
   }
-
 
   const response = await fetch(
     `${API_BASE_URL}${endpoint}`,
     {
       ...options,
       headers,
-      credentials:"include",
+      credentials: "include",
+      cache: "no-store",
     }
   );
 
-
   const data = await response.json();
 
-
-  if(!response.ok){
+  if (!response.ok) {
     throw new Error(
-      data.message || "Request failed"
+      data.message ||
+        data.error ||
+        "Request failed"
     );
   }
-
 
   return data as T;
 }
 
-
-
 export const api = {
+  get: <T>(endpoint: string) =>
+    request<T>(endpoint, {
+      method: "GET",
+    }),
 
-  get:<T>(endpoint:string)=>
-    request<T>(
-      endpoint,
-      {
-        method:"GET",
-      }
-    ),
+  post: <T>(
+    endpoint: string,
+    body?: unknown
+  ) =>
+    request<T>(endpoint, {
+      method: "POST",
+      ...(body !== undefined
+        ? {
+            body:
+              body instanceof FormData
+                ? body
+                : JSON.stringify(body),
+          }
+        : {}),
+    }),
 
+  put: <T>(
+    endpoint: string,
+    body?: unknown
+  ) =>
+    request<T>(endpoint, {
+      method: "PUT",
+      ...(body !== undefined
+        ? {
+            body:
+              body instanceof FormData
+                ? body
+                : JSON.stringify(body),
+          }
+        : {}),
+    }),
 
+  patch: <T>(
+    endpoint: string,
+    body?: unknown
+  ) =>
+    request<T>(endpoint, {
+      method: "PATCH",
+      ...(body !== undefined
+        ? {
+            body:
+              body instanceof FormData
+                ? body
+                : JSON.stringify(body),
+          }
+        : {}),
+    }),
 
-  post:<T>(
-    endpoint:string,
-    body?:unknown
-  )=>
-    request<T>(
-      endpoint,
-      {
-        method:"POST",
-        body:JSON.stringify(body),
-      }
-    ),
-
-
-
-  put:<T>(
-    endpoint:string,
-    body?:unknown
-  )=>
-    request<T>(
-      endpoint,
-      {
-        method:"PUT",
-        body:JSON.stringify(body),
-      }
-    ),
-
-
-
-  patch:<T>(
-    endpoint:string,
-    body?:unknown
-  )=>
-    request<T>(
-      endpoint,
-      {
-        method:"PATCH",
-        body:JSON.stringify(body),
-      }
-    ),
-
-
-
-  delete:<T>(endpoint:string)=>
-    request<T>(
-      endpoint,
-      {
-        method:"DELETE",
-      }
-    ),
-
+  delete: <T>(endpoint: string) =>
+    request<T>(endpoint, {
+      method: "DELETE",
+    }),
 };

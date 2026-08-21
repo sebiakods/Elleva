@@ -20,20 +20,9 @@ interface NotificationsResponse {
   count: number;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4000/api";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
-}
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+).replace(/\/$/, "");
 
 export function NotificationPanel() {
   const [notifications, setNotifications] = useState<
@@ -44,24 +33,14 @@ export function NotificationPanel() {
 
   const loadNotifications = useCallback(async () => {
     try {
-      const token = getToken();
-
-      if (!token) {
-        setNotifications([]);
-        return;
-      }
-
-      const response = await fetch(
-        `${API_URL}/notifications`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        }
-      );
+      const response = await fetch(`${API_URL}/notifications`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         throw new Error(
@@ -103,20 +82,16 @@ export function NotificationPanel() {
   ) {
     try {
       if (!notification.isRead) {
-        const token = getToken();
-
-        if (token) {
-          await fetch(
-            `${API_URL}/notifications/${notification.id}/read`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-        }
+        await fetch(
+          `${API_URL}/notifications/${notification.id}/read`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+          }
+        );
 
         setNotifications((current) =>
           current.map((item) =>

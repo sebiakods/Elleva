@@ -112,14 +112,6 @@ export default function NewArticlePage() {
 
       console.log(body);
 
-      // await fetch(`${API_URL}/api/articles`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     Authorization: `Bearer ${localStorage.getItem("token")}`,
-      //   },
-      //   body: JSON.stringify(body),
-      // });
 
       alert("Article enregistré.");
     } finally {

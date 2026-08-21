@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-
 import {
   ArrowLeft,
   Check,
@@ -21,15 +20,19 @@ const API_URL = (
 
 type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 type UrlType = "expert" | "institution";
+type ApplicationType = "EXPERT" | "INSTITUTION";
 
 interface Application {
   id: string;
-  type: "EXPERT" | "INSTITUTION";
+  type: ApplicationType;
   status: ApplicationStatus;
+
   email: string;
+
   fullName?: string;
   motivation?: string;
 
+  // Expert
   title?: string;
   experience?: string;
   specialties?: string;
@@ -39,6 +42,7 @@ interface Application {
   certifications?: string;
   cvPath?: string | null;
 
+  // Institution
   organizationName?: string;
   organizationType?: string;
   wilaya?: string;
@@ -52,9 +56,9 @@ interface Application {
   createdAt?: string;
 }
 
-function getAuthToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("accessToken") || localStorage.getItem("token");
+interface ApplicationResponse {
+  application?: Application;
+  message?: string;
 }
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -63,114 +67,328 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
   REJECTED: "Refusée",
 };
 
-function endpointFor(type: UrlType) {
-  return type === "expert" ? "expert-applications" : "institution-applications";
+function endpointFor(type: UrlType): string {
+  return type === "expert"
+    ? "expert-applications"
+    : "institution-applications";
+}
+
+function isValidType(type: string | undefined): type is UrlType {
+  return type === "expert" || type === "institution";
+}
+
+function getDisplayName(application: Application): string {
+  return (
+    application.fullName ||
+    application.organizationName ||
+    application.contactName ||
+    application.email ||
+    "—"
+  );
+}
+
+function getFileUrl(path?: string | null): string | null {
+  if (!path) return null;
+
+  // Already an absolute URL.
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  // Remove a leading slash so we don't create //.
+  const cleanPath = path.replace(/^\/+/, "");
+
+  // API_URL is normally http://localhost:4000/api.
+  // Static uploaded files are normally served by the backend root.
+  const backendUrl = API_URL.replace(/\/api\/?$/, "");
+
+  return `${backendUrl}/${cleanPath}`;
+}
+
+function formatDate(date?: string): string {
+  if (!date) return "—";
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "—";
+  }
+
+  return parsed.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export default function RequestDetailsPage() {
   const params = useParams();
   const router = useRouter();
 
-  const id = params.id as string;
-  const type = params.type as UrlType;
+  const rawId = params?.id;
+  const rawType = params?.type;
+
+  const id =
+    typeof rawId === "string"
+      ? rawId
+      : Array.isArray(rawId)
+        ? rawId[0]
+        : undefined;
+
+  const typeValue =
+    typeof rawType === "string"
+      ? rawType.toLowerCase()
+      : Array.isArray(rawType)
+        ? rawType[0]?.toLowerCase()
+        : undefined;
+
+  const type: UrlType | undefined = isValidType(typeValue)
+    ? typeValue
+    : undefined;
 
   const [application, setApplication] = useState<Application | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
+    if (!id || !type) {
+      setLoading(false);
+      setApplication(null);
+      setError("Demande invalide.");
+      return;
+    }
+
+    let cancelled = false;
+
     async function fetchRequest() {
       try {
         setLoading(true);
         setError("");
+        setActionError("");
 
-        const token = getAuthToken();
+        const endpoint = endpointFor(type);
 
-        const res = await fetch(`${API_URL}/${endpointFor(type)}/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        /*
+         * IMPORTANT:
+         * Authentication is now handled by httpOnly cookies.
+         *
+         * We intentionally DO NOT use localStorage and DO NOT manually
+         * send an Authorization Bearer token here.
+         */
+        const response = await fetch(`${API_URL}/${endpoint}/${id}`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
           cache: "no-store",
         });
 
-        if (res.status === 404) {
+        const json: ApplicationResponse = await response
+          .json()
+          .catch(() => ({}));
+
+        if (cancelled) return;
+
+        if (response.status === 401) {
+          setError("Votre session a expiré. Veuillez vous reconnecter.");
           setApplication(null);
           return;
         }
 
-        if (!res.ok) {
-          throw new Error("Impossible de charger la demande.");
+        if (response.status === 403) {
+          setError("Vous n'avez pas l'autorisation d'accéder à cette demande.");
+          setApplication(null);
+          return;
         }
 
-        const json = await res.json();
+        if (response.status === 404) {
+          setError("Cette demande est introuvable.");
+          setApplication(null);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            json?.message || "Impossible de charger la demande."
+          );
+        }
+
+        if (!json.application) {
+          throw new Error("Les données de la demande sont introuvables.");
+        }
 
         setApplication({
           ...json.application,
           type: type === "expert" ? "EXPERT" : "INSTITUTION",
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erreur inconnue");
+        if (cancelled) return;
+
+        console.error("FETCH REQUEST ERROR:", err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger la demande."
+        );
+
+        setApplication(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    if (id && type) {
-      fetchRequest();
-    }
+    fetchRequest();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, type]);
 
   async function handleDecision(decision: "approve" | "reject") {
+    if (!id || !type || !application) {
+      return;
+    }
+
+    if (application.status !== "PENDING") {
+      return;
+    }
+
+    const isApproving = decision === "approve";
+
+    const confirmed = window.confirm(
+      isApproving
+        ? "Voulez-vous vraiment accepter cette candidature ?"
+        : "Voulez-vous vraiment refuser cette candidature ?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       setActionLoading(true);
+      setError("");
+      setActionError("");
 
-      const token = getAuthToken();
+      const endpoint = endpointFor(type);
 
-      const res = await fetch(`${API_URL}/${endpointFor(type)}/${id}/${decision}`, {
-        method: "PATCH",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      /*
+       * Authentication is handled automatically by the browser
+       * through the httpOnly cookie.
+       */
+      const response = await fetch(
+        `${API_URL}/${endpoint}/${id}/${decision}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        }
+      );
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || "Action impossible.");
+      const json = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        throw new Error(
+          "Votre session a expiré. Veuillez vous reconnecter."
+        );
       }
 
-      router.push("/admin/requests");
+      if (response.status === 403) {
+        throw new Error(
+          "Vous n'avez pas l'autorisation de modifier cette demande."
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          json?.message ||
+            json?.error ||
+            `Impossible de ${
+              isApproving ? "valider" : "refuser"
+            } la candidature.`
+        );
+      }
+
+      /*
+       * Update the local UI immediately.
+       */
+      setApplication((current) =>
+        current
+          ? {
+              ...current,
+              status: isApproving ? "APPROVED" : "REJECTED",
+            }
+          : current
+      );
+
+      /*
+       * Small delay so the admin can see the updated status,
+       * then return to the requests list.
+       */
+      setTimeout(() => {
+        router.push("/admin/requests");
+        router.refresh();
+      }, 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      console.error("DECISION ERROR:", err);
+
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : "Une erreur est survenue."
+      );
     } finally {
       setActionLoading(false);
     }
   }
 
   function notify() {
-    if (!application) return;
+    if (!application?.email) {
+      setActionError("Aucune adresse email n'est disponible.");
+      return;
+    }
 
-    const displayName =
-      application.fullName ||
-      application.organizationName ||
-      application.contactName ||
-      application.email;
+    const displayName = getDisplayName(application);
 
-    const subject = encodeURIComponent(
+    const subject =
       application.type === "EXPERT"
-        ? "Félicitations 🎉 Vous êtes Experte Ellevadz"
-        : "Félicitations 🎉 Votre institution rejoint Ellevadz"
-    );
+        ? "Félicitations 🎉 Vous êtes désormais Experte Ellevadz"
+        : "Félicitations 🎉 Votre institution rejoint Ellevadz";
 
-    const body = encodeURIComponent(
-`Bonjour ${displayName},
+    const body = `Bonjour ${displayName},
 
 Nous avons le plaisir de vous annoncer que votre candidature a été acceptée.
 
 Bienvenue dans la communauté Ellevadz.
 
-L'équipe Ellevadz`
-    );
+L'équipe Ellevadz`;
+
+    const gmailUrl =
+      "https://mail.google.com/mail/?" +
+      new URLSearchParams({
+        view: "cm",
+        fs: "1",
+        to: application.email,
+        su: subject,
+        body,
+      }).toString();
 
     window.open(
-      `https://mail.google.com/mail/?view=cm&fs=1&to=${application.email}&su=${subject}&body=${body}`,
-      "_blank"
+      gmailUrl,
+      "_blank",
+      "noopener,noreferrer"
     );
   }
 
@@ -178,7 +396,18 @@ L'équipe Ellevadz`
     return (
       <>
         <Header title="Détails candidature" />
-        <div className="p-10 text-gray-500">Chargement...</div>
+
+        <main className="p-6 lg:p-8">
+          <div className="flex min-h-[300px] items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-sand-200 border-t-rose-500" />
+
+              <p className="text-sm text-ink-soft">
+                Chargement de la candidature...
+              </p>
+            </div>
+          </div>
+        </main>
       </>
     );
   }
@@ -187,132 +416,372 @@ L'équipe Ellevadz`
     return (
       <>
         <Header title="Détails candidature" />
-        <div className="p-10">Demande introuvable</div>
+
+        <main className="p-6 lg:p-8">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <p className="font-medium text-rose-700">
+              {error || "Demande introuvable."}
+            </p>
+
+            <Link
+              href="/admin/requests"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-rise-gradient px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              <ArrowLeft size={16} />
+              Retour aux demandes
+            </Link>
+          </div>
+        </main>
       </>
     );
   }
 
-  const displayName = application.fullName || application.organizationName || "—";
+  const displayName = getDisplayName(application);
 
-  const fileHref = application.cvPath
-    ? `${API_URL.replace("/api", "")}/${application.cvPath}`
-    : application.documentPath
-    ? `${API_URL.replace("/api", "")}/${application.documentPath}`
-    : null;
+  const fileHref = getFileUrl(
+    application.type === "EXPERT"
+      ? application.cvPath
+      : application.documentPath
+  );
+
+  const isPending = application.status === "PENDING";
 
   return (
     <>
       <Header title="Détails candidature" />
 
-      <div className="space-y-6">
-        <Link href="/admin/requests" className="flex items-center gap-2 text-rose-600">
+      <main className="space-y-6 p-6 lg:p-8">
+        {/* Breadcrumb */}
+        <Link
+          href="/admin/requests"
+          className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 transition hover:text-rose-700"
+        >
           <ArrowLeft size={18} />
           Retour aux demandes
         </Link>
 
-        {error && (
-          <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-600">
-            {error}
+        {/* Errors */}
+        {(error || actionError) && (
+          <div className="flex items-start justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <p>{error || actionError}</p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setActionError("");
+              }}
+              className="shrink-0 rounded-lg p-1 transition hover:bg-rose-100"
+              aria-label="Fermer"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 
-        <div className="rounded-2xl border bg-white p-6">
-          <h1 className="text-2xl font-bold">{displayName}</h1>
-          <p className="text-gray-500">{application.email}</p>
+        {/* Header card */}
+        <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rise-gradient text-sm font-bold text-white">
+                  {displayName
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((word) => word[0]?.toUpperCase())
+                    .join("") || "?"}
+                </div>
 
-          <span className="inline-block mt-4 rounded-full bg-yellow-100 px-4 py-2 text-sm text-yellow-700">
-            {STATUS_LABELS[application.status]}
-          </span>
-        </div>
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-wine-900">
+                    {displayName}
+                  </h1>
 
-        <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-xl font-semibold mb-4">Informations professionnelles</h2>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    {application.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full px-4 py-2 text-xs font-semibold ${
+                    application.status === "APPROVED"
+                      ? "bg-green-100 text-green-700"
+                      : application.status === "REJECTED"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {STATUS_LABELS[application.status]}
+                </span>
+
+                <span className="inline-flex rounded-full bg-sand-100 px-4 py-2 text-xs font-semibold text-ink-soft">
+                  {application.type === "EXPERT"
+                    ? "Experte"
+                    : "Institution"}
+                </span>
+              </div>
+            </div>
+
+            {application.createdAt && (
+              <div className="text-sm text-ink-soft">
+                <span className="font-medium text-ink">
+                  Date de candidature
+                </span>
+                <br />
+                {formatDate(application.createdAt)}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Professional information */}
+        <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+          <h2 className="mb-5 font-display text-xl font-semibold text-ink">
+            Informations professionnelles
+          </h2>
 
           {application.type === "EXPERT" ? (
-            <div className="space-y-3">
-              <p><b>Titre :</b> {application.title || "—"}</p>
-              <p><b>Expérience :</b> {application.experience || "—"}</p>
-              <p><b>Domaines :</b> {application.specialties || "—"}</p>
-              <p><b>Langues :</b> {application.languages || "—"}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <InfoItem
+                label="Titre professionnel"
+                value={application.title}
+              />
+
+              <InfoItem
+                label="Expérience"
+                value={application.experience}
+              />
+
+              <InfoItem
+                label="Domaines d'expertise"
+                value={application.specialties}
+              />
+
+              <InfoItem
+                label="Langues"
+                value={application.languages}
+              />
+
+              <InfoItem
+                label="Certifications"
+                value={application.certifications}
+              />
             </div>
           ) : (
-            <div className="space-y-3">
-              <p><b>Institution :</b> {application.organizationName || "—"}</p>
-              <p><b>Type :</b> {application.organizationType || "—"}</p>
-              <p><b>Wilaya :</b> {application.wilaya || "—"}</p>
-              <p><b>Secteurs :</b> {application.sectors || "—"}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <InfoItem
+                label="Institution"
+                value={application.organizationName}
+              />
+
+              <InfoItem
+                label="Type d'institution"
+                value={application.organizationType}
+              />
+
+              <InfoItem
+                label="Wilaya"
+                value={application.wilaya}
+              />
+
+              <InfoItem
+                label="Secteurs"
+                value={application.sectors}
+              />
+
+              <InfoItem
+                label="Nom du contact"
+                value={application.contactName}
+              />
+
+              <InfoItem
+                label="Fonction du contact"
+                value={application.contactRole}
+              />
+
+              <InfoItem
+                label="Téléphone"
+                value={application.phone}
+              />
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-xl font-semibold mb-4">Présence professionnelle</h2>
+        {/* Online presence */}
+        <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+          <h2 className="mb-5 font-display text-xl font-semibold text-ink">
+            Présence professionnelle
+          </h2>
 
-          {application.linkedin && (
-            <a href={application.linkedin} target="_blank" className="flex gap-2 text-rose-600">
-              <ExternalLink size={16} />
-              LinkedIn
-            </a>
-          )}
+          <div className="flex flex-wrap gap-3">
+            {application.linkedin && (
+              <ExternalLinkButton
+                href={application.linkedin}
+                label="LinkedIn"
+              />
+            )}
 
-          {application.portfolio && (
-            <a href={application.portfolio} target="_blank" className="flex gap-2 text-rose-600">
-              <ExternalLink size={16} />
-              Portfolio
-            </a>
-          )}
+            {application.portfolio && (
+              <ExternalLinkButton
+                href={application.portfolio}
+                label="Portfolio"
+              />
+            )}
 
-          {application.website && (
-            <a href={application.website} target="_blank" className="flex gap-2 text-rose-600">
-              <ExternalLink size={16} />
-              Site web
-            </a>
-          )}
-        </div>
+            {application.website && (
+              <ExternalLinkButton
+                href={application.website}
+                label="Site web"
+              />
+            )}
 
-        <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-xl font-semibold mb-4">Motivation</h2>
-          <p>{application.motivation || "—"}</p>
-        </div>
-
-        {fileHref && (
-          <div className="rounded-2xl border bg-white p-6">
-            <a href={fileHref} target="_blank" className="flex gap-2 text-rose-600">
-              <FileText size={20} />
-              {application.type === "EXPERT" ? "Voir le CV" : "Voir le document"}
-            </a>
+            {!application.linkedin &&
+              !application.portfolio &&
+              !application.website && (
+                <p className="text-sm text-ink-soft">
+                  Aucun lien professionnel renseigné.
+                </p>
+              )}
           </div>
+        </section>
+
+        {/* Motivation */}
+        <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+          <h2 className="mb-4 font-display text-xl font-semibold text-ink">
+            Motivation
+          </h2>
+
+          <p className="whitespace-pre-wrap text-sm leading-7 text-ink-soft">
+            {application.motivation || "Aucune motivation renseignée."}
+          </p>
+        </section>
+
+        {/* File */}
+        {fileHref && (
+          <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+            <h2 className="mb-4 font-display text-xl font-semibold text-ink">
+              Document
+            </h2>
+
+            <a
+              href={fileHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-50"
+            >
+              <FileText size={20} />
+
+              {application.type === "EXPERT"
+                ? "Voir le CV"
+                : "Voir le document"}
+
+              <ExternalLink size={15} />
+            </a>
+          </section>
         )}
 
-        <div className="rounded-2xl border bg-white p-6">
-          <h2 className="text-xl font-semibold mb-5">Décision</h2>
+        {/* Decision */}
+        <section className="rounded-2xl border border-sand-200 bg-white p-6 shadow-card">
+          <h2 className="mb-5 font-display text-xl font-semibold text-ink">
+            Décision
+          </h2>
 
-          <div className="flex gap-4">
+          {!isPending && (
+            <div className="mb-5 rounded-xl bg-sand-50 p-4 text-sm text-ink-soft">
+              Cette candidature a déjà été{" "}
+              <strong>
+                {application.status === "APPROVED"
+                  ? "validée"
+                  : "refusée"}
+              </strong>
+              .
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3">
             <button
-              disabled={actionLoading || application.status !== "PENDING"}
+              type="button"
+              disabled={actionLoading || !isPending}
               onClick={() => handleDecision("approve")}
-              className="rounded-xl bg-rose-500 px-5 py-3 text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-rise-gradient px-5 py-3 text-sm font-semibold text-white shadow-bloom transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Check size={18} className="inline" />
+              {actionLoading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              ) : (
+                <Check size={18} />
+              )}
+
               Accepter
             </button>
 
             <button
-              disabled={actionLoading || application.status !== "PENDING"}
+              type="button"
+              disabled={actionLoading || !isPending}
               onClick={() => handleDecision("reject")}
-              className="rounded-xl border border-red-300 px-5 py-3 text-red-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <X size={18} className="inline" />
+              <X size={18} />
               Refuser
             </button>
 
-            <button onClick={notify} className="rounded-xl bg-green-600 px-5 py-3 text-white">
-              <Mail size={18} className="inline" />
+            <button
+              type="button"
+              onClick={notify}
+              disabled={!application.email}
+              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Mail size={18} />
               Notifier
             </button>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Components                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function InfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div className="rounded-xl bg-sand-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+        {label}
+      </p>
+
+      <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-ink">
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
+function ExternalLinkButton({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-50"
+    >
+      <ExternalLink size={16} />
+      {label}
+    </a>
   );
 }

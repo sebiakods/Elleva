@@ -16,21 +16,22 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+).replace(/\/+$/, "");
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 
 type Video = {
   id: string;
   title: string;
-  description?: string;
-  durationSeconds?: number;
+  description?: string | null;
+  durationSeconds?: number | null;
   thumbnailUrl?: string | null;
   videoUrl?: string | null;
-  category?: string;
+  category?: string | null;
   isPublished?: boolean;
-  views?: number;
+  views?: number | null;
 };
 
 type Course = {
@@ -38,33 +39,122 @@ type Course = {
   title: string;
 };
 
-function getFileUrl(url?: string | null) {
-  if (!url) return null;
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
+function getFileUrl(url?: string | null): string | null {
+  if (!url) {
+    return null;
+  }
+
+  const value = url.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  // Already an absolute URL or browser blob URL.
   if (
-    url.startsWith("http://") ||
-    url.startsWith("https://") ||
-    url.startsWith("blob:")
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("blob:")
   ) {
-    return url;
+    return value;
   }
 
-  if (url.startsWith("/")) {
-    return `${BACKEND_URL}${url}`;
+  // Backend-relative path.
+  if (value.startsWith("/")) {
+    return `${BACKEND_URL}${value}`;
   }
 
-  return `${BACKEND_URL}/${url}`;
+  return `${BACKEND_URL}/${value}`;
 }
+
+async function parseJsonResponse(response: Response): Promise<any> {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      message: text,
+    };
+  }
+}
+
+function getErrorMessage(
+  data: any,
+  fallback: string,
+  status?: number
+): string {
+  if (data?.message) {
+    return String(data.message);
+  }
+
+  if (data?.error) {
+    return String(data.error);
+  }
+
+  if (status === 401) {
+    return "Votre session a expiré. Veuillez vous reconnecter.";
+  }
+
+  if (status === 403) {
+    return "Vous n'avez pas l'autorisation d'effectuer cette action.";
+  }
+
+  return fallback;
+}
+
+/**
+ * All authenticated API requests use the httpOnly cookie.
+ *
+ * IMPORTANT:
+ * - No localStorage
+ * - No accessToken
+ * - No Authorization header
+ * - The browser automatically sends the session cookie.
+ */
+async function authenticatedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {}
+): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    credentials: "include",
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
 
 export default function VideoDetailPage() {
   const params = useParams();
   const router = useRouter();
 
-  const courseId = params.id as string;
-  const videoId = params.videoId as string;
+  const courseId =
+    typeof params?.id === "string"
+      ? params.id
+      : Array.isArray(params?.id)
+        ? params.id[0]
+        : "";
+
+  const videoId =
+    typeof params?.videoId === "string"
+      ? params.videoId
+      : Array.isArray(params?.videoId)
+        ? params.videoId[0]
+        : "";
 
   const [course, setCourse] = useState<Course | null>(null);
   const [video, setVideo] = useState<Video | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -73,80 +163,180 @@ export default function VideoDetailPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [durationSeconds, setDurationSeconds] = useState<number>(0);
+
   const [videoUrl, setVideoUrl] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
+
   const [isPublished, setIsPublished] = useState(false);
 
   const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(
     null
   );
+
   const [newVideoFile, setNewVideoFile] = useState<File | null>(null);
 
+  /* ------------------------------------------------------------------------ */
+  /* Load course + video                                                      */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
-    if (!courseId || !videoId) return;
+    if (!courseId || !videoId) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        const [courseRes, videoRes] = await Promise.all([
+          authenticatedFetch(
+            `${API_URL}/courses/${encodeURIComponent(courseId)}`,
+            {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+              },
+              cache: "no-store",
+            }
+          ),
+
+          authenticatedFetch(
+            `${API_URL}/courses/${encodeURIComponent(
+              courseId
+            )}/videos/${encodeURIComponent(videoId)}`,
+            {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+              },
+              cache: "no-store",
+            }
+          ),
+        ]);
+
+        const courseJson = await parseJsonResponse(courseRes);
+        const videoJson = await parseJsonResponse(videoRes);
+
+        if (!courseRes.ok) {
+          if (courseRes.status === 401) {
+            router.push("/login");
+            return;
+          }
+
+          throw new Error(
+            getErrorMessage(
+              courseJson,
+              "Impossible de charger le cours.",
+              courseRes.status
+            )
+          );
+        }
+
+        if (!videoRes.ok) {
+          if (videoRes.status === 401) {
+            router.push("/login");
+            return;
+          }
+
+          throw new Error(
+            getErrorMessage(
+              videoJson,
+              "Impossible de charger la vidéo.",
+              videoRes.status
+            )
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        const courseData: Course =
+          courseJson?.data ?? courseJson;
+
+        const videoData: Video =
+          videoJson?.data ?? videoJson;
+
+        setCourse(courseData);
+        setVideo(videoData);
+
+        setTitle(videoData.title ?? "");
+        setDescription(videoData.description ?? "");
+        setCategory(videoData.category ?? "");
+        setDurationSeconds(videoData.durationSeconds ?? 0);
+
+        setThumbnailUrl(videoData.thumbnailUrl ?? "");
+
+        setIsPublished(Boolean(videoData.isPublished));
+
+        setExistingVideoUrl(videoData.videoUrl ?? null);
+
+        /*
+         * If the existing video URL is an external URL, display it
+         * in the URL field. Otherwise leave it empty.
+         */
+        const currentVideoUrl = videoData.videoUrl ?? "";
+
+        if (
+          currentVideoUrl.startsWith("http://") ||
+          currentVideoUrl.startsWith("https://")
+        ) {
+          setVideoUrl(currentVideoUrl);
+        } else {
+          setVideoUrl("");
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("VIDEO LOAD ERROR:", error);
+
+        if (error instanceof Error) {
+          alert(error.message);
+        } else {
+          alert("Impossible de charger la vidéo.");
+        }
+
+        setCourse(null);
+        setVideo(null);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
 
     loadData();
-  }, [courseId, videoId]);
 
-  async function loadData() {
-    try {
-      setLoading(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, videoId, router]);
 
-      const token = localStorage.getItem("accessToken");
+  /* ------------------------------------------------------------------------ */
+  /* Video file                                                               */
+  /* ------------------------------------------------------------------------ */
 
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-      };
-
-      const [courseRes, videoRes] = await Promise.all([
-        fetch(`${API_URL}/courses/${courseId}`, {
-          headers,
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/courses/${courseId}/videos/${videoId}`, {
-          headers,
-          cache: "no-store",
-        }),
-      ]);
-
-      const courseJson = await courseRes.json();
-      const videoJson = await videoRes.json();
-
-      if (!courseRes.ok) {
-        throw new Error(courseJson.message || "Impossible de charger le cours.");
-      }
-
-      if (!videoRes.ok) {
-        throw new Error(videoJson.message || "Impossible de charger la vidéo.");
-      }
-
-      setCourse(courseJson.data);
-
-      const videoData: Video = videoJson.data;
-
-      setVideo(videoData);
-      setTitle(videoData.title || "");
-      setDescription(videoData.description || "");
-      setCategory(videoData.category || "");
-      setDurationSeconds(videoData.durationSeconds || 0);
-      setThumbnailUrl(videoData.thumbnailUrl || "");
-      setIsPublished(Boolean(videoData.isPublished));
-      setExistingVideoUrl(videoData.videoUrl || null);
-    } catch (error) {
-      console.error("Error loading video:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleVideoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleVideoFileChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
     const file = e.target.files?.[0];
-    if (!file) return;
 
-    const allowed = ["video/mp4", "video/webm", "video/quicktime"];
+    if (!file) {
+      return;
+    }
 
-    if (!allowed.includes(file.type)) {
+    const allowedTypes = [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
       alert("Formats acceptés : MP4, WebM, MOV.");
       e.target.value = "";
       return;
@@ -161,6 +351,12 @@ export default function VideoDetailPage() {
     }
 
     setNewVideoFile(file);
+
+    /*
+     * If the user selected a new file, don't accidentally submit
+     * an old external URL as well.
+     */
+    setVideoUrl("");
   }
 
   function removeNewVideoFile() {
@@ -170,37 +366,64 @@ export default function VideoDetailPage() {
       "video-replace"
     ) as HTMLInputElement | null;
 
-    if (input) input.value = "";
+    if (input) {
+      input.value = "";
+    }
   }
 
-  async function handleSave(e: React.FormEvent) {
+  /* ------------------------------------------------------------------------ */
+  /* Save                                                                      */
+  /* ------------------------------------------------------------------------ */
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (saving) {
+      return;
+    }
 
     if (!title.trim()) {
       alert("Veuillez renseigner le titre de la vidéo.");
       return;
     }
 
+    if (!courseId || !videoId) {
+      alert("Identifiant du cours ou de la vidéo introuvable.");
+      return;
+    }
+
     try {
       setSaving(true);
-
-      const token = localStorage.getItem("accessToken");
 
       const formData = new FormData();
 
       formData.append("title", title.trim());
       formData.append("description", description.trim());
       formData.append("category", category.trim());
-      formData.append("durationSeconds", String(Number(durationSeconds) || 0));
-      formData.append("isPublished", String(isPublished));
+
+      formData.append(
+        "durationSeconds",
+        String(Math.max(0, Number(durationSeconds) || 0))
+      );
+
+      formData.append(
+        "isPublished",
+        String(isPublished)
+      );
 
       if (thumbnailUrl.trim()) {
-        formData.append("thumbnailUrl", thumbnailUrl.trim());
+        formData.append(
+          "thumbnailUrl",
+          thumbnailUrl.trim()
+        );
       }
 
       /*
-       * Backend route uses upload.single("videoFile")
-       * Field name MUST be "videoFile".
+       * Backend route:
+       *
+       * upload.single("videoFile")
+       *
+       * Therefore the field MUST be "videoFile".
        */
       if (newVideoFile) {
         formData.append("videoFile", newVideoFile);
@@ -208,79 +431,129 @@ export default function VideoDetailPage() {
         formData.append("videoUrl", videoUrl.trim());
       }
 
-      const res = await fetch(
-        `${API_URL}/courses/${courseId}/videos/${videoId}`,
+      const response = await authenticatedFetch(
+        `${API_URL}/courses/${encodeURIComponent(
+          courseId
+        )}/videos/${encodeURIComponent(videoId)}`,
         {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
           body: formData,
         }
       );
 
-      const json = await res.json();
+      const data = await parseJsonResponse(response);
 
-      if (!res.ok) {
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push("/login");
+          return;
+        }
+
         throw new Error(
-          json.message || "Impossible de mettre à jour la vidéo."
+          getErrorMessage(
+            data,
+            "Impossible de mettre à jour la vidéo.",
+            response.status
+          )
         );
       }
 
       alert("Vidéo mise à jour avec succès.");
-      router.push(`/expert/courses/${courseId}/videos`);
+
+      router.push(
+        `/expert/courses/${encodeURIComponent(courseId)}/videos`
+      );
+
+      router.refresh();
     } catch (error) {
-      console.error(error);
+      console.error("UPDATE VIDEO ERROR:", error);
 
       alert(
-        error instanceof Error ? error.message : "Une erreur est survenue."
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue."
       );
     } finally {
       setSaving(false);
     }
   }
 
+  /* ------------------------------------------------------------------------ */
+  /* Delete                                                                    */
+  /* ------------------------------------------------------------------------ */
+
   async function handleDelete() {
+    if (deleting) {
+      return;
+    }
+
     const confirmed = window.confirm(
       "Voulez-vous vraiment supprimer cette vidéo ? Cette action est irréversible."
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
+
+    if (!courseId || !videoId) {
+      alert("Identifiant du cours ou de la vidéo introuvable.");
+      return;
+    }
 
     try {
       setDeleting(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      const res = await fetch(
-        `${API_URL}/courses/${courseId}/videos/${videoId}`,
+      const response = await authenticatedFetch(
+        `${API_URL}/courses/${encodeURIComponent(
+          courseId
+        )}/videos/${encodeURIComponent(videoId)}`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         }
       );
 
-      const json = await res.json();
+      const data = await parseJsonResponse(response);
 
-      if (!res.ok) {
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push("/login");
+          return;
+        }
+
         throw new Error(
-          json.message || "Impossible de supprimer la vidéo."
+          getErrorMessage(
+            data,
+            "Impossible de supprimer la vidéo.",
+            response.status
+          )
         );
       }
 
-      router.push(`/expert/courses/${courseId}/videos`);
+      router.push(
+        `/expert/courses/${encodeURIComponent(courseId)}/videos`
+      );
+
+      router.refresh();
     } catch (error) {
-      console.error(error);
+      console.error("DELETE VIDEO ERROR:", error);
 
       alert(
-        error instanceof Error ? error.message : "Une erreur est survenue."
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue."
       );
     } finally {
       setDeleting(false);
     }
   }
+
+  /* ------------------------------------------------------------------------ */
+  /* Loading                                                                   */
+  /* ------------------------------------------------------------------------ */
 
   if (loading) {
     return (
@@ -289,7 +562,11 @@ export default function VideoDetailPage() {
 
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-ink-soft">
-            <Loader2 size={20} className="animate-spin text-wine-700" />
+            <Loader2
+              size={20}
+              className="animate-spin text-wine-700"
+            />
+
             Chargement de la vidéo...
           </div>
         </div>
@@ -297,28 +574,41 @@ export default function VideoDetailPage() {
     );
   }
 
+  /* ------------------------------------------------------------------------ */
+  /* Not found                                                                 */
+  /* ------------------------------------------------------------------------ */
+
   if (!course || !video) {
     return (
       <main className="min-h-screen bg-sand-50">
         <Header title="Vidéo" />
 
         <div className="mx-auto max-w-5xl px-6 py-16 text-center">
-          <Film size={42} className="mx-auto mb-4 text-ink-soft/50" />
+          <Film
+            size={42}
+            className="mx-auto mb-4 text-ink-soft/50"
+          />
 
           <h1 className="font-display text-2xl font-semibold text-wine-900">
             Vidéo introuvable
           </h1>
 
           <p className="mt-2 text-sm text-ink-soft">
-            La vidéo demandée n'existe pas ou n'est plus disponible.
+            La vidéo demandée n'existe pas ou n'est plus
+            disponible.
           </p>
 
           <button
             type="button"
-            onClick={() => router.push(`/expert/courses/${courseId}`)}
+            onClick={() =>
+              router.push(
+                `/expert/courses/${encodeURIComponent(courseId)}`
+              )
+            }
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800"
           >
             <ArrowLeft size={17} />
+
             Retour au cours
           </button>
         </div>
@@ -328,31 +618,50 @@ export default function VideoDetailPage() {
 
   const existingVideo = getFileUrl(existingVideoUrl);
 
+  /* ------------------------------------------------------------------------ */
+  /* Render                                                                    */
+  /* ------------------------------------------------------------------------ */
+
   return (
     <main className="min-h-screen bg-sand-50">
       <Header title="Modifier la vidéo" />
 
       <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Breadcrumb */}
+
         <div className="mb-6 flex items-center gap-2 text-sm text-ink-soft">
           <span>Cours</span>
+
           <span>/</span>
-          <span className="max-w-[220px] truncate">{course.title}</span>
+
+          <span className="max-w-[220px] truncate">
+            {course.title}
+          </span>
+
           <span>/</span>
-          <span className="font-medium text-wine-900">Vidéo</span>
+
+          <span className="font-medium text-wine-900">
+            Vidéo
+          </span>
         </div>
 
         {/* Header */}
+
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <button
               type="button"
               onClick={() =>
-                router.push(`/expert/courses/${courseId}/videos`)
+                router.push(
+                  `/expert/courses/${encodeURIComponent(
+                    courseId
+                  )}/videos`
+                )
               }
               className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-ink-soft transition hover:text-wine-700"
             >
               <ArrowLeft size={17} />
+
               Retour aux vidéos
             </button>
 
@@ -371,15 +680,19 @@ export default function VideoDetailPage() {
           <button
             type="button"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || saving}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {deleting ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Loader2
+                size={16}
+                className="animate-spin"
+              />
             ) : (
               <Trash2 size={16} />
             )}
-            Supprimer
+
+            {deleting ? "Suppression..." : "Supprimer"}
           </button>
         </div>
 
@@ -388,6 +701,7 @@ export default function VideoDetailPage() {
           className="grid gap-8 lg:grid-cols-[1fr_320px]"
         >
           {/* Main form */}
+
           <section className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
@@ -398,6 +712,7 @@ export default function VideoDetailPage() {
                 <h2 className="font-display text-xl font-semibold text-wine-900">
                   Informations de la vidéo
                 </h2>
+
                 <p className="text-sm text-ink-soft">
                   Modifiez les détails de cette vidéo.
                 </p>
@@ -406,20 +721,27 @@ export default function VideoDetailPage() {
 
             <div className="space-y-5">
               {/* Title */}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-wine-900">
                   Titre de la vidéo
-                  <span className="ml-1 text-rose-600">*</span>
+                  <span className="ml-1 text-rose-600">
+                    *
+                  </span>
                 </label>
 
                 <input
+                  required
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) =>
+                    setTitle(e.target.value)
+                  }
                   className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                 />
               </div>
 
               {/* Description */}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-wine-900">
                   Description
@@ -427,13 +749,16 @@ export default function VideoDetailPage() {
 
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) =>
+                    setDescription(e.target.value)
+                  }
                   rows={4}
                   className="w-full resize-none rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                 />
               </div>
 
               {/* Category + Duration */}
+
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-wine-900">
@@ -442,7 +767,9 @@ export default function VideoDetailPage() {
 
                   <input
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) =>
+                      setCategory(e.target.value)
+                    }
                     className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                   />
                 </div>
@@ -457,7 +784,12 @@ export default function VideoDetailPage() {
                     min={0}
                     value={durationSeconds}
                     onChange={(e) =>
-                      setDurationSeconds(Number(e.target.value))
+                      setDurationSeconds(
+                        Math.max(
+                          0,
+                          Number(e.target.value) || 0
+                        )
+                      )
                     }
                     className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                   />
@@ -465,6 +797,7 @@ export default function VideoDetailPage() {
               </div>
 
               {/* Existing video */}
+
               {existingVideo && !newVideoFile && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-wine-900">
@@ -476,6 +809,7 @@ export default function VideoDetailPage() {
                       <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-wine-900 text-white">
                         <Film size={20} />
                       </div>
+
                       <p className="text-sm font-medium text-wine-900">
                         Fichier vidéo joint
                       </p>
@@ -495,23 +829,27 @@ export default function VideoDetailPage() {
               )}
 
               {/* External URL */}
+
               {!newVideoFile && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-wine-900">
-                    Remplacer par une URL externe
+                    URL externe de la vidéo
                   </label>
 
                   <input
                     type="url"
                     value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    placeholder="https://youtube.com/..."
+                    onChange={(e) =>
+                      setVideoUrl(e.target.value)
+                    }
+                    placeholder="https://..."
                     className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                   />
                 </div>
               )}
 
               {/* Replace video file */}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-wine-900">
                   Remplacer le fichier vidéo
@@ -522,10 +860,14 @@ export default function VideoDetailPage() {
                     htmlFor="video-replace"
                     className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sand-300 bg-sand-50 px-6 py-8 text-center transition hover:border-wine-300 hover:bg-wine-50/30"
                   >
-                    <Upload size={24} className="mb-3 text-wine-700" />
+                    <Upload
+                      size={24}
+                      className="mb-3 text-wine-700"
+                    />
 
                     <p className="text-sm font-semibold text-wine-900">
-                      Cliquez pour sélectionner une nouvelle vidéo
+                      Cliquez pour sélectionner une
+                      nouvelle vidéo
                     </p>
 
                     <p className="mt-1 text-xs text-ink-soft">
@@ -551,8 +893,14 @@ export default function VideoDetailPage() {
                         <p className="truncate text-sm font-medium text-wine-900">
                           {newVideoFile.name}
                         </p>
+
                         <p className="mt-1 text-xs text-ink-soft">
-                          {(newVideoFile.size / 1024 / 1024).toFixed(2)} MB
+                          {(
+                            newVideoFile.size /
+                            1024 /
+                            1024
+                          ).toFixed(2)}{" "}
+                          MB
                         </p>
                       </div>
                     </div>
@@ -569,76 +917,101 @@ export default function VideoDetailPage() {
               </div>
 
               {/* Thumbnail URL */}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium text-wine-900">
                   Image de couverture (miniature)
                 </label>
 
                 <input
+                  type="url"
                   value={thumbnailUrl}
-                  onChange={(e) => setThumbnailUrl(e.target.value)}
+                  onChange={(e) =>
+                    setThumbnailUrl(e.target.value)
+                  }
                   placeholder="https://..."
                   className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-wine-400 focus:ring-2 focus:ring-wine-100"
                 />
               </div>
 
               {/* Published toggle */}
+
               <div className="flex items-center justify-between rounded-2xl bg-sand-50 p-4">
                 <div>
                   <p className="text-sm font-semibold text-wine-900">
                     Publié
                   </p>
+
                   <p className="mt-1 text-xs text-ink-soft">
-                    La vidéo sera visible par les apprenantes.
+                    La vidéo sera visible par les
+                    apprenantes.
                   </p>
                 </div>
 
                 <input
                   type="checkbox"
                   checked={isPublished}
-                  onChange={(e) => setIsPublished(e.target.checked)}
+                  onChange={(e) =>
+                    setIsPublished(e.target.checked)
+                  }
                   className="h-5 w-5 accent-wine-700"
                 />
               </div>
             </div>
 
             {/* Actions */}
+
             <div className="mt-8 flex flex-col-reverse gap-3 border-t border-sand-200 pt-6 sm:flex-row sm:justify-end">
-              <Button
+              <button
                 type="button"
-                variant="secondary"
+                disabled={saving || deleting}
                 onClick={() =>
-                  router.push(`/expert/courses/${courseId}/videos`)
+                  router.push(
+                    `/expert/courses/${encodeURIComponent(courseId)}/videos`
+                  )
                 }
+                className="inline-flex items-center justify-center rounded-xl border border-sand-200 bg-white px-5 py-3 text-sm font-semibold text-wine-900 transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Annuler
-              </Button>
+              </button>
 
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || deleting}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? (
-                  <Loader2 size={17} className="animate-spin" />
+                  <Loader2
+                    size={17}
+                    className="animate-spin"
+                  />
                 ) : (
                   <Save size={17} />
                 )}
-                {saving ? "Enregistrement..." : "Enregistrer"}
+
+                {saving
+                  ? "Enregistrement..."
+                  : "Enregistrer"}
               </button>
             </div>
           </section>
 
           {/* Side info */}
+
           <aside className="space-y-6">
             <section className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
-              <h2 className="font-semibold text-wine-900">Statistiques</h2>
+              <h2 className="font-semibold text-wine-900">
+                Statistiques
+              </h2>
 
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-ink-soft">Vues</span>
+                  <span className="text-ink-soft">
+                    Vues
+                  </span>
+
                   <span className="font-medium text-wine-900">
-                    {video.views || 0}
+                    {video.views ?? 0}
                   </span>
                 </div>
               </div>

@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -13,8 +18,6 @@ import {
   X,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/Button";
-
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -23,11 +26,11 @@ const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 type Article = {
   id: string;
   title: string;
-  excerpt?: string;
+  excerpt?: string | null;
   content: string;
-  category?: string;
+  category?: string | null;
   pdfUrl?: string | null;
-  readTimeMinutes?: number;
+  readTimeMinutes?: number | null;
   isPublished?: boolean;
 };
 
@@ -36,8 +39,20 @@ type Course = {
   title: string;
 };
 
+type ApiResponse<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+};
+
+/**
+ * Convert a backend file URL into a browser-accessible URL.
+ */
 function getFileUrl(url?: string | null): string | null {
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
 
   if (
     url.startsWith("http://") ||
@@ -54,12 +69,51 @@ function getFileUrl(url?: string | null): string | null {
   return `${BACKEND_URL}/${url}`;
 }
 
+/**
+ * Authenticated request.
+ *
+ * Authentication is handled by the HTTP-only cookie.
+ *
+ * IMPORTANT:
+ * Do NOT use localStorage here.
+ */
+async function apiFetch(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    cache: "no-store",
+  });
+}
+
+/**
+ * Safely read JSON responses.
+ */
+async function readJson<T>(
+  response: Response
+): Promise<ApiResponse<T>> {
+  return response.json().catch(() => ({}));
+}
+
 export default function ArticleDetailPage() {
   const params = useParams();
   const router = useRouter();
 
-  const courseId = params.id as string;
-  const articleId = params.articleId as string;
+  const courseId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+        ? params.id[0]
+        : "";
+
+  const articleId =
+    typeof params.articleId === "string"
+      ? params.articleId
+      : Array.isArray(params.articleId)
+        ? params.articleId[0]
+        : "";
 
   const [course, setCourse] = useState<Course | null>(null);
   const [article, setArticle] = useState<Article | null>(null);
@@ -75,105 +129,159 @@ export default function ArticleDetailPage() {
   const [readTimeMinutes, setReadTimeMinutes] = useState(5);
   const [isPublished, setIsPublished] = useState(false);
 
-  const [existingPdfUrl, setExistingPdfUrl] = useState<string | null>(null);
-  const [newPdfFile, setNewPdfFile] = useState<File | null>(null);
+  const [existingPdfUrl, setExistingPdfUrl] =
+    useState<string | null>(null);
 
+  const [newPdfFile, setNewPdfFile] =
+    useState<File | null>(null);
+
+  /**
+   * Load course + article.
+   */
   useEffect(() => {
-    if (!courseId || !articleId) return;
+    if (!courseId || !articleId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        const [courseRes, articleRes] =
+          await Promise.all([
+            apiFetch(`/courses/${courseId}`),
+            apiFetch(
+              `/courses/${courseId}/articles/${articleId}`
+            ),
+          ]);
+
+        const courseJson =
+          await readJson<Course>(courseRes);
+
+        const articleJson =
+          await readJson<Article>(articleRes);
+
+        if (!courseRes.ok) {
+          throw new Error(
+            courseJson.message ||
+              courseJson.error ||
+              "Impossible de charger le cours."
+          );
+        }
+
+        if (!articleRes.ok) {
+          throw new Error(
+            articleJson.message ||
+              articleJson.error ||
+              "Impossible de charger l'article."
+          );
+        }
+
+        const courseData = courseJson.data;
+        const articleData = articleJson.data;
+
+        if (!courseData) {
+          throw new Error(
+            "Les données du cours sont introuvables."
+          );
+        }
+
+        if (!articleData) {
+          throw new Error(
+            "Les données de l'article sont introuvables."
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setCourse(courseData);
+        setArticle(articleData);
+
+        setTitle(articleData.title || "");
+        setExcerpt(articleData.excerpt || "");
+        setContent(articleData.content || "");
+        setCategory(articleData.category || "");
+
+        setReadTimeMinutes(
+          articleData.readTimeMinutes &&
+            articleData.readTimeMinutes > 0
+            ? articleData.readTimeMinutes
+            : 5
+        );
+
+        setIsPublished(
+          Boolean(articleData.isPublished)
+        );
+
+        setExistingPdfUrl(
+          articleData.pdfUrl || null
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "Error loading article:",
+          error
+        );
+
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Impossible de charger l'article."
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
 
     loadData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [courseId, articleId]);
 
-  async function loadData() {
-    try {
-      setLoading(true);
-
-      const token = localStorage.getItem("accessToken");
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${token}`,
-      };
-
-      const [courseRes, articleRes] = await Promise.all([
-        fetch(`${API_URL}/courses/${courseId}`, {
-          headers,
-          cache: "no-store",
-        }),
-
-        fetch(`${API_URL}/courses/${courseId}/articles/${articleId}`, {
-          headers,
-          cache: "no-store",
-        }),
-      ]);
-
-      const courseJson = await courseRes.json();
-      const articleJson = await articleRes.json();
-
-      if (!courseRes.ok) {
-        throw new Error(
-          courseJson.message || "Impossible de charger le cours."
-        );
-      }
-
-      if (!articleRes.ok) {
-        throw new Error(
-          articleJson.message || "Impossible de charger l'article."
-        );
-      }
-
-      const courseData = courseJson.data;
-      const articleData = articleJson.data;
-
-      if (!courseData) {
-        throw new Error("Les données du cours sont introuvables.");
-      }
-
-      if (!articleData) {
-        throw new Error("Les données de l'article sont introuvables.");
-      }
-
-      setCourse(courseData);
-
-      setArticle(articleData);
-
-      setTitle(articleData.title || "");
-      setExcerpt(articleData.excerpt || "");
-      setContent(articleData.content || "");
-      setCategory(articleData.category || "");
-      setReadTimeMinutes(articleData.readTimeMinutes || 5);
-      setIsPublished(Boolean(articleData.isPublished));
-      setExistingPdfUrl(articleData.pdfUrl || null);
-    } catch (error) {
-      console.error("Error loading article:", error);
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger l'article."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handlePdfChange(e: ChangeEvent<HTMLInputElement>) {
+  /**
+   * PDF selection.
+   */
+  function handlePdfChange(
+    e: ChangeEvent<HTMLInputElement>
+  ) {
     const file = e.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
-    if (
-      file.type !== "application/pdf" &&
-      !file.name.toLowerCase().endsWith(".pdf")
-    ) {
-      alert("Veuillez sélectionner uniquement un fichier PDF.");
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
+
+    if (!isPdf) {
+      alert(
+        "Veuillez sélectionner uniquement un fichier PDF."
+      );
+
       e.target.value = "";
       return;
     }
 
+    // 20 MB
     const maxSize = 20 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      alert("Le fichier PDF ne doit pas dépasser 20 MB.");
+      alert(
+        "Le fichier PDF ne doit pas dépasser 20 MB."
+      );
+
       e.target.value = "";
       return;
     }
@@ -181,95 +289,143 @@ export default function ArticleDetailPage() {
     setNewPdfFile(file);
   }
 
+  /**
+   * Remove selected replacement PDF.
+   */
   function removeNewPdf() {
     setNewPdfFile(null);
 
-    const input = document.getElementById(
-      "pdf-replace"
-    ) as HTMLInputElement | null;
+    const input =
+      document.getElementById(
+        "pdf-replace"
+      ) as HTMLInputElement | null;
 
     if (input) {
       input.value = "";
     }
   }
 
-  async function handleSave(e: FormEvent<HTMLFormElement>) {
+  /**
+   * Save article.
+   */
+  async function handleSave(
+    e: FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
     if (!title.trim()) {
-      alert("Veuillez renseigner le titre de l'article.");
+      alert(
+        "Veuillez renseigner le titre de l'article."
+      );
       return;
     }
 
     if (!content.trim()) {
-      alert("Veuillez renseigner le contenu de l'article.");
+      alert(
+        "Veuillez renseigner le contenu de l'article."
+      );
       return;
     }
 
     if (!category.trim()) {
-      alert("Veuillez renseigner la catégorie.");
+      alert(
+        "Veuillez renseigner la catégorie."
+      );
       return;
     }
 
-    if (!readTimeMinutes || readTimeMinutes < 1) {
-      alert("Le temps de lecture doit être supérieur à 0.");
+    if (
+      !Number.isFinite(readTimeMinutes) ||
+      readTimeMinutes < 1
+    ) {
+      alert(
+        "Le temps de lecture doit être supérieur à 0."
+      );
       return;
     }
 
     try {
       setSaving(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        throw new Error("Votre session a expiré. Veuillez vous reconnecter.");
-      }
-
       const formData = new FormData();
 
-      formData.append("title", title.trim());
-      formData.append("excerpt", excerpt.trim());
-      formData.append("content", content.trim());
-      formData.append("category", category.trim());
-      formData.append("readTimeMinutes", String(readTimeMinutes));
-      formData.append("isPublished", String(isPublished));
+      formData.append(
+        "title",
+        title.trim()
+      );
+
+      formData.append(
+        "excerpt",
+        excerpt.trim()
+      );
+
+      formData.append(
+        "content",
+        content.trim()
+      );
+
+      formData.append(
+        "category",
+        category.trim()
+      );
+
+      formData.append(
+        "readTimeMinutes",
+        String(Math.floor(readTimeMinutes))
+      );
+
+      formData.append(
+        "isPublished",
+        String(isPublished)
+      );
 
       /*
        * IMPORTANT:
-       * The backend article update route uses:
+       *
+       * Backend uses:
        *
        * upload.array("files", 10)
        *
-       * Therefore the field name must be "files".
+       * Therefore the PDF field MUST be "files".
        */
       if (newPdfFile) {
-        formData.append("files", newPdfFile);
+        formData.append(
+          "files",
+          newPdfFile
+        );
       }
 
-      const res = await fetch(
-        `${API_URL}/courses/${courseId}/articles/${articleId}`,
+      const response = await apiFetch(
+        `/courses/${courseId}/articles/${articleId}`,
         {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formData,
         }
       );
 
-      const json = await res.json();
+      const json =
+        await readJson<Article>(response);
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          json.message || "Impossible de mettre à jour l'article."
+          json.message ||
+            json.error ||
+            "Impossible de mettre à jour l'article."
         );
       }
 
-      alert("Article mis à jour avec succès.");
+      alert(
+        "Article mis à jour avec succès."
+      );
 
-      router.push(`/expert/courses/${courseId}/articles`);
+      router.push(
+        `/expert/courses/${courseId}/articles`
+      );
     } catch (error) {
-      console.error("Update article error:", error);
+      console.error(
+        "Update article error:",
+        error
+      );
 
       alert(
         error instanceof Error
@@ -281,43 +437,47 @@ export default function ArticleDetailPage() {
     }
   }
 
+  /**
+   * Delete article.
+   */
   async function handleDelete() {
     const confirmed = window.confirm(
       "Voulez-vous vraiment supprimer cet article ? Cette action est irréversible."
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeleting(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        throw new Error("Votre session a expiré. Veuillez vous reconnecter.");
-      }
-
-      const res = await fetch(
-        `${API_URL}/courses/${courseId}/articles/${articleId}`,
+      const response = await apiFetch(
+        `/courses/${courseId}/articles/${articleId}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         }
       );
 
-      const json = await res.json();
+      const json =
+        await readJson<unknown>(response);
 
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          json.message || "Impossible de supprimer l'article."
+          json.message ||
+            json.error ||
+            "Impossible de supprimer l'article."
         );
       }
 
-      router.push(`/expert/courses/${courseId}/articles`);
+      router.push(
+        `/expert/courses/${courseId}/articles`
+      );
     } catch (error) {
-      console.error("Delete article error:", error);
+      console.error(
+        "Delete article error:",
+        error
+      );
 
       alert(
         error instanceof Error
@@ -329,6 +489,9 @@ export default function ArticleDetailPage() {
     }
   }
 
+  /**
+   * Loading state.
+   */
   if (loading) {
     return (
       <main className="min-h-[60vh] p-6">
@@ -345,6 +508,9 @@ export default function ArticleDetailPage() {
     );
   }
 
+  /**
+   * Not found.
+   */
   if (!course || !article) {
     return (
       <main className="min-h-[60vh] p-6">
@@ -359,13 +525,16 @@ export default function ArticleDetailPage() {
           </h1>
 
           <p className="mt-2 text-sm text-gray-500">
-            L'article demandé n'existe pas ou n'est plus disponible.
+            L'article demandé n'existe pas ou
+            n'est plus disponible.
           </p>
 
           <button
             type="button"
             onClick={() =>
-              router.push(`/expert/courses/${courseId}/articles`)
+              router.push(
+                `/expert/courses/${courseId}/articles`
+              )
             }
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
           >
@@ -377,7 +546,8 @@ export default function ArticleDetailPage() {
     );
   }
 
-  const existingPdf = getFileUrl(existingPdfUrl);
+  const existingPdf =
+    getFileUrl(existingPdfUrl);
 
   return (
     <main className="min-h-screen p-6">
@@ -388,7 +558,9 @@ export default function ArticleDetailPage() {
             <button
               type="button"
               onClick={() =>
-                router.push(`/expert/courses/${courseId}/articles`)
+                router.push(
+                  `/expert/courses/${courseId}/articles`
+                )
               }
               className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-purple-600"
             >
@@ -408,19 +580,25 @@ export default function ArticleDetailPage() {
             </p>
           </div>
 
+          {/* Delete */}
           <button
             type="button"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || saving}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {deleting ? (
-              <Loader2 size={16} className="animate-spin" />
+              <Loader2
+                size={16}
+                className="animate-spin"
+              />
             ) : (
               <Trash2 size={16} />
             )}
 
-            {deleting ? "Suppression..." : "Supprimer"}
+            {deleting
+              ? "Suppression..."
+              : "Supprimer"}
           </button>
         </div>
 
@@ -442,8 +620,11 @@ export default function ArticleDetailPage() {
               id="article-title"
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              onChange={(e) =>
+                setTitle(e.target.value)
+              }
+              disabled={saving || deleting}
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -459,9 +640,12 @@ export default function ArticleDetailPage() {
             <textarea
               id="article-excerpt"
               value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
+              onChange={(e) =>
+                setExcerpt(e.target.value)
+              }
+              disabled={saving || deleting}
               rows={3}
-              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -479,8 +663,11 @@ export default function ArticleDetailPage() {
                 id="article-category"
                 type="text"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                onChange={(e) =>
+                  setCategory(e.target.value)
+                }
+                disabled={saving || deleting}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:bg-gray-50"
               />
             </div>
 
@@ -499,9 +686,12 @@ export default function ArticleDetailPage() {
                   min={1}
                   value={readTimeMinutes}
                   onChange={(e) =>
-                    setReadTimeMinutes(Number(e.target.value))
+                    setReadTimeMinutes(
+                      Number(e.target.value)
+                    )
                   }
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-24 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                  disabled={saving || deleting}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-24 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:bg-gray-50"
                 />
 
                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">
@@ -523,9 +713,12 @@ export default function ArticleDetailPage() {
             <textarea
               id="article-content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) =>
+                setContent(e.target.value)
+              }
+              disabled={saving || deleting}
               rows={16}
-              className="w-full resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 leading-7 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              className="w-full resize-y rounded-xl border border-gray-200 bg-white px-4 py-3 leading-7 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -563,7 +756,9 @@ export default function ArticleDetailPage() {
           {/* Replace PDF */}
           <div className="space-y-3">
             <label className="text-sm font-medium text-gray-800">
-              {existingPdf ? "Remplacer le PDF" : "Ajouter un PDF"}
+              {existingPdf
+                ? "Remplacer le PDF"
+                : "Ajouter un PDF"}
             </label>
 
             {!newPdfFile ? (
@@ -588,6 +783,7 @@ export default function ArticleDetailPage() {
                   type="file"
                   accept="application/pdf,.pdf"
                   onChange={handlePdfChange}
+                  disabled={saving || deleting}
                   className="hidden"
                 />
               </label>
@@ -604,7 +800,12 @@ export default function ArticleDetailPage() {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      {(newPdfFile.size / 1024 / 1024).toFixed(2)} MB
+                      {(
+                        newPdfFile.size /
+                        1024 /
+                        1024
+                      ).toFixed(2)}{" "}
+                      MB
                     </p>
                   </div>
                 </div>
@@ -612,7 +813,8 @@ export default function ArticleDetailPage() {
                 <button
                   type="button"
                   onClick={removeNewPdf}
-                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white hover:text-red-500"
+                  disabled={saving || deleting}
+                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Retirer le nouveau PDF"
                 >
                   <X size={18} />
@@ -636,44 +838,52 @@ export default function ArticleDetailPage() {
             <input
               type="checkbox"
               checked={isPublished}
-              onChange={(e) => setIsPublished(e.target.checked)}
+              onChange={(e) =>
+                setIsPublished(
+                  e.target.checked
+                )
+              }
+              disabled={saving || deleting}
               className="h-5 w-5 accent-purple-600"
             />
           </div>
 
           {/* Actions */}
+          <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/expert/courses/${courseId}/articles`
+                )
+              }
+              disabled={saving || deleting}
+              className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Annuler
+            </button>
 
-<div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">
-  <button
-    type="button"
-    onClick={() =>
-      router.push(`/expert/courses/${courseId}/articles`)
-    }
-    disabled={saving || deleting}
-    className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    Annuler
-  </button>
+            <button
+              type="submit"
+              disabled={saving || deleting}
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2
+                  size={17}
+                  className="animate-spin"
+                />
+              ) : (
+                <Save size={17} />
+              )}
 
-  <button
-    type="submit"
-    disabled={saving || deleting}
-    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    {saving ? (
-      <Loader2 size={17} className="animate-spin" />
-    ) : (
-      <Save size={17} />
-    )}
-
-    {saving ? "Enregistrement..." : "Enregistrer"}
-  </button>
-</div>
-
-
+              {saving
+                ? "Enregistrement..."
+                : "Enregistrer"}
+            </button>
+          </div>
         </form>
       </div>
     </main>
   );
 }
-

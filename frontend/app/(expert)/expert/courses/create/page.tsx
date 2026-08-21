@@ -1,7 +1,12 @@
 
 "use client";
 
-import { ChangeEvent, ReactNode, useState } from "react";
+import {
+  ChangeEvent,
+  ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -23,7 +28,8 @@ import {
 } from "lucide-react";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:4000/api";
 
 type ContentType = "article" | "video" | "resource";
 
@@ -63,8 +69,11 @@ const LEVELS = [
   "Avancé",
 ];
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function CreateCoursePage() {
   const router = useRouter();
@@ -83,7 +92,6 @@ export default function CreateCoursePage() {
   const [coverPreview, setCoverPreview] =
     useState<string | null>(null);
 
-
   /* ---------------------------------------------------------------------- */
   /* CONTENT                                                                 */
   /* ---------------------------------------------------------------------- */
@@ -94,7 +102,6 @@ export default function CreateCoursePage() {
   const [activeType, setActiveType] =
     useState<ContentType | null>(null);
 
-
   /* ---------------------------------------------------------------------- */
   /* ARTICLE FORM                                                            */
   /* ---------------------------------------------------------------------- */
@@ -104,10 +111,8 @@ export default function CreateCoursePage() {
     useState("");
   const [articleContent, setArticleContent] =
     useState("");
-
   const [articleFile, setArticleFile] =
     useState<File | null>(null);
-
 
   /* ---------------------------------------------------------------------- */
   /* VIDEO FORM                                                              */
@@ -116,12 +121,9 @@ export default function CreateCoursePage() {
   const [videoTitle, setVideoTitle] = useState("");
   const [videoDescription, setVideoDescription] =
     useState("");
-
   const [videoUrl, setVideoUrl] = useState("");
-
   const [videoFile, setVideoFile] =
     useState<File | null>(null);
-
 
   /* ---------------------------------------------------------------------- */
   /* RESOURCE FORM                                                           */
@@ -129,16 +131,12 @@ export default function CreateCoursePage() {
 
   const [resourceTitle, setResourceTitle] =
     useState("");
-
   const [resourceDescription, setResourceDescription] =
     useState("");
-
   const [resourceUrl, setResourceUrl] =
     useState("");
-
   const [resourceFile, setResourceFile] =
     useState<File | null>(null);
-
 
   /* ---------------------------------------------------------------------- */
   /* SAVE                                                                    */
@@ -146,6 +144,17 @@ export default function CreateCoursePage() {
 
   const [saving, setSaving] = useState(false);
 
+  /* ---------------------------------------------------------------------- */
+  /* CLEAN COVER PREVIEW                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    return () => {
+      if (coverPreview) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
 
   /* ====================================================================== */
   /* FILE HELPERS                                                            */
@@ -177,7 +186,6 @@ export default function CreateCoursePage() {
     return true;
   };
 
-
   /* ====================================================================== */
   /* COVER                                                                   */
   /* ====================================================================== */
@@ -206,12 +214,14 @@ export default function CreateCoursePage() {
 
     setCover(file);
 
-    const preview =
-      URL.createObjectURL(file);
+    if (coverPreview) {
+      URL.revokeObjectURL(coverPreview);
+    }
 
-    setCoverPreview(preview);
+    setCoverPreview(
+      URL.createObjectURL(file),
+    );
   };
-
 
   /* ====================================================================== */
   /* ARTICLE FILE                                                            */
@@ -238,7 +248,6 @@ export default function CreateCoursePage() {
 
     setArticleFile(file);
   };
-
 
   /* ====================================================================== */
   /* VIDEO FILE                                                              */
@@ -268,7 +277,6 @@ export default function CreateCoursePage() {
 
     setVideoFile(file);
   };
-
 
   /* ====================================================================== */
   /* RESOURCE FILE                                                           */
@@ -305,7 +313,6 @@ export default function CreateCoursePage() {
     setResourceFile(file);
   };
 
-
   /* ====================================================================== */
   /* RESET CONTENT FORMS                                                     */
   /* ====================================================================== */
@@ -327,18 +334,22 @@ export default function CreateCoursePage() {
     setResourceFile(null);
   };
 
-
   /* ====================================================================== */
   /* ADD ARTICLE                                                             */
   /* ====================================================================== */
 
   const addArticle = () => {
     if (!articleTitle.trim()) {
-      alert("Veuillez renseigner le titre de l'article.");
+      alert(
+        "Veuillez renseigner le titre de l'article.",
+      );
       return;
     }
 
-    if (!articleContent.trim() && !articleFile) {
+    if (
+      !articleContent.trim() &&
+      !articleFile
+    ) {
       alert(
         "Ajoutez le contenu de l'article ou un fichier PDF.",
       );
@@ -348,15 +359,10 @@ export default function CreateCoursePage() {
     const newContent: CourseContent = {
       id: crypto.randomUUID(),
       type: "article",
-
       title: articleTitle.trim(),
-
       description:
         articleDescription.trim(),
-
-      content:
-        articleContent.trim(),
-
+      content: articleContent.trim(),
       articleFile,
     };
 
@@ -369,18 +375,22 @@ export default function CreateCoursePage() {
     setActiveType(null);
   };
 
-
   /* ====================================================================== */
   /* ADD VIDEO                                                               */
   /* ====================================================================== */
 
   const addVideo = () => {
     if (!videoTitle.trim()) {
-      alert("Veuillez renseigner le titre de la vidéo.");
+      alert(
+        "Veuillez renseigner le titre de la vidéo.",
+      );
       return;
     }
 
-    if (!videoUrl.trim() && !videoFile) {
+    if (
+      !videoUrl.trim() &&
+      !videoFile
+    ) {
       alert(
         "Ajoutez une URL vidéo ou sélectionnez une vidéo.",
       );
@@ -390,15 +400,11 @@ export default function CreateCoursePage() {
     const newContent: CourseContent = {
       id: crypto.randomUUID(),
       type: "video",
-
       title: videoTitle.trim(),
-
       description:
         videoDescription.trim(),
-
       videoUrl:
         videoUrl.trim() || undefined,
-
       videoFile,
     };
 
@@ -410,7 +416,6 @@ export default function CreateCoursePage() {
     resetContentForm();
     setActiveType(null);
   };
-
 
   /* ====================================================================== */
   /* ADD RESOURCE                                                            */
@@ -424,7 +429,10 @@ export default function CreateCoursePage() {
       return;
     }
 
-    if (!resourceUrl.trim() && !resourceFile) {
+    if (
+      !resourceUrl.trim() &&
+      !resourceFile
+    ) {
       alert(
         "Ajoutez un lien ou sélectionnez un fichier.",
       );
@@ -434,16 +442,11 @@ export default function CreateCoursePage() {
     const newContent: CourseContent = {
       id: crypto.randomUUID(),
       type: "resource",
-
-      title:
-        resourceTitle.trim(),
-
+      title: resourceTitle.trim(),
       description:
         resourceDescription.trim(),
-
       resourceUrl:
         resourceUrl.trim() || undefined,
-
       resourceFile,
     };
 
@@ -456,9 +459,8 @@ export default function CreateCoursePage() {
     setActiveType(null);
   };
 
-
   /* ====================================================================== */
-  /* DELETE CONTENT                                                         */
+  /* DELETE CONTENT                                                          */
   /* ====================================================================== */
 
   const removeContent = (id: string) => {
@@ -468,7 +470,6 @@ export default function CreateCoursePage() {
       ),
     );
   };
-
 
   /* ====================================================================== */
   /* SAVE COURSE                                                             */
@@ -505,15 +506,18 @@ export default function CreateCoursePage() {
       return;
     }
 
-    const token =
-      localStorage.getItem("accessToken");
+    const durationNumber = duration
+      ? Number(duration)
+      : 0;
 
-    if (!token) {
+    if (
+      duration &&
+      (!Number.isFinite(durationNumber) ||
+        durationNumber < 1)
+    ) {
       alert(
-        "Votre session a expiré. Veuillez vous reconnecter.",
+        "Veuillez renseigner une durée valide.",
       );
-
-      router.push("/login");
       return;
     }
 
@@ -523,13 +527,19 @@ export default function CreateCoursePage() {
       /*
        * IMPORTANT:
        *
-       * We use FormData because files cannot be
-       * sent using JSON.
+       * There is NO localStorage here.
+       * There is NO accessToken here.
+       * There is NO Authorization header.
+       *
+       * Authentication is handled by the httpOnly
+       * cookie sent automatically by the browser.
        */
 
       const formData = new FormData();
 
-      /* Course fields */
+      /* ------------------------------------------------------------------ */
+      /* Course fields                                                       */
+      /* ------------------------------------------------------------------ */
 
       formData.append(
         "title",
@@ -553,9 +563,7 @@ export default function CreateCoursePage() {
 
       formData.append(
         "durationMinutes",
-        duration
-          ? String(Number(duration))
-          : "0",
+        String(durationNumber),
       );
 
       formData.append(
@@ -563,8 +571,9 @@ export default function CreateCoursePage() {
         String(publish),
       );
 
-
-      /* Course cover */
+      /* ------------------------------------------------------------------ */
+      /* Cover                                                               */
+      /* ------------------------------------------------------------------ */
 
       if (cover) {
         formData.append(
@@ -573,12 +582,9 @@ export default function CreateCoursePage() {
         );
       }
 
-
-      /*
-       * Contents metadata.
-       *
-       * Files themselves are appended separately.
-       */
+      /* ------------------------------------------------------------------ */
+      /* Content metadata                                                    */
+      /* ------------------------------------------------------------------ */
 
       const contentMetadata =
         contents.map(
@@ -607,16 +613,21 @@ export default function CreateCoursePage() {
               content.resourceUrl ?? null,
 
             hasArticleFile:
-              Boolean(content.articleFile),
+              Boolean(
+                content.articleFile,
+              ),
 
             hasVideoFile:
-              Boolean(content.videoFile),
+              Boolean(
+                content.videoFile,
+              ),
 
             hasResourceFile:
-              Boolean(content.resourceFile),
+              Boolean(
+                content.resourceFile,
+              ),
           }),
         );
-
 
       formData.append(
         "contents",
@@ -625,72 +636,56 @@ export default function CreateCoursePage() {
         ),
       );
 
+      /* ------------------------------------------------------------------ */
+      /* Article files                                                       */
+      /* ------------------------------------------------------------------ */
 
-      /*
-       * Append article PDFs.
-       *
-       * The field name contains the content index.
-       *
-       * articleFile_0
-       * articleFile_1
-       * articleFile_2
-       */
-
-      contents.forEach(
-        (content, index) => {
-          if (
-            content.type === "article" &&
-            content.articleFile
-          ) {
-        formData.append(
-          "articleFiles",
-          content.articleFile,
-        );
-          }
-        },
-      );
-
-
-      /*
-       * Append video files.
-       */
-
-      contents.forEach(
-        (content, index) => {
-          if (
-            content.type === "video" &&
-            content.videoFile
-          ) {
-            formData.append(
-              "videoFiles",
-              content.videoFile,
-            );
-          }
-        },
-      );
-
-
-      /*
-       * Append resource files.
-       */
-
-      contents.forEach(
-        (content, index) => {
-          if (
-            content.type === "resource" &&
-            content.resourceFile
-          ) {
-            formData.append(
-              "resourceFiles",
-              content.resourceFile,
-            );
-          }
-        },
-      );
-
+      contents.forEach((content) => {
+        if (
+          content.type === "article" &&
+          content.articleFile
+        ) {
+          formData.append(
+            "articleFiles",
+            content.articleFile,
+          );
+        }
+      });
 
       /* ------------------------------------------------------------------ */
-      /* SEND TO BACKEND                                                    */
+      /* Video files                                                         */
+      /* ------------------------------------------------------------------ */
+
+      contents.forEach((content) => {
+        if (
+          content.type === "video" &&
+          content.videoFile
+        ) {
+          formData.append(
+            "videoFiles",
+            content.videoFile,
+          );
+        }
+      });
+
+      /* ------------------------------------------------------------------ */
+      /* Resource files                                                      */
+      /* ------------------------------------------------------------------ */
+
+      contents.forEach((content) => {
+        if (
+          content.type === "resource" &&
+          content.resourceFile
+        ) {
+          formData.append(
+            "resourceFiles",
+            content.resourceFile,
+          );
+        }
+      });
+
+      /* ------------------------------------------------------------------ */
+      /* SEND TO BACKEND                                                     */
       /* ------------------------------------------------------------------ */
 
       const response = await fetch(
@@ -698,37 +693,63 @@ export default function CreateCoursePage() {
         {
           method: "POST",
 
-          headers: {
-            Authorization:
-              `Bearer ${token}`,
-          },
+          /*
+           * THIS IS THE IMPORTANT AUTH CHANGE.
+           *
+           * The browser sends the httpOnly authentication
+           * cookie with this request.
+           */
+          credentials: "include",
 
           /*
-           * DO NOT set Content-Type here.
+           * DO NOT set Content-Type manually.
            *
-           * Browser automatically generates:
-           *
-           * multipart/form-data;
-           * boundary=....
+           * Because this is FormData, the browser automatically
+           * creates the multipart/form-data boundary.
            */
-
           body: formData,
         },
       );
 
-
       const json =
-        await response.json()
+        await response
+          .json()
           .catch(() => null);
 
+      /* ------------------------------------------------------------------ */
+      /* AUTH ERRORS                                                         */
+      /* ------------------------------------------------------------------ */
+
+      if (response.status === 401) {
+        alert(
+          "Votre session a expiré. Veuillez vous reconnecter.",
+        );
+
+        router.push("/login");
+        return;
+      }
+
+      if (response.status === 403) {
+        alert(
+          "Vous n'avez pas l'autorisation de créer un cours.",
+        );
+        return;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* OTHER ERRORS                                                        */
+      /* ------------------------------------------------------------------ */
 
       if (!response.ok) {
         throw new Error(
           json?.message ||
-          "Impossible de créer le cours.",
+            "Impossible de créer le cours.",
         );
       }
 
+      /* ------------------------------------------------------------------ */
+      /* SUCCESS                                                             */
+      /* ------------------------------------------------------------------ */
 
       alert(
         publish
@@ -736,11 +757,9 @@ export default function CreateCoursePage() {
           : "Le brouillon a été enregistré avec succès.",
       );
 
-
       router.push(
         "/expert/courses",
       );
-
     } catch (error) {
       console.error(
         "CREATE COURSE ERROR:",
@@ -752,12 +771,10 @@ export default function CreateCoursePage() {
           ? error.message
           : "Une erreur est survenue.",
       );
-
     } finally {
       setSaving(false);
     }
   };
-
 
   /* ====================================================================== */
   /* UI                                                                      */
@@ -783,7 +800,6 @@ export default function CreateCoursePage() {
             Créer un cours
           </span>
         </div>
-
 
         {/* Header */}
 
@@ -812,18 +828,16 @@ export default function CreateCoursePage() {
 
           </div>
 
-
           <div className="flex gap-3">
 
             <button
               type="button"
               onClick={() =>
-                handleSave(false)
+                void handleSave(false)
               }
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-sand-300 bg-white px-4 py-3 text-sm font-semibold text-ink-soft transition hover:bg-sand-50 disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-sand-300 bg-white px-4 py-3 text-sm font-semibold text-ink-soft transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-
               {saving ? (
                 <Loader2
                   size={17}
@@ -834,19 +848,16 @@ export default function CreateCoursePage() {
               )}
 
               Enregistrer brouillon
-
             </button>
-
 
             <button
               type="button"
               onClick={() =>
-                handleSave(true)
+                void handleSave(true)
               }
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-rise-gradient px-5 py-3 text-sm font-semibold text-white shadow-bloom transition hover:opacity-90 disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-rise-gradient px-5 py-3 text-sm font-semibold text-white shadow-bloom transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-
               {saving ? (
                 <Loader2
                   size={17}
@@ -857,13 +868,11 @@ export default function CreateCoursePage() {
               )}
 
               Publier le cours
-
             </button>
 
           </div>
 
         </div>
-
 
         <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
 
@@ -897,7 +906,6 @@ export default function CreateCoursePage() {
 
               </div>
 
-
               <div className="space-y-5">
 
                 <Field
@@ -906,14 +914,15 @@ export default function CreateCoursePage() {
                 >
                   <input
                     value={title}
-                    onChange={(e) =>
-                      setTitle(e.target.value)
+                    onChange={(event) =>
+                      setTitle(
+                        event.target.value,
+                      )
                     }
                     placeholder="Ex. Maîtriser son business plan"
                     className="input"
                   />
                 </Field>
-
 
                 <Field
                   label="Description"
@@ -921,15 +930,16 @@ export default function CreateCoursePage() {
                 >
                   <textarea
                     value={description}
-                    onChange={(e) =>
-                      setDescription(e.target.value)
+                    onChange={(event) =>
+                      setDescription(
+                        event.target.value,
+                      )
                     }
                     placeholder="Décrivez ce que les apprenantes vont apprendre..."
                     rows={5}
                     className="input resize-none"
                   />
                 </Field>
-
 
                 <div className="grid gap-5 md:grid-cols-2">
 
@@ -939,12 +949,13 @@ export default function CreateCoursePage() {
                   >
                     <select
                       value={category}
-                      onChange={(e) =>
-                        setCategory(e.target.value)
+                      onChange={(event) =>
+                        setCategory(
+                          event.target.value,
+                        )
                       }
                       className="input"
                     >
-
                       <option value="">
                         Sélectionner
                       </option>
@@ -959,10 +970,8 @@ export default function CreateCoursePage() {
                           </option>
                         ),
                       )}
-
                     </select>
                   </Field>
-
 
                   <Field
                     label="Niveau"
@@ -970,12 +979,13 @@ export default function CreateCoursePage() {
                   >
                     <select
                       value={level}
-                      onChange={(e) =>
-                        setLevel(e.target.value)
+                      onChange={(event) =>
+                        setLevel(
+                          event.target.value,
+                        )
                       }
                       className="input"
                     >
-
                       <option value="">
                         Sélectionner
                       </option>
@@ -990,23 +1000,22 @@ export default function CreateCoursePage() {
                           </option>
                         ),
                       )}
-
                     </select>
                   </Field>
 
                 </div>
 
-
                 <Field label="Durée estimée">
-
                   <div className="relative">
 
                     <input
                       type="number"
                       min="1"
                       value={duration}
-                      onChange={(e) =>
-                        setDuration(e.target.value)
+                      onChange={(event) =>
+                        setDuration(
+                          event.target.value,
+                        )
                       }
                       placeholder="Ex. 180"
                       className="input pr-20"
@@ -1017,13 +1026,11 @@ export default function CreateCoursePage() {
                     </span>
 
                   </div>
-
                 </Field>
 
               </div>
 
             </section>
-
 
             {/* COURSE CONTENT */}
 
@@ -1041,9 +1048,6 @@ export default function CreateCoursePage() {
 
               </div>
 
-
-              {/* CONTENT TYPE BUTTONS */}
-
               <div className="grid gap-4 md:grid-cols-3">
 
                 <ContentTypeButton
@@ -1053,7 +1057,8 @@ export default function CreateCoursePage() {
                   title="Article"
                   description="Texte + PDF"
                   active={
-                    activeType === "article"
+                    activeType ===
+                    "article"
                   }
                   onClick={() =>
                     setActiveType(
@@ -1065,7 +1070,6 @@ export default function CreateCoursePage() {
                   }
                 />
 
-
                 <ContentTypeButton
                   icon={
                     <Video size={22} />
@@ -1073,7 +1077,8 @@ export default function CreateCoursePage() {
                   title="Vidéo"
                   description="URL ou fichier vidéo"
                   active={
-                    activeType === "video"
+                    activeType ===
+                    "video"
                   }
                   onClick={() =>
                     setActiveType(
@@ -1084,7 +1089,6 @@ export default function CreateCoursePage() {
                     )
                   }
                 />
-
 
                 <ContentTypeButton
                   icon={
@@ -1110,10 +1114,7 @@ export default function CreateCoursePage() {
 
               </div>
 
-
-              {/* ============================================================= */}
-              {/* ARTICLE FORM                                                    */}
-              {/* ============================================================= */}
+              {/* ARTICLE FORM */}
 
               {activeType ===
                 "article" && (
@@ -1140,7 +1141,6 @@ export default function CreateCoursePage() {
 
                   </div>
 
-
                   <div className="space-y-4">
 
                     <Field
@@ -1148,10 +1148,12 @@ export default function CreateCoursePage() {
                       required
                     >
                       <input
-                        value={articleTitle}
-                        onChange={(e) =>
+                        value={
+                          articleTitle
+                        }
+                        onChange={(event) =>
                           setArticleTitle(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Ex. Comprendre son marché cible"
@@ -1159,50 +1161,42 @@ export default function CreateCoursePage() {
                       />
                     </Field>
 
-
                     <Field label="Résumé">
-
                       <input
                         value={
                           articleDescription
                         }
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setArticleDescription(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Courte description"
                         className="input"
                       />
-
                     </Field>
 
-
                     <Field label="Contenu de l'article">
-
                       <textarea
                         value={
                           articleContent
                         }
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setArticleContent(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Rédigez votre article..."
                         rows={8}
                         className="input resize-y"
                       />
-
                     </Field>
 
-
-                    {/* ARTICLE PDF */}
-
                     <Field label="PDF de l'article">
-
                       <FilePicker
-                        file={articleFile}
+                        file={
+                          articleFile
+                        }
                         accept=".pdf,application/pdf"
                         description="PDF uniquement — 100 MB maximum"
                         onChange={
@@ -1214,9 +1208,7 @@ export default function CreateCoursePage() {
                           )
                         }
                       />
-
                     </Field>
-
 
                     <div className="flex justify-end">
 
@@ -1227,24 +1219,17 @@ export default function CreateCoursePage() {
                         }
                         className="inline-flex items-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800"
                       >
-
                         <Plus size={17} />
-
                         Ajouter l'article
-
                       </button>
 
                     </div>
 
                   </div>
-
                 </div>
               )}
 
-
-              {/* ============================================================= */}
-              {/* VIDEO FORM                                                      */}
-              {/* ============================================================= */}
+              {/* VIDEO FORM */}
 
               {activeType ===
                 "video" && (
@@ -1271,7 +1256,6 @@ export default function CreateCoursePage() {
 
                   </div>
 
-
                   <div className="space-y-4">
 
                     <Field
@@ -1279,10 +1263,12 @@ export default function CreateCoursePage() {
                       required
                     >
                       <input
-                        value={videoTitle}
-                        onChange={(e) =>
+                        value={
+                          videoTitle
+                        }
+                        onChange={(event) =>
                           setVideoTitle(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Ex. Les 5 erreurs d'un business plan"
@@ -1290,27 +1276,22 @@ export default function CreateCoursePage() {
                       />
                     </Field>
 
-
                     <Field label="Description">
-
                       <input
                         value={
                           videoDescription
                         }
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setVideoDescription(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Décrivez cette vidéo"
                         className="input"
                       />
-
                     </Field>
 
-
                     <Field label="URL de la vidéo">
-
                       <div className="relative">
 
                         <LinkIcon
@@ -1321,9 +1302,9 @@ export default function CreateCoursePage() {
                         <input
                           type="url"
                           value={videoUrl}
-                          onChange={(e) =>
+                          onChange={(event) =>
                             setVideoUrl(
-                              e.target.value,
+                              event.target.value,
                             )
                           }
                           placeholder="https://youtube.com/..."
@@ -1331,21 +1312,17 @@ export default function CreateCoursePage() {
                         />
 
                       </div>
-
                     </Field>
-
 
                     <div className="text-center text-xs font-medium text-ink-soft">
                       OU
                     </div>
 
-
-                    {/* VIDEO FILE */}
-
                     <Field label="Fichier vidéo">
-
                       <FilePicker
-                        file={videoFile}
+                        file={
+                          videoFile
+                        }
                         accept=".mp4,.webm,.mov,.avi,video/mp4,video/webm,video/quicktime,video/x-msvideo"
                         description="MP4, WebM, MOV ou AVI — 100 MB maximum"
                         onChange={
@@ -1357,9 +1334,7 @@ export default function CreateCoursePage() {
                           )
                         }
                       />
-
                     </Field>
-
 
                     <div className="flex justify-end">
 
@@ -1370,24 +1345,17 @@ export default function CreateCoursePage() {
                         }
                         className="inline-flex items-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800"
                       >
-
                         <Plus size={17} />
-
                         Ajouter la vidéo
-
                       </button>
 
                     </div>
 
                   </div>
-
                 </div>
               )}
 
-
-              {/* ============================================================= */}
-              {/* RESOURCE FORM                                                   */}
-              {/* ============================================================= */}
+              {/* RESOURCE FORM */}
 
               {activeType ===
                 "resource" && (
@@ -1414,50 +1382,42 @@ export default function CreateCoursePage() {
 
                   </div>
 
-
                   <div className="space-y-4">
 
                     <Field
                       label="Nom de la ressource"
                       required
                     >
-
                       <input
                         value={
                           resourceTitle
                         }
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setResourceTitle(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="Ex. Modèle de business plan"
                         className="input"
                       />
-
                     </Field>
 
-
                     <Field label="Description">
-
                       <input
                         value={
                           resourceDescription
                         }
-                        onChange={(e) =>
+                        onChange={(event) =>
                           setResourceDescription(
-                            e.target.value,
+                            event.target.value,
                           )
                         }
                         placeholder="À quoi sert cette ressource ?"
                         className="input"
                       />
-
                     </Field>
 
-
                     <Field label="Lien externe">
-
                       <div className="relative">
 
                         <LinkIcon
@@ -1470,9 +1430,9 @@ export default function CreateCoursePage() {
                           value={
                             resourceUrl
                           }
-                          onChange={(e) =>
+                          onChange={(event) =>
                             setResourceUrl(
-                              e.target.value,
+                              event.target.value,
                             )
                           }
                           placeholder="https://..."
@@ -1480,19 +1440,13 @@ export default function CreateCoursePage() {
                         />
 
                       </div>
-
                     </Field>
-
 
                     <div className="text-center text-xs font-medium text-ink-soft">
                       OU
                     </div>
 
-
-                    {/* RESOURCE FILE */}
-
                     <Field label="Fichier">
-
                       <FilePicker
                         file={
                           resourceFile
@@ -1508,9 +1462,7 @@ export default function CreateCoursePage() {
                           )
                         }
                       />
-
                     </Field>
-
 
                     <div className="flex justify-end">
 
@@ -1521,26 +1473,19 @@ export default function CreateCoursePage() {
                         }
                         className="inline-flex items-center gap-2 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-wine-800"
                       >
-
                         <Plus size={17} />
-
                         Ajouter la ressource
-
                       </button>
 
                     </div>
 
                   </div>
-
                 </div>
               )}
 
             </section>
 
-
-            {/* ============================================================= */}
-            {/* ADDED CONTENT                                                   */}
-            {/* ============================================================= */}
+            {/* ADDED CONTENT */}
 
             <section className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
 
@@ -1558,21 +1503,16 @@ export default function CreateCoursePage() {
 
                 </div>
 
-
                 <span className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-soft">
-
                   {contents.length} élément
                   {contents.length !== 1
                     ? "s"
                     : ""}
-
                 </span>
 
               </div>
 
-
               {contents.length === 0 ? (
-
                 <div className="rounded-2xl border border-dashed border-sand-300 bg-sand-50 px-6 py-12 text-center">
 
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-ink-soft shadow-sm">
@@ -1591,9 +1531,7 @@ export default function CreateCoursePage() {
                   </p>
 
                 </div>
-
               ) : (
-
                 <div className="space-y-3">
 
                   {contents.map(
@@ -1616,13 +1554,11 @@ export default function CreateCoursePage() {
                   )}
 
                 </div>
-
               )}
 
             </section>
 
           </div>
-
 
           {/* ================================================================= */}
           {/* RIGHT                                                              */}
@@ -1642,7 +1578,6 @@ export default function CreateCoursePage() {
                 JPG, PNG ou WEBP.
               </p>
 
-
               <label className="mt-5 block cursor-pointer">
 
                 <input
@@ -1654,9 +1589,7 @@ export default function CreateCoursePage() {
                   }
                 />
 
-
                 {coverPreview ? (
-
                   <div className="overflow-hidden rounded-2xl border border-sand-200">
 
                     <img
@@ -1672,9 +1605,7 @@ export default function CreateCoursePage() {
                     </div>
 
                   </div>
-
                 ) : (
-
                   <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-sand-300 bg-sand-50 text-center">
 
                     <ImageIcon
@@ -1691,13 +1622,11 @@ export default function CreateCoursePage() {
                     </p>
 
                   </div>
-
                 )}
 
               </label>
 
             </section>
-
 
             {/* SUMMARY */}
 
@@ -1755,7 +1684,6 @@ export default function CreateCoursePage() {
 
             </section>
 
-
             {/* STRUCTURE */}
 
             <section className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
@@ -1763,7 +1691,6 @@ export default function CreateCoursePage() {
               <h2 className="font-semibold text-wine-900">
                 Structure
               </h2>
-
 
               <div className="mt-4 space-y-3">
 
@@ -1819,7 +1746,6 @@ export default function CreateCoursePage() {
 
             </section>
 
-
             {/* PUBLISH */}
 
             <section className="rounded-3xl bg-wine-900 p-5 text-white shadow-bloom">
@@ -1833,14 +1759,13 @@ export default function CreateCoursePage() {
                 seront envoyés au serveur.
               </p>
 
-
               <button
                 type="button"
                 onClick={() =>
-                  handleSave(true)
+                  void handleSave(true)
                 }
                 disabled={saving}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-wine-900 transition hover:bg-white/90 disabled:opacity-60"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-wine-900 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
 
                 {saving ? (
@@ -1866,7 +1791,6 @@ export default function CreateCoursePage() {
     </main>
   );
 }
-
 
 /* ========================================================================== */
 /* FIELD                                                                       */
@@ -1901,7 +1825,6 @@ function Field({
     </div>
   );
 }
-
 
 /* ========================================================================== */
 /* FILE PICKER                                                                 */
@@ -1940,21 +1863,15 @@ function FilePicker({
           onChange={onChange}
         />
 
-
         {file ? (
-
           <>
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-wine-900 text-white">
-              <FileText
-                size={24}
-              />
+              <FileText size={24} />
             </div>
-
 
             <p className="break-all text-sm font-semibold text-wine-900">
               {file.name}
             </p>
-
 
             <p className="mt-1 text-xs text-ink-soft">
               {(
@@ -1965,46 +1882,33 @@ function FilePicker({
               MB
             </p>
 
-
             <p className="mt-3 text-xs font-medium text-wine-700">
               Cliquer pour changer
             </p>
-
           </>
-
         ) : (
-
           <>
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
-              <Upload
-                size={24}
-              />
+              <Upload size={24} />
             </div>
-
 
             <p className="text-sm font-semibold text-wine-900">
               Importer un fichier
             </p>
 
-
             <p className="mt-1 text-xs text-ink-soft">
               Cliquez pour sélectionner
             </p>
 
-
             <p className="mt-3 text-xs text-ink-soft">
               {description}
             </p>
-
           </>
-
         )}
 
       </label>
 
-
       {file && (
-
         <button
           type="button"
           onClick={onRemove}
@@ -2013,13 +1917,11 @@ function FilePicker({
           <X size={14} />
           Retirer le fichier
         </button>
-
       )}
 
     </div>
   );
 }
-
 
 /* ========================================================================== */
 /* CONTENT TYPE BUTTON                                                        */
@@ -2059,11 +1961,9 @@ function ContentTypeButton({
         {icon}
       </div>
 
-
       <p className="font-semibold text-wine-900">
         {title}
       </p>
-
 
       <p className="mt-1 text-xs leading-5 text-ink-soft">
         {description}
@@ -2072,7 +1972,6 @@ function ContentTypeButton({
     </button>
   );
 }
-
 
 /* ========================================================================== */
 /* CONTENT ROW                                                                */
@@ -2104,14 +2003,12 @@ function ContentRow({
     },
   }[content.type];
 
-
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-sand-200 bg-white p-4">
 
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
         {config.icon}
       </div>
-
 
       <div className="min-w-0 flex-1">
 
@@ -2125,20 +2022,17 @@ function ContentRow({
             {config.label}
           </span>
 
-
           {content.articleFile && (
             <span className="rounded-md bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
               PDF
             </span>
           )}
 
-
           {content.videoFile && (
             <span className="rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-600">
               Fichier vidéo
             </span>
           )}
-
 
           {content.resourceFile && (
             <span className="rounded-md bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-600">
@@ -2148,11 +2042,9 @@ function ContentRow({
 
         </div>
 
-
         <h3 className="mt-1 truncate text-sm font-semibold text-wine-900">
           {content.title}
         </h3>
-
 
         {content.description && (
           <p className="mt-1 truncate text-xs text-ink-soft">
@@ -2160,20 +2052,17 @@ function ContentRow({
           </p>
         )}
 
-
         {content.articleFile && (
           <p className="mt-1 truncate text-xs text-ink-soft">
             📎 {content.articleFile.name}
           </p>
         )}
 
-
         {content.videoFile && (
           <p className="mt-1 truncate text-xs text-ink-soft">
             🎥 {content.videoFile.name}
           </p>
         )}
-
 
         {content.resourceFile && (
           <p className="mt-1 truncate text-xs text-ink-soft">
@@ -2182,7 +2071,6 @@ function ContentRow({
         )}
 
       </div>
-
 
       <button
         type="button"
@@ -2198,7 +2086,6 @@ function ContentRow({
     </div>
   );
 }
-
 
 /* ========================================================================== */
 /* SUMMARY ROW                                                                */
@@ -2225,7 +2112,6 @@ function SummaryRow({
     </div>
   );
 }
-
 
 /* ========================================================================== */
 /* STRUCTURE ROW                                                              */
@@ -2255,7 +2141,6 @@ function StructureRow({
 
       </div>
 
-
       <span className="font-semibold text-wine-900">
         {value}
       </span>
@@ -2263,4 +2148,3 @@ function StructureRow({
     </div>
   );
 }
-

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -12,13 +13,11 @@ import {
   CalendarDays,
   Users,
 } from "lucide-react";
-
 import { Badge } from "@/components/ui/Badge";
-import authService from "@/services/auth";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+).replace(/\/+$/, "");
 
 interface User {
   id: string;
@@ -33,7 +32,7 @@ const roleMap: Record<string, string> = {
   ENTREPRENEUR: "Entrepreneure",
   EXPERT: "Experte",
   INSTITUTION: "Institution",
-  ADMIN: "Admin",
+  ADMIN: "Administrateur",
 };
 
 const roleTone: Record<string, "gold" | "wine" | "rose"> = {
@@ -48,6 +47,115 @@ interface UsersTableProps {
   role?: string;
 }
 
+async function getErrorMessage(response: Response): Promise<string> {
+  try {
+    const data: unknown = await response.json();
+
+    if (data && typeof data === "object") {
+      const payload = data as {
+        message?: unknown;
+        error?: unknown;
+        data?: {
+          message?: unknown;
+          error?: unknown;
+        };
+      };
+
+      if (typeof payload.message === "string") {
+        return payload.message;
+      }
+
+      if (typeof payload.error === "string") {
+        return payload.error;
+      }
+
+      if (
+        payload.data &&
+        typeof payload.data.message === "string"
+      ) {
+        return payload.data.message;
+      }
+
+      if (
+        payload.data &&
+        typeof payload.data.error === "string"
+      ) {
+        return payload.data.error;
+      }
+    }
+  } catch {
+    // Response is not JSON.
+  }
+
+  return `Erreur ${response.status}`;
+}
+
+function extractUsers(data: unknown): User[] {
+  if (Array.isArray(data)) {
+    return data as User[];
+  }
+
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+
+  const payload = data as {
+    data?: unknown;
+    users?: unknown;
+    items?: unknown;
+  };
+
+  if (Array.isArray(payload.users)) {
+    return payload.users as User[];
+  }
+
+  if (Array.isArray(payload.items)) {
+    return payload.items as User[];
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data as User[];
+  }
+
+  if (
+    payload.data &&
+    typeof payload.data === "object"
+  ) {
+    const nested = payload.data as {
+      users?: unknown;
+      items?: unknown;
+    };
+
+    if (Array.isArray(nested.users)) {
+      return nested.users as User[];
+    }
+
+    if (Array.isArray(nested.items)) {
+      return nested.items as User[];
+    }
+  }
+
+  return [];
+}
+
+function formatDate(date?: string): string {
+  if (!date) {
+    return "-";
+  }
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "-";
+  }
+
+  return parsed.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function UsersTable({
   search = "",
   role = "",
@@ -58,47 +166,41 @@ export function UsersTable({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] =
+    useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      fetchUsers();
-    }, 300);
-
-    return () => clearTimeout(timeout);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, role]);
-
-  useEffect(() => {
-    function closeMenu(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node)
-      ) {
-        setOpenMenu(null);
-      }
-    }
-
-    document.addEventListener("mousedown", closeMenu);
-
-    return () => {
-      document.removeEventListener("mousedown", closeMenu);
-    };
-  }, []);
-
-  async function fetchUsers() {
+  /**
+   * ============================================================
+   * FETCH USERS
+   * ============================================================
+   *
+   * Authentication is handled exclusively by the httpOnly
+   * session cookie.
+   *
+   * IMPORTANT:
+   * - No localStorage
+   * - No sessionStorage
+   * - No accessToken
+   * - No refreshToken
+   * - No Authorization: Bearer header
+   *
+   * credentials: "include" sends the httpOnly cookie.
+   */
+  async function fetchUsers(
+    signal?: AbortSignal
+  ): Promise<void> {
     setLoading(true);
     setError(null);
 
     try {
-      const token = authService.getToken();
-
       const params = new URLSearchParams();
 
-      if (search.trim()) {
-        params.set("search", search.trim());
+      const trimmedSearch = search.trim();
+
+      if (trimmedSearch) {
+        params.set("search", trimmedSearch);
       }
 
       if (role) {
@@ -107,87 +209,241 @@ export function UsersTable({
 
       params.set("limit", "50");
 
-      const res = await fetch(
-        `${API_URL}/users?${params.toString()}`,
+      const query = params.toString();
+
+      const response = await fetch(
+        `${API_URL}/users${query ? `?${query}` : ""}`,
         {
+          method: "GET",
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
+          credentials: "include",
+          cache: "no-store",
+          signal,
         }
       );
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          data.error ||
-            "Impossible de charger les utilisateurs."
+          await getErrorMessage(response)
         );
       }
 
-      let usersData: User[] = [];
+      const data: unknown = await response.json();
 
-      if (Array.isArray(data)) {
-        usersData = data;
-      } else if (Array.isArray(data.data)) {
-        usersData = data.data;
-      } else if (Array.isArray(data.data?.users)) {
-        usersData = data.data.users;
-      } else if (Array.isArray(data.data?.items)) {
-        usersData = data.data.items;
+      if (signal?.aborted) {
+        return;
       }
 
-      setUsers(usersData);
+      setUsers(extractUsers(data));
     } catch (err) {
+      if (
+        err instanceof DOMException &&
+        err.name === "AbortError"
+      ) {
+        return;
+      }
+
+      if (signal?.aborted) {
+        return;
+      }
+
       console.error("FETCH USERS ERROR:", err);
 
       setError(
         err instanceof Error
           ? err.message
-          : "Erreur inconnue"
+          : "Impossible de charger les utilisateurs."
       );
 
       setUsers([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }
 
-  async function toggleActive(user: User) {
+  /**
+   * ============================================================
+   * LOAD USERS WHEN SEARCH / ROLE CHANGES
+   * ============================================================
+   */
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const timeout = window.setTimeout(() => {
+      void fetchUsers(controller.signal);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+
+    // fetchUsers intentionally depends on search/role.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, role]);
+
+  /**
+   * ============================================================
+   * CLOSE ACTION MENU WHEN CLICKING OUTSIDE
+   * ============================================================
+   */
+  useEffect(() => {
+    function closeMenu(event: MouseEvent) {
+      const target = event.target;
+
+      if (
+        menuRef.current &&
+        target instanceof Node &&
+        !menuRef.current.contains(target)
+      ) {
+        setOpenMenu(null);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      closeMenu
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        closeMenu
+      );
+    };
+  }, []);
+
+  /**
+   * ============================================================
+   * ACTIVATE / SUSPEND USER
+   * ============================================================
+   */
+  async function toggleActive(
+    user: User
+  ): Promise<void> {
+    const userId = user.id;
+
+    if (!userId) {
+      window.alert(
+        "Identifiant utilisateur manquant."
+      );
+      return;
+    }
+
+    if (actionLoading !== null) {
+      return;
+    }
+
+    const action = user.isActive
+      ? "suspend"
+      : "activate";
+
+    const confirmed = window.confirm(
+      user.isActive
+        ? `Voulez-vous vraiment suspendre ${user.name} ?`
+        : `Voulez-vous vraiment réactiver ${user.name} ?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionLoading(userId);
+
     try {
-      const token = authService.getToken();
-
-      const action = user.isActive
-        ? "suspend"
-        : "activate";
-
-      const res = await fetch(
-        `${API_URL}/users/${user.id}/${action}`,
+      const response = await fetch(
+        `${API_URL}/users/${encodeURIComponent(
+          userId
+        )}/${action}`,
         {
           method: "PATCH",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
+          credentials: "include",
+          cache: "no-store",
         }
       );
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          data.error || "Action impossible"
+          await getErrorMessage(response)
         );
       }
 
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id
-            ? {
-                ...u,
-                isActive: !user.isActive,
+      const data: unknown =
+        await response.json().catch(() => null);
+
+      let updatedIsActive: boolean | null = null;
+
+      if (data && typeof data === "object") {
+        const payload = data as {
+          data?: unknown;
+          user?: unknown;
+        };
+
+        const candidates = [
+          payload.user,
+          payload.data,
+        ];
+
+        for (const candidate of candidates) {
+          if (
+            candidate &&
+            typeof candidate === "object"
+          ) {
+            const candidateUser = candidate as {
+              user?: unknown;
+              isActive?: unknown;
+            };
+
+            if (
+              typeof candidateUser.isActive ===
+              "boolean"
+            ) {
+              updatedIsActive =
+                candidateUser.isActive;
+              break;
+            }
+
+            if (
+              candidateUser.user &&
+              typeof candidateUser.user ===
+                "object"
+            ) {
+              const nestedUser =
+                candidateUser.user as {
+                  isActive?: unknown;
+                };
+
+              if (
+                typeof nestedUser.isActive ===
+                "boolean"
+              ) {
+                updatedIsActive =
+                  nestedUser.isActive;
+                break;
               }
-            : u
+            }
+          }
+        }
+      }
+
+      const nextIsActive =
+        updatedIsActive ?? !user.isActive;
+
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) =>
+          currentUser.id === userId
+            ? {
+                ...currentUser,
+                isActive: nextIsActive,
+              }
+            : currentUser
         )
       );
     } catch (err) {
@@ -196,58 +452,95 @@ export function UsersTable({
         err
       );
 
-      alert(
-        "Impossible de modifier le statut de cet utilisateur."
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : "Impossible de modifier le statut de cet utilisateur."
       );
+    } finally {
+      setActionLoading(null);
     }
   }
 
-  async function deleteUser(id: string) {
-    if (
-      !window.confirm(
-        "Supprimer cet utilisateur définitivement ?"
-      )
-    ) {
+  /**
+   * ============================================================
+   * DELETE USER
+   * ============================================================
+   */
+  async function deleteUser(
+    id: string
+  ): Promise<void> {
+    const userId = id;
+
+    if (!userId) {
+      window.alert(
+        "Identifiant utilisateur manquant."
+      );
       return;
     }
 
-    try {
-      const token = authService.getToken();
+    if (actionLoading !== null) {
+      return;
+    }
 
-      const res = await fetch(
-        `${API_URL}/users/${id}`,
+    const confirmed = window.confirm(
+      "Supprimer cet utilisateur définitivement ?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionLoading(userId);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/users/${encodeURIComponent(
+          userId
+        )}`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
+          credentials: "include",
+          cache: "no-store",
         }
       );
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(
-          data.error || "Delete failed"
+          await getErrorMessage(response)
         );
       }
 
-      setUsers((prev) =>
-        prev.filter((user) => user.id !== id)
+      setUsers((currentUsers) =>
+        currentUsers.filter(
+          (currentUser) =>
+            currentUser.id !== userId
+        )
       );
     } catch (err) {
-      console.error("DELETE ERROR:", err);
-
-      alert(
-        "Impossible de supprimer cet utilisateur."
+      console.error(
+        "DELETE USER ERROR:",
+        err
       );
+
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : "Impossible de supprimer cet utilisateur."
+      );
+    } finally {
+      setActionLoading(null);
     }
   }
 
-  /* =========================
-     LOADING
-  ========================== */
-
+  /**
+   * ============================================================
+   * LOADING
+   * ============================================================
+   */
   if (loading) {
     return (
       <div className="card-surface overflow-hidden shadow-card">
@@ -266,10 +559,11 @@ export function UsersTable({
     );
   }
 
-  /* =========================
-     ERROR
-  ========================== */
-
+  /**
+   * ============================================================
+   * ERROR
+   * ============================================================
+   */
   if (error) {
     return (
       <div className="card-surface shadow-card">
@@ -288,7 +582,9 @@ export function UsersTable({
 
           <button
             type="button"
-            onClick={fetchUsers}
+            onClick={() => {
+              void fetchUsers();
+            }}
             className="mt-5 rounded-xl bg-rise-gradient px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
           >
             Réessayer
@@ -298,15 +594,17 @@ export function UsersTable({
     );
   }
 
+  /**
+   * ============================================================
+   * TABLE
+   * ============================================================
+   */
   return (
     <div
       ref={menuRef}
       className="card-surface overflow-hidden shadow-card"
     >
-      {/* =========================
-          TABLE HEADER
-      ========================== */}
-
+      {/* TABLE HEADER */}
       <div className="flex flex-col gap-3 border-b border-sand-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold text-wine-900">
@@ -328,10 +626,7 @@ export function UsersTable({
         </div>
       </div>
 
-      {/* =========================
-          TABLE
-      ========================== */}
-
+      {/* TABLE */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
@@ -386,7 +681,7 @@ export function UsersTable({
                 const initials =
                   user.name
                     ?.trim()
-                    .split(" ")
+                    .split(/\s+/)
                     .filter(Boolean)
                     .slice(0, 2)
                     .map((part) =>
@@ -394,13 +689,15 @@ export function UsersTable({
                     )
                     .join("") || "?";
 
+                const isActionLoading =
+                  actionLoading === user.id;
+
                 return (
                   <tr
                     key={user.id}
                     className="group transition-colors hover:bg-rose-50/30"
                   >
                     {/* USER */}
-
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rise-gradient text-sm font-semibold text-white shadow-sm">
@@ -409,7 +706,8 @@ export function UsersTable({
 
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-ink">
-                            {user.name || "Utilisateur"}
+                            {user.name ||
+                              "Utilisateur"}
                           </p>
 
                           <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-soft">
@@ -427,7 +725,6 @@ export function UsersTable({
                     </td>
 
                     {/* ROLE */}
-
                     <td className="px-5 py-4">
                       <Badge
                         tone={
@@ -441,7 +738,6 @@ export function UsersTable({
                     </td>
 
                     {/* STATUS */}
-
                     <td className="px-5 py-4">
                       <div className="inline-flex items-center gap-2">
                         <span
@@ -467,7 +763,6 @@ export function UsersTable({
                     </td>
 
                     {/* DATE */}
-
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 text-xs text-ink-soft">
                         <CalendarDays
@@ -476,27 +771,18 @@ export function UsersTable({
                         />
 
                         <span>
-                          {user.createdAt
-                            ? new Date(
-                                user.createdAt
-                              ).toLocaleDateString(
-                                "fr-FR",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                }
-                              )
-                            : "-"}
+                          {formatDate(
+                            user.createdAt
+                          )}
                         </span>
                       </div>
                     </td>
 
                     {/* ACTIONS */}
-
                     <td className="relative px-5 py-4 text-right">
                       <button
                         type="button"
+                        disabled={isActionLoading}
                         onClick={() =>
                           setOpenMenu(
                             openMenu === user.id
@@ -504,23 +790,28 @@ export function UsersTable({
                               : user.id
                           )
                         }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink focus-ring"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink focus-ring disabled:pointer-events-none disabled:opacity-50"
                         aria-label={`Actions pour ${user.name}`}
+                        aria-expanded={
+                          openMenu === user.id
+                        }
                       >
                         <MoreHorizontal size={18} />
                       </button>
 
                       {openMenu === user.id && (
                         <div className="absolute right-5 top-14 z-50 w-56 overflow-hidden rounded-2xl border border-sand-200 bg-white p-1.5 text-left shadow-xl">
-                          {/* View */}
-
+                          {/* VIEW */}
                           <button
                             type="button"
                             onClick={() => {
-                              router.push(
-                                `/admin/users/${user.id}`
-                              );
                               setOpenMenu(null);
+
+                              router.push(
+                                `/admin/users/${encodeURIComponent(
+                                  user.id
+                                )}`
+                              );
                             }}
                             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink transition-colors hover:bg-sand-50"
                           >
@@ -539,15 +830,17 @@ export function UsersTable({
                             </span>
                           </button>
 
-                          {/* Status */}
-
+                          {/* STATUS */}
                           <button
                             type="button"
+                            disabled={isActionLoading}
                             onClick={() => {
-                              toggleActive(user);
                               setOpenMenu(null);
+                              void toggleActive(
+                                user
+                              );
                             }}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-sand-50 ${
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-sand-50 disabled:pointer-events-none disabled:opacity-50 ${
                               user.isActive
                                 ? "text-amber-600"
                                 : "text-emerald-600"
@@ -578,15 +871,17 @@ export function UsersTable({
 
                           <div className="my-1.5 border-t border-sand-100" />
 
-                          {/* Delete */}
-
+                          {/* DELETE */}
                           <button
                             type="button"
+                            disabled={isActionLoading}
                             onClick={() => {
-                              deleteUser(user.id);
                               setOpenMenu(null);
+                              void deleteUser(
+                                user.id
+                              );
                             }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition-colors hover:bg-rose-50"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition-colors hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-50"
                           >
                             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50">
                               <Trash2 size={15} />

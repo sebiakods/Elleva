@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   Calendar,
@@ -19,7 +20,15 @@ import {
   Users,
 } from "lucide-react";
 
-// Mock sub-components (Replace with your actual UI imports if needed)
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+).replace(/\/$/, "");
+
+const PROGRAMS_ENDPOINT = `${API_URL}/institution/programs`;
+/* -------------------------------------------------------------------------- */
+/* UI components                                                              */
+/* -------------------------------------------------------------------------- */
+
 function Header({ title }: { title: string }) {
   return (
     <header className="mb-6 border-b border-sand-200 pb-4">
@@ -33,12 +42,14 @@ function Badge({
   tone = "red",
 }: {
   children: React.ReactNode;
-  tone?: string;
+  tone?: "red" | "gray";
 }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-        tone === "red" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+        tone === "red"
+          ? "bg-red-100 text-red-700"
+          : "bg-gray-100 text-gray-700"
       }`}
     >
       {children}
@@ -88,12 +99,15 @@ function Card({
 function Input({
   label,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+}) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-ink-soft">
         {label}
       </span>
+
       <input
         {...props}
         className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
@@ -106,12 +120,15 @@ function Select({
   label,
   children,
   ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+}: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+}) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-ink-soft">
         {label}
       </span>
+
       <select
         {...props}
         className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
@@ -121,6 +138,10 @@ function Select({
     </label>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 interface FormState {
   title: string;
@@ -144,12 +165,64 @@ interface FormState {
   status: "draft" | "published";
 }
 
+/* -------------------------------------------------------------------------- */
+/* Auth                                                                       */
+/* -------------------------------------------------------------------------- */
+
+
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+async function parseResponse(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      message: text,
+    };
+  }
+}
+
+function normalizeAmount(value: string): number | null {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  return amount;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
+
 export default function ProgramForm({
   mode = "create",
 }: {
   mode?: "create" | "edit";
 }) {
   const router = useRouter();
+  const params = useParams();
+
+  const programId =
+    typeof params?.id === "string"
+      ? params.id
+      : Array.isArray(params?.id)
+        ? params.id[0]
+        : null;
 
   const [form, setForm] = useState<FormState>({
     title: "",
@@ -174,25 +247,39 @@ export default function ProgramForm({
   });
 
   const [saving, setSaving] = useState(false);
+
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
-  const update = (key: keyof FormState, value: unknown) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const update = <K extends keyof FormState>(
+    key: K,
+    value: FormState[K]
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   const updateDocument = (index: number, value: string) => {
     setForm((prev) => {
-      const docs = [...prev.documents];
-      docs[index] = value;
-      return { ...prev, documents: docs };
+      const documents = [...prev.documents];
+      documents[index] = value;
+
+      return {
+        ...prev,
+        documents,
+      };
     });
   };
 
   const addDocument = () => {
-    setForm((prev) => ({ ...prev, documents: [...prev.documents, ""] }));
+    setForm((prev) => ({
+      ...prev,
+      documents: [...prev.documents, ""],
+    }));
   };
 
   const removeDocument = (index: number) => {
@@ -202,138 +289,234 @@ export default function ProgramForm({
     }));
   };
 
-  const saveDraft = async () => {
-    setSaving(true);
-    try {
-      // API call placeholder
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setMessage({ type: "success", text: "Brouillon enregistré !" });
-    } catch {
-      setMessage({ type: "error", text: "Erreur lors de l'enregistrement." });
-    } finally {
-      setSaving(false);
-    }
+  /* ------------------------------------------------------------------------ */
+  /* Submit                                                                   */
+  /* ------------------------------------------------------------------------ */
+const submit = async (
+  e?: React.FormEvent,
+  forcedStatus?: "draft" | "published"
+) => {
+  e?.preventDefault();
+  setMessage(null);
+
+  if (mode === "edit" && !programId) {
+    setMessage({
+      type: "error",
+      text: "Identifiant du programme introuvable.",
+    });
+    return;
+  }
+
+  if (!form.title.trim()) {
+    setMessage({
+      type: "error",
+      text: "Veuillez saisir le nom du programme.",
+    });
+    return;
+  }
+
+  if (!form.category) {
+    setMessage({
+      type: "error",
+      text: "Veuillez sélectionner une catégorie.",
+    });
+    return;
+  }
+
+  const minAmount = normalizeAmount(form.minAmount);
+  const maxAmount = normalizeAmount(form.maxAmount);
+
+  if (form.minAmount && minAmount === null) {
+    setMessage({
+      type: "error",
+      text: "Le montant minimum est invalide.",
+    });
+    return;
+  }
+
+  if (form.maxAmount && maxAmount === null) {
+    setMessage({
+      type: "error",
+      text: "Le montant maximum est invalide.",
+    });
+    return;
+  }
+
+  if (
+    minAmount !== null &&
+    maxAmount !== null &&
+    minAmount > maxAmount
+  ) {
+    setMessage({
+      type: "error",
+      text: "Le montant minimum ne peut pas être supérieur au montant maximum.",
+    });
+    return;
+  }
+
+  if (
+    form.openingDate &&
+    form.closingDate &&
+    form.openingDate > form.closingDate
+  ) {
+    setMessage({
+      type: "error",
+      text: "La date d'ouverture doit être antérieure à la date limite.",
+    });
+    return;
+  }
+
+  const finalStatus = forcedStatus ?? form.status;
+
+  const payload = {
+    title: form.title.trim(),
+    shortDescription: form.shortDescription.trim(),
+    description: form.description.trim(),
+    category: form.category,
+    sector: form.sector || null,
+    fundingType: form.fundingType || null,
+    amountMin: minAmount,
+    amountMax: maxAmount,
+    currency: form.currency,
+    openingDate: form.openingDate || null,
+    closingDate: form.closingDate || null,
+    region: form.region || null,
+    targetAudience: form.targetAudience.trim(),
+
+    eligibilityCriteria: form.eligibilityCriteria
+      .split("\n")
+      .map((item) =>
+        item.replace(/^[•\-*]\s*/, "").trim()
+      )
+      .filter(Boolean),
+
+    requiredDocuments: form.documents
+      .map((document) => document.trim())
+      .filter(Boolean),
+
+    website: form.website.trim() || null,
+    email: form.email.trim() || null,
+    phone: form.phone.trim() || null,
+
+    isPublished: finalStatus === "published",
   };
 
-const submit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  setSaving(true);
 
   try {
-    setSaving(true);
+    const url =
+      mode === "create"
+        ? PROGRAMS_ENDPOINT
+        : `${PROGRAMS_ENDPOINT}/${encodeURIComponent(programId!)}`;
 
-    const token =
-      localStorage.getItem("accessToken") ||
-      localStorage.getItem("refreshToken") ||
-      localStorage.getItem("token");
+    const response = await fetch(url, {
+      method: mode === "create" ? "POST" : "PUT",
 
-    console.log("TOKEN:", token);
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-    if (!token) {
-      setMessage({
-        type: "error",
-        text: "Session expirée. Veuillez vous reconnecter.",
-      });
-      setSaving(false);
-      return;
-    }
+      // IMPORTANT:
+      // The authentication cookie is httpOnly,
+      // so the browser sends it automatically.
+      credentials: "include",
 
-    const payload = {
-      title: form.title,
-      shortDescription: form.shortDescription,
-      description: form.description,
+      body: JSON.stringify(payload),
+    });
 
-      category: form.category,
-      sector: form.sector,
-      fundingType: form.fundingType,
-
-      amountMin: Number(form.minAmount),
-      amountMax: Number(form.maxAmount),
-      currency: form.currency,
-
-      openingDate: form.openingDate,
-      closingDate: form.closingDate,
-
-      region: form.region,
-
-      targetAudience: form.targetAudience,
-
-      eligibilityCriteria: form.eligibilityCriteria
-        .split("\n")
-        .filter(Boolean),
-
-      requiredDocuments: form.documents.filter(Boolean),
-
-      website: form.website,
-      email: form.email,
-      phone: form.phone,
-
-      isPublished: form.status === "published",
-    };
-
-
-    const response = await fetch(
-      "http://localhost:4000/api/institution/programs",
-      {
-        method: mode === "create" ? "POST" : "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-
-    const data = await response.json();
-
-    console.log("SERVER RESPONSE:", data);
-
+    const data = await parseResponse(response);
 
     if (!response.ok) {
-      throw new Error(data.message || "Erreur");
-    }
+      if (response.status === 401) {
+        setMessage({
+          type: "error",
+          text: "Votre session a expiré. Veuillez vous reconnecter.",
+        });
 
+        return;
+      }
+
+      if (response.status === 403) {
+        setMessage({
+          type: "error",
+          text: "Vous n'avez pas l'autorisation d'effectuer cette action.",
+        });
+
+        return;
+      }
+
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          `Erreur ${response.status}: impossible d'enregistrer le programme.`
+      );
+    }
 
     setMessage({
       type: "success",
       text:
         mode === "create"
-          ? "Programme créé avec succès"
-          : "Programme modifié avec succès",
+          ? finalStatus === "published"
+            ? "Programme publié avec succès."
+            : "Brouillon enregistré avec succès."
+          : "Programme modifié avec succès.",
     });
 
+    setTimeout(() => {
+      router.push("/institution/programs");
+      router.refresh();
+    }, 500);
+  } catch (error) {
+    console.error("PROGRAM SAVE ERROR:", error);
 
-    router.push("/institution/programs");
-
-
-  } catch (error: any) {
-
-    console.error(error);
-
-    setMessage({
-      type: "error",
-      text: error.message,
-    });
-
+    if (error instanceof TypeError) {
+      setMessage({
+        type: "error",
+        text:
+          "Impossible de contacter le serveur. Vérifiez votre connexion.",
+      });
+    } else {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Une erreur est survenue lors de l'enregistrement.",
+      });
+    }
   } finally {
-
     setSaving(false);
-
   }
 };
+  const saveDraft = () => {
+    submit(undefined, "draft");
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /* Render                                                                   */
+  /* ------------------------------------------------------------------------ */
+
   return (
     <>
       <Header
         title={
-          mode === "create" ? "Publier un programme" : "Modifier le programme"
+          mode === "create"
+            ? "Publier un programme"
+            : "Modifier le programme"
         }
       />
 
       <div className="mx-auto max-w-7xl space-y-8">
+        {/* Page heading */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-3">
-              <Badge tone="red">Nouveau programme</Badge>
+              <Badge tone="red">
+                {mode === "create"
+                  ? "Nouveau programme"
+                  : "Modification"}
+              </Badge>
+
               <Badge tone="red">Institution</Badge>
             </div>
 
@@ -344,14 +527,14 @@ const submit = async (e: React.FormEvent) => {
             </h1>
 
             <p className="mt-3 max-w-3xl text-ink-soft">
-              Définissez les informations de votre programme, les montants, les
-              critères d'éligibilité, les dates importantes ainsi que les
+              Définissez les informations de votre programme, les montants,
+              les critères d'éligibilité, les dates importantes ainsi que les
               coordonnées de contact avant la publication.
             </p>
           </div>
 
           <Link href="/institution/programs">
-            <Button variant="outline">
+            <Button type="button" variant="outline">
               <ArrowLeft size={18} />
               Retour
             </Button>
@@ -359,17 +542,22 @@ const submit = async (e: React.FormEvent) => {
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-          <form className="space-y-8" onSubmit={submit}>
-            {/* General information */}
-            <Card hover={false}>
+          <form className="space-y-8" onSubmit={(e) => submit(e)}>
+            {/* ---------------------------------------------------------------- */}
+            {/* General information                                              */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Landmark size={22} />
                 </div>
+
                 <div>
                   <h2 className="font-display text-2xl text-ink">
                     Informations générales
                   </h2>
+
                   <p className="text-sm text-ink-soft">
                     Ces informations seront visibles par les entrepreneures.
                   </p>
@@ -378,6 +566,7 @@ const submit = async (e: React.FormEvent) => {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <Input
+                  required
                   label="Nom du programme"
                   placeholder="Programme Innovation Femmes 2026"
                   value={form.title}
@@ -385,6 +574,7 @@ const submit = async (e: React.FormEvent) => {
                 />
 
                 <Select
+                  required
                   label="Catégorie"
                   value={form.category}
                   onChange={(e) => update("category", e.target.value)}
@@ -393,14 +583,18 @@ const submit = async (e: React.FormEvent) => {
                   <option value="GOVERNMENT_GRANT">Subvention</option>
                   <option value="BANK_LOAN">Prêt bancaire</option>
                   <option value="ISLAMIC_FINANCE">Finance islamique</option>
-                  <option value="STARTUP_FUNDING">Financement Startup</option>
+                  <option value="STARTUP_FUNDING">
+                    Financement Startup
+                  </option>
                 </Select>
 
                 <Input
                   label="Courte description"
                   placeholder="Une phrase qui résume le programme"
                   value={form.shortDescription}
-                  onChange={(e) => update("shortDescription", e.target.value)}
+                  onChange={(e) =>
+                    update("shortDescription", e.target.value)
+                  }
                 />
 
                 <div className="md:col-span-2">
@@ -408,12 +602,15 @@ const submit = async (e: React.FormEvent) => {
                     <span className="mb-1.5 block text-sm font-medium text-ink-soft">
                       Description complète
                     </span>
+
                     <textarea
                       rows={6}
                       className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                       placeholder="Décrivez les objectifs du programme, les avantages, les conditions de participation et toutes les informations utiles."
                       value={form.description}
-                      onChange={(e) => update("description", e.target.value)}
+                      onChange={(e) =>
+                        update("description", e.target.value)
+                      }
                     />
                   </label>
                 </div>
@@ -424,16 +621,16 @@ const submit = async (e: React.FormEvent) => {
                   onChange={(e) => update("sector", e.target.value)}
                 >
                   <option value="">Sélectionner...</option>
-                  <option>Agriculture</option>
-                  <option>Artisanat</option>
-                  <option>Commerce</option>
-                  <option>Éducation</option>
-                  <option>Énergie</option>
-                  <option>Industrie</option>
-                  <option>Numérique</option>
-                  <option>Santé</option>
-                  <option>Services</option>
-                  <option>Tourisme</option>
+                  <option value="Agriculture">Agriculture</option>
+                  <option value="Artisanat">Artisanat</option>
+                  <option value="Commerce">Commerce</option>
+                  <option value="Éducation">Éducation</option>
+                  <option value="Énergie">Énergie</option>
+                  <option value="Industrie">Industrie</option>
+                  <option value="Numérique">Numérique</option>
+                  <option value="Santé">Santé</option>
+                  <option value="Services">Services</option>
+                  <option value="Tourisme">Tourisme</option>
                 </Select>
 
                 <Select
@@ -441,25 +638,34 @@ const submit = async (e: React.FormEvent) => {
                   value={form.region}
                   onChange={(e) => update("region", e.target.value)}
                 >
-                  <option>Algérie</option>
-                  <option>Toutes les wilayas</option>
-                  <option>Nord</option>
-                  <option>Hauts Plateaux</option>
-                  <option>Sud</option>
+                  <option value="Algérie">Algérie</option>
+                  <option value="Toutes les wilayas">
+                    Toutes les wilayas
+                  </option>
+                  <option value="Nord">Nord</option>
+                  <option value="Hauts Plateaux">
+                    Hauts Plateaux
+                  </option>
+                  <option value="Sud">Sud</option>
                 </Select>
               </div>
             </Card>
 
-            {/* Funding details */}
-            <Card hover={false}>
+            {/* ---------------------------------------------------------------- */}
+            {/* Funding                                                           */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <DollarSign size={22} />
                 </div>
+
                 <div>
                   <h2 className="font-display text-2xl text-ink">
                     Financement
                   </h2>
+
                   <p className="text-sm text-ink-soft">
                     Définissez les montants proposés par votre institution.
                   </p>
@@ -470,7 +676,9 @@ const submit = async (e: React.FormEvent) => {
                 <Select
                   label="Type de financement"
                   value={form.fundingType}
-                  onChange={(e) => update("fundingType", e.target.value)}
+                  onChange={(e) =>
+                    update("fundingType", e.target.value)
+                  }
                 >
                   <option value="">Sélectionner un type</option>
                   <option value="grant">Subvention</option>
@@ -484,39 +692,53 @@ const submit = async (e: React.FormEvent) => {
                   value={form.currency}
                   onChange={(e) => update("currency", e.target.value)}
                 >
-                  <option>DZD</option>
-                  <option>EUR</option>
-                  <option>USD</option>
+                  <option value="DZD">DZD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="USD">USD</option>
                 </Select>
 
                 <Input
                   type="number"
+                  min="0"
                   label="Montant minimum"
                   placeholder="100000"
                   value={form.minAmount}
-                  onChange={(e) => update("minAmount", e.target.value)}
+                  onChange={(e) =>
+                    update("minAmount", e.target.value)
+                  }
                 />
 
                 <Input
                   type="number"
+                  min="0"
                   label="Montant maximum"
                   placeholder="1000000"
                   value={form.maxAmount}
-                  onChange={(e) => update("maxAmount", e.target.value)}
+                  onChange={(e) =>
+                    update("maxAmount", e.target.value)
+                  }
                 />
               </div>
             </Card>
 
-            {/* Calendar */}
-            <Card hover={false}>
+            {/* ---------------------------------------------------------------- */}
+            {/* Calendar                                                          */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Calendar size={22} />
                 </div>
+
                 <div>
-                  <h2 className="font-display text-2xl text-ink">Calendrier</h2>
+                  <h2 className="font-display text-2xl text-ink">
+                    Calendrier
+                  </h2>
+
                   <p className="text-sm text-ink-soft">
-                    Définissez la période pendant laquelle les candidatures seront acceptées.
+                    Définissez la période pendant laquelle les candidatures
+                    seront acceptées.
                   </p>
                 </div>
               </div>
@@ -526,28 +748,37 @@ const submit = async (e: React.FormEvent) => {
                   type="date"
                   label="Ouverture des candidatures"
                   value={form.openingDate}
-                  onChange={(e) => update("openingDate", e.target.value)}
+                  onChange={(e) =>
+                    update("openingDate", e.target.value)
+                  }
                 />
 
                 <Input
                   type="date"
                   label="Date limite"
                   value={form.closingDate}
-                  onChange={(e) => update("closingDate", e.target.value)}
+                  onChange={(e) =>
+                    update("closingDate", e.target.value)
+                  }
                 />
               </div>
             </Card>
 
-            {/* Eligibility */}
-            <Card hover={false}>
+            {/* ---------------------------------------------------------------- */}
+            {/* Eligibility                                                       */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Users size={22} />
                 </div>
+
                 <div>
                   <h2 className="font-display text-2xl text-ink">
                     Conditions d'éligibilité
                   </h2>
+
                   <p className="text-sm text-ink-soft">
                     Décrivez les critères et le public visé par ce programme.
                   </p>
@@ -559,12 +790,15 @@ const submit = async (e: React.FormEvent) => {
                   <span className="mb-1.5 block text-sm font-medium text-ink-soft">
                     Public cible
                   </span>
+
                   <textarea
                     rows={4}
                     className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                     placeholder="Exemple : Femmes entrepreneures, startups innovantes, PME..."
                     value={form.targetAudience}
-                    onChange={(e) => update("targetAudience", e.target.value)}
+                    onChange={(e) =>
+                      update("targetAudience", e.target.value)
+                    }
                   />
                 </label>
 
@@ -572,6 +806,7 @@ const submit = async (e: React.FormEvent) => {
                   <span className="mb-1.5 block text-sm font-medium text-ink-soft">
                     Critères d'éligibilité
                   </span>
+
                   <textarea
                     rows={6}
                     className="w-full rounded-xl border border-sand-200 bg-white px-4 py-3 text-[15px] text-ink placeholder:text-ink-soft/50 transition focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
@@ -587,16 +822,21 @@ const submit = async (e: React.FormEvent) => {
               </div>
             </Card>
 
-            {/* Required documents */}
-            <Card hover={false}>
+            {/* ---------------------------------------------------------------- */}
+            {/* Documents                                                         */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <FileText size={22} />
                 </div>
+
                 <div>
                   <h2 className="font-display text-2xl text-ink">
                     Documents requis
                   </h2>
+
                   <p className="text-sm text-ink-soft">
                     Ajoutez les documents nécessaires pour la candidature.
                   </p>
@@ -609,12 +849,17 @@ const submit = async (e: React.FormEvent) => {
                     key={index}
                     className="flex items-center gap-3 rounded-xl border border-sand-200 bg-sand-50 p-4"
                   >
-                    <FileText size={18} className="text-ink-soft" />
+                    <FileText
+                      size={18}
+                      className="shrink-0 text-ink-soft"
+                    />
 
                     <input
                       type="text"
                       value={document}
-                      onChange={(e) => updateDocument(index, e.target.value)}
+                      onChange={(e) =>
+                        updateDocument(index, e.target.value)
+                      }
                       placeholder={`Document ${index + 1}`}
                       className="flex-1 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-red-500"
                     />
@@ -642,28 +887,37 @@ const submit = async (e: React.FormEvent) => {
               </div>
             </Card>
 
-            {/* Contact */}
-            <Card hover={false}>
+            {/* ---------------------------------------------------------------- */}
+            {/* Contact                                                           */}
+            {/* ---------------------------------------------------------------- */}
+
+            <Card>
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                   <Mail size={22} />
                 </div>
+
                 <div>
                   <h2 className="font-display text-2xl text-ink">
                     Coordonnées de contact
                   </h2>
+
                   <p className="text-sm text-ink-soft">
-                    Les entrepreneures utiliseront ces informations pour vous contacter.
+                    Les entrepreneures utiliseront ces informations pour vous
+                    contacter.
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
                 <Input
+                  type="url"
                   label="Site web"
                   placeholder="https://..."
                   value={form.website}
-                  onChange={(e) => update("website", e.target.value)}
+                  onChange={(e) =>
+                    update("website", e.target.value)
+                  }
                 />
 
                 <Input
@@ -675,6 +929,7 @@ const submit = async (e: React.FormEvent) => {
                 />
 
                 <Input
+                  type="tel"
                   label="Téléphone"
                   placeholder="+213 ..."
                   value={form.phone}
@@ -685,7 +940,10 @@ const submit = async (e: React.FormEvent) => {
                   label="Statut"
                   value={form.status}
                   onChange={(e) =>
-                    update("status", e.target.value as "draft" | "published")
+                    update(
+                      "status",
+                      e.target.value as "draft" | "published"
+                    )
                   }
                 >
                   <option value="draft">Brouillon</option>
@@ -694,12 +952,16 @@ const submit = async (e: React.FormEvent) => {
               </div>
             </Card>
 
-            {/* Actions */}
+            {/* ---------------------------------------------------------------- */}
+            {/* Actions                                                           */}
+            {/* ---------------------------------------------------------------- */}
+
             <div className="flex flex-col-reverse gap-3 border-t border-sand-200 pt-6 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="rounded-xl border border-sand-300 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-sand-50"
+                disabled={saving}
+                className="rounded-xl border border-sand-300 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Annuler
               </button>
@@ -710,7 +972,14 @@ const submit = async (e: React.FormEvent) => {
                 disabled={saving}
                 className="rounded-xl border border-sand-300 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Enregistrer comme brouillon
+                {saving ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 size={17} className="animate-spin" />
+                    Enregistrement...
+                  </span>
+                ) : (
+                  "Enregistrer comme brouillon"
+                )}
               </button>
 
               <button
@@ -721,13 +990,18 @@ const submit = async (e: React.FormEvent) => {
                 {saving ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    {mode === "create" ? "Publication..." : "Enregistrement..."}
+                    {mode === "create"
+                      ? "Publication..."
+                      : "Enregistrement..."}
                   </>
                 ) : (
                   <>
                     <Send size={18} />
+
                     {mode === "create"
-                      ? "Publier le programme"
+                      ? form.status === "published"
+                        ? "Publier le programme"
+                        : "Créer le brouillon"
                       : "Enregistrer les modifications"}
                   </>
                 )}
@@ -735,15 +1009,21 @@ const submit = async (e: React.FormEvent) => {
             </div>
           </form>
 
-          {/* Preview */}
+          {/* ------------------------------------------------------------------ */}
+          {/* Preview                                                             */}
+          {/* ------------------------------------------------------------------ */}
+
           <aside className="sticky top-6 h-fit rounded-2xl border border-sand-200 bg-white p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-600">
                 <Eye size={18} />
               </div>
+
               <div>
                 <h3 className="font-bold text-ink">Aperçu</h3>
-                <p className="text-sm text-ink-soft">Vue publique du programme</p>
+                <p className="text-sm text-ink-soft">
+                  Vue publique du programme
+                </p>
               </div>
             </div>
 
@@ -752,6 +1032,7 @@ const submit = async (e: React.FormEvent) => {
                 <h4 className="text-lg font-bold text-ink">
                   {form.title || "Titre du programme"}
                 </h4>
+
                 <p className="mt-1 text-sm text-ink-soft">
                   {form.category || "Catégorie"}
                 </p>
@@ -771,26 +1052,29 @@ const submit = async (e: React.FormEvent) => {
               </div>
 
               <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <span className="text-ink-soft">Montant</span>
-                  <span className="font-semibold text-ink">
+
+                  <span className="text-right font-semibold text-ink">
                     {form.minAmount || form.maxAmount
-                      ? `${form.minAmount || "0"} - ${form.maxAmount || "?"} ${
-                          form.currency
-                        }`
+                      ? `${form.minAmount || "0"} - ${
+                          form.maxAmount || "?"
+                        } ${form.currency}`
                       : "-"}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <span className="text-ink-soft">Type</span>
-                  <span className="font-semibold text-ink">
+
+                  <span className="text-right font-semibold text-ink">
                     {form.fundingType || "-"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-ink-soft">Documents</span>
+
                   <span className="font-semibold text-ink">
                     {form.documents.filter(Boolean).length}
                   </span>
@@ -802,6 +1086,7 @@ const submit = async (e: React.FormEvent) => {
                   <CalendarDays size={16} />
                   Période
                 </div>
+
                 <p className="mt-2 text-sm text-red-900">
                   {form.openingDate || "Date début"} {" → "}
                   {form.closingDate || "Date fin"}
@@ -812,9 +1097,14 @@ const submit = async (e: React.FormEvent) => {
         </div>
       </div>
 
+      {/* -------------------------------------------------------------------- */}
+      {/* Message                                                               */}
+      {/* -------------------------------------------------------------------- */}
+
       {message && (
         <div
-          className={`fixed bottom-6 right-6 rounded-xl px-5 py-4 text-sm font-semibold shadow-lg ${
+          role="alert"
+          className={`fixed bottom-6 right-6 z-50 rounded-xl px-5 py-4 text-sm font-semibold shadow-lg ${
             message.type === "success"
               ? "bg-green-600 text-white"
               : "bg-red-600 text-white"

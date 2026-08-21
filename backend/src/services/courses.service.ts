@@ -4,23 +4,14 @@ import { prisma } from "../prisma";
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-async function getExpertProfileId(
-  userId: string
-): Promise<string> {
-  const expertProfile =
-    await prisma.expertProfile.findUnique({
-      where: {
-        userId,
-      },
-      select: {
-        id: true,
-      },
-    });
+async function getExpertProfileId(userId: string): Promise<string> {
+  const expertProfile = await prisma.expertProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
 
   if (!expertProfile) {
-    throw new Error(
-      "Profil experte introuvable."
-    );
+    throw new Error("Profil experte introuvable.");
   }
 
   return expertProfile.id;
@@ -36,24 +27,16 @@ function makeSlug(value: string): string {
     .replace(/-+/g, "-");
 }
 
-async function createUniqueSlug(
-  title: string
-): Promise<string> {
-  const baseSlug =
-    makeSlug(title) ||
-    `cours-${Date.now()}`;
+async function createUniqueSlug(title: string): Promise<string> {
+  const baseSlug = makeSlug(title) || `cours-${Date.now()}`;
 
   let slug = baseSlug;
   let counter = 1;
 
   while (
     await prisma.course.findUnique({
-      where: {
-        slug,
-      },
-      select: {
-        id: true,
-      },
+      where: { slug },
+      select: { id: true },
     })
   ) {
     slug = `${baseSlug}-${counter}`;
@@ -63,24 +46,16 @@ async function createUniqueSlug(
   return slug;
 }
 
-async function createUniqueArticleSlug(
-  title: string
-): Promise<string> {
-  const baseSlug =
-    makeSlug(title) ||
-    `article-${Date.now()}`;
+async function createUniqueArticleSlug(title: string): Promise<string> {
+  const baseSlug = makeSlug(title) || `article-${Date.now()}`;
 
   let slug = baseSlug;
   let counter = 1;
 
   while (
     await prisma.article.findUnique({
-      where: {
-        slug,
-      },
-      select: {
-        id: true,
-      },
+      where: { slug },
+      select: { id: true },
     })
   ) {
     slug = `${baseSlug}-${counter}`;
@@ -94,11 +69,8 @@ async function createUniqueArticleSlug(
 /* Courses                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export async function getMyCourses(
-  userId: string
-) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+export async function getMyCourses(userId: string) {
+  const expertProfileId = await getExpertProfileId(userId);
 
   return prisma.course.findMany({
     where: {
@@ -164,37 +136,82 @@ export async function getPublishedCourses() {
   });
 }
 
+/**
+ * Expert gets his own course, regardless of publication status.
+ */
 export async function getCourseById(
   courseId: string,
   userId: string
 ) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+  const expertProfileId = await getExpertProfileId(userId);
 
-  const course =
-    await prisma.course.findFirst({
-      where: {
-        id: courseId,
-        expertProfileId,
-      },
-      include: {
-        articles: {
-          orderBy: {
-            order: "asc",
-          },
-        },
-        videos: {
-          orderBy: {
-            order: "asc",
-          },
-        },
-        resources: {
-          orderBy: {
-            order: "asc",
-          },
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      expertProfileId,
+    },
+    include: {
+      articles: {
+        orderBy: {
+          order: "asc",
         },
       },
-    });
+      videos: {
+        orderBy: {
+          order: "asc",
+        },
+      },
+      resources: {
+        orderBy: {
+          order: "asc",
+        },
+      },
+    },
+  });
+
+  if (!course) {
+    throw new Error("Cours introuvable.");
+  }
+
+  return course;
+}
+
+/**
+ * Non-expert users can only access published courses.
+ */
+export async function getPublishedCourseById(courseId: string) {
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      isPublished: true,
+    },
+    include: {
+      articles: {
+        where: {
+          isPublished: true,
+        },
+        orderBy: {
+          order: "asc",
+        },
+      },
+      videos: {
+        where: {
+          isPublished: true,
+        },
+        orderBy: {
+          order: "asc",
+        },
+      },
+      resources: {
+        where: {
+          isPublished: true,
+        },
+        orderBy: {
+          order: "asc",
+        },
+      },
+    },
+  });
 
   if (!course) {
     throw new Error("Cours introuvable.");
@@ -215,11 +232,9 @@ export async function createCourse(
     isPublished?: boolean;
   }
 ) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+  const expertProfileId = await getExpertProfileId(userId);
 
-  const slug =
-    await createUniqueSlug(input.title);
+  const slug = await createUniqueSlug(input.title);
 
   return prisma.course.create({
     data: {
@@ -228,12 +243,9 @@ export async function createCourse(
       description: input.description,
       category: input.category,
       level: input.level,
-      durationMinutes:
-        input.durationMinutes ?? 0,
-      coverUrl:
-        input.coverUrl ?? null,
-      isPublished:
-        input.isPublished ?? false,
+      durationMinutes: input.durationMinutes ?? 0,
+      coverUrl: input.coverUrl ?? null,
+      isPublished: input.isPublished ?? false,
       expertProfileId,
     },
     include: {
@@ -257,16 +269,14 @@ export async function updateCourse(
     isPublished?: boolean;
   }
 ) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+  const expertProfileId = await getExpertProfileId(userId);
 
-  const existing =
-    await prisma.course.findFirst({
-      where: {
-        id: courseId,
-        expertProfileId,
-      },
-    });
+  const existing = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      expertProfileId,
+    },
+  });
 
   if (!existing) {
     throw new Error("Cours introuvable.");
@@ -275,12 +285,10 @@ export async function updateCourse(
   let slug = existing.slug;
 
   if (
-    input.title &&
-    input.title.trim() !==
-      existing.title.trim()
+    input.title !== undefined &&
+    input.title.trim() !== existing.title.trim()
   ) {
-    slug =
-      await createUniqueSlug(input.title);
+    slug = await createUniqueSlug(input.title);
   }
 
   return prisma.course.update({
@@ -305,10 +313,8 @@ export async function updateCourse(
         level: input.level,
       }),
 
-      ...(input.durationMinutes !==
-        undefined && {
-        durationMinutes:
-          input.durationMinutes,
+      ...(input.durationMinutes !== undefined && {
+        durationMinutes: input.durationMinutes,
       }),
 
       ...(input.coverUrl !== undefined && {
@@ -343,16 +349,14 @@ export async function deleteCourse(
   courseId: string,
   userId: string
 ) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+  const expertProfileId = await getExpertProfileId(userId);
 
-  const course =
-    await prisma.course.findFirst({
-      where: {
-        id: courseId,
-        expertProfileId,
-      },
-    });
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      expertProfileId,
+    },
+  });
 
   if (!course) {
     throw new Error("Cours introuvable.");
@@ -373,20 +377,18 @@ async function verifyCourseOwnership(
   courseId: string,
   userId: string
 ) {
-  const expertProfileId =
-    await getExpertProfileId(userId);
+  const expertProfileId = await getExpertProfileId(userId);
 
-  const course =
-    await prisma.course.findFirst({
-      where: {
-        id: courseId,
-        expertProfileId,
-      },
-      select: {
-        id: true,
-        category: true,
-      },
-    });
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      expertProfileId,
+    },
+    select: {
+      id: true,
+      category: true,
+    },
+  });
 
   if (!course) {
     throw new Error("Cours introuvable.");
@@ -406,10 +408,7 @@ export async function getArticles(
   courseId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
   return prisma.article.findMany({
     where: {
@@ -426,23 +425,17 @@ export async function getArticle(
   articleId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const article =
-    await prisma.article.findFirst({
-      where: {
-        id: articleId,
-        courseId,
-      },
-    });
+  const article = await prisma.article.findFirst({
+    where: {
+      id: articleId,
+      courseId,
+    },
+  });
 
   if (!article) {
-    throw new Error(
-      "Article introuvable."
-    );
+    throw new Error("Article introuvable.");
   }
 
   return article;
@@ -465,63 +458,46 @@ export async function createArticle(
   const {
     course,
     expertProfileId,
-  } = await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  } = await verifyCourseOwnership(courseId, userId);
 
-  const slug =
-    await createUniqueArticleSlug(
-      input.title
-    );
+  const slug = await createUniqueArticleSlug(input.title);
 
-  const lastArticle =
-    await prisma.article.findFirst({
-      where: {
-        courseId,
-      },
-      orderBy: {
-        order: "desc",
-      },
-      select: {
-        order: true,
-      },
-    });
+  const lastArticle = await prisma.article.findFirst({
+    where: {
+      courseId,
+    },
+    orderBy: {
+      order: "desc",
+    },
+    select: {
+      order: true,
+    },
+  });
 
-  const order =
-    (lastArticle?.order ?? -1) + 1;
+  const order = (lastArticle?.order ?? -1) + 1;
 
-  const article =
-    await prisma.article.create({
-      data: {
-        slug,
-        title: input.title,
-        excerpt: input.excerpt ?? "",
-        content: input.content,
-        category:
-          input.category ??
-          course.category,
-        coverUrl:
-          input.coverUrl ?? null,
-        pdfUrl:
-          input.pdfUrl ?? null,
-        readTimeMinutes:
-          input.readTimeMinutes ?? 5,
-        isPublished:
-          input.isPublished ?? false,
-        publishedAt:
-          input.isPublished
-            ? new Date()
-            : null,
-        order,
-        expertProfileId,
-        courseId,
-      },
-    });
+  const article = await prisma.article.create({
+    data: {
+      slug,
+      title: input.title,
+      excerpt: input.excerpt ?? "",
+      content: input.content,
+      category: input.category ?? course.category,
+      coverUrl: input.coverUrl ?? null,
 
-  await updateCourseLessonCount(
-    courseId
-  );
+      // This is now expected to be a B2 URL.
+      pdfUrl: input.pdfUrl ?? null,
+
+      readTimeMinutes: input.readTimeMinutes ?? 5,
+      isPublished: input.isPublished ?? false,
+      publishedAt: input.isPublished ? new Date() : null,
+      order,
+      expertProfileId,
+      courseId,
+    },
+  });
+
+  await updateCourseLessonCount(courseId);
 
   return article;
 }
@@ -542,36 +518,26 @@ export async function updateArticle(
     order?: number;
   }
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const existing =
-    await prisma.article.findFirst({
-      where: {
-        id: articleId,
-        courseId,
-      },
-    });
+  const existing = await prisma.article.findFirst({
+    where: {
+      id: articleId,
+      courseId,
+    },
+  });
 
   if (!existing) {
-    throw new Error(
-      "Article introuvable."
-    );
+    throw new Error("Article introuvable.");
   }
 
   let slug = existing.slug;
 
   if (
-    input.title &&
-    input.title.trim() !==
-      existing.title.trim()
+    input.title !== undefined &&
+    input.title.trim() !== existing.title.trim()
   ) {
-    slug =
-      await createUniqueArticleSlug(
-        input.title
-      );
+    slug = await createUniqueArticleSlug(input.title);
   }
 
   return prisma.article.update({
@@ -604,20 +570,15 @@ export async function updateArticle(
         pdfUrl: input.pdfUrl,
       }),
 
-      ...(input.readTimeMinutes !==
-        undefined && {
-        readTimeMinutes:
-          input.readTimeMinutes,
+      ...(input.readTimeMinutes !== undefined && {
+        readTimeMinutes: input.readTimeMinutes,
       }),
 
       ...(input.isPublished !== undefined && {
-        isPublished:
-          input.isPublished,
-        publishedAt:
-          input.isPublished
-            ? existing.publishedAt ??
-              new Date()
-            : null,
+        isPublished: input.isPublished,
+        publishedAt: input.isPublished
+          ? existing.publishedAt ?? new Date()
+          : null,
       }),
 
       ...(input.order !== undefined && {
@@ -632,35 +593,26 @@ export async function deleteArticle(
   articleId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const article =
-    await prisma.article.findFirst({
-      where: {
-        id: articleId,
-        courseId,
-      },
-    });
+  const article = await prisma.article.findFirst({
+    where: {
+      id: articleId,
+      courseId,
+    },
+  });
 
   if (!article) {
-    throw new Error(
-      "Article introuvable."
-    );
+    throw new Error("Article introuvable.");
   }
 
-  const result =
-    await prisma.article.delete({
-      where: {
-        id: articleId,
-      },
-    });
+  const result = await prisma.article.delete({
+    where: {
+      id: articleId,
+    },
+  });
 
-  await updateCourseLessonCount(
-    courseId
-  );
+  await updateCourseLessonCount(courseId);
 
   return result;
 }
@@ -673,10 +625,7 @@ export async function getVideos(
   courseId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
   return prisma.video.findMany({
     where: {
@@ -693,23 +642,17 @@ export async function getVideo(
   videoId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const video =
-    await prisma.video.findFirst({
-      where: {
-        id: videoId,
-        courseId,
-      },
-    });
+  const video = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      courseId,
+    },
+  });
 
   if (!video) {
-    throw new Error(
-      "Vidéo introuvable."
-    );
+    throw new Error("Vidéo introuvable.");
   }
 
   return video;
@@ -724,6 +667,8 @@ export async function createVideo(
     durationSeconds?: number;
     thumbnailUrl?: string | null;
     videoUrl?: string | null;
+    fileSizeBytes?: number | null;
+    mimeType?: string | null;
     category?: string;
     isPublished?: boolean;
   }
@@ -731,53 +676,49 @@ export async function createVideo(
   const {
     course,
     expertProfileId,
-  } = await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  } = await verifyCourseOwnership(courseId, userId);
 
-  const lastVideo =
-    await prisma.video.findFirst({
-      where: {
-        courseId,
-      },
-      orderBy: {
-        order: "desc",
-      },
-      select: {
-        order: true,
-      },
-    });
+  const lastVideo = await prisma.video.findFirst({
+    where: {
+      courseId,
+    },
+    orderBy: {
+      order: "desc",
+    },
+    select: {
+      order: true,
+    },
+  });
 
-  const order =
-    (lastVideo?.order ?? -1) + 1;
+  const order = (lastVideo?.order ?? -1) + 1;
 
-  const video =
-    await prisma.video.create({
-      data: {
-        title: input.title,
-        description:
-          input.description ?? "",
-        durationSeconds:
-          input.durationSeconds ?? 0,
-        thumbnailUrl:
-          input.thumbnailUrl ?? null,
-        videoUrl:
-          input.videoUrl ?? null,
-        category:
-          input.category ??
-          course.category,
-        isPublished:
-          input.isPublished ?? false,
-        order,
-        expertProfileId,
-        courseId,
-      },
-    });
+  const video = await prisma.video.create({
+    data: {
+      title: input.title,
+      description: input.description ?? "",
+      durationSeconds: input.durationSeconds ?? 0,
+      thumbnailUrl: input.thumbnailUrl ?? null,
 
-  await updateCourseLessonCount(
-    courseId
-  );
+      // B2 URL
+      videoUrl: input.videoUrl ?? null,
+
+      fileSizeBytes:
+        input.fileSizeBytes !== undefined &&
+        input.fileSizeBytes !== null
+          ? BigInt(input.fileSizeBytes)
+          : null,
+
+      mimeType: input.mimeType ?? null,
+
+      category: input.category ?? course.category,
+      isPublished: input.isPublished ?? false,
+      order,
+      expertProfileId,
+      courseId,
+    },
+  });
+
+  await updateCourseLessonCount(courseId);
 
   return video;
 }
@@ -792,28 +733,24 @@ export async function updateVideo(
     durationSeconds?: number;
     thumbnailUrl?: string | null;
     videoUrl?: string | null;
+    fileSizeBytes?: number | null;
+    mimeType?: string | null;
     category?: string;
     isPublished?: boolean;
     order?: number;
   }
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const existing =
-    await prisma.video.findFirst({
-      where: {
-        id: videoId,
-        courseId,
-      },
-    });
+  const existing = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      courseId,
+    },
+  });
 
   if (!existing) {
-    throw new Error(
-      "Vidéo introuvable."
-    );
+    throw new Error("Vidéo introuvable.");
   }
 
   return prisma.video.update({
@@ -826,24 +763,30 @@ export async function updateVideo(
       }),
 
       ...(input.description !== undefined && {
-        description:
-          input.description,
+        description: input.description,
       }),
 
-      ...(input.durationSeconds !==
-        undefined && {
-        durationSeconds:
-          input.durationSeconds,
+      ...(input.durationSeconds !== undefined && {
+        durationSeconds: input.durationSeconds,
       }),
 
-      ...(input.thumbnailUrl !==
-        undefined && {
-        thumbnailUrl:
-          input.thumbnailUrl,
+      ...(input.thumbnailUrl !== undefined && {
+        thumbnailUrl: input.thumbnailUrl,
       }),
 
       ...(input.videoUrl !== undefined && {
         videoUrl: input.videoUrl,
+      }),
+
+      ...(input.fileSizeBytes !== undefined && {
+        fileSizeBytes:
+          input.fileSizeBytes === null
+            ? null
+            : BigInt(input.fileSizeBytes),
+      }),
+
+      ...(input.mimeType !== undefined && {
+        mimeType: input.mimeType,
       }),
 
       ...(input.category !== undefined && {
@@ -851,8 +794,7 @@ export async function updateVideo(
       }),
 
       ...(input.isPublished !== undefined && {
-        isPublished:
-          input.isPublished,
+        isPublished: input.isPublished,
       }),
 
       ...(input.order !== undefined && {
@@ -867,35 +809,26 @@ export async function deleteVideo(
   videoId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const video =
-    await prisma.video.findFirst({
-      where: {
-        id: videoId,
-        courseId,
-      },
-    });
+  const video = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      courseId,
+    },
+  });
 
   if (!video) {
-    throw new Error(
-      "Vidéo introuvable."
-    );
+    throw new Error("Vidéo introuvable.");
   }
 
-  const result =
-    await prisma.video.delete({
-      where: {
-        id: videoId,
-      },
-    });
+  const result = await prisma.video.delete({
+    where: {
+      id: videoId,
+    },
+  });
 
-  await updateCourseLessonCount(
-    courseId
-  );
+  await updateCourseLessonCount(courseId);
 
   return result;
 }
@@ -908,10 +841,7 @@ export async function getResources(
   courseId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
   return prisma.resource.findMany({
     where: {
@@ -928,23 +858,17 @@ export async function getResource(
   resourceId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const resource =
-    await prisma.resource.findFirst({
-      where: {
-        id: resourceId,
-        courseId,
-      },
-    });
+  const resource = await prisma.resource.findFirst({
+    where: {
+      id: resourceId,
+      courseId,
+    },
+  });
 
   if (!resource) {
-    throw new Error(
-      "Ressource introuvable."
-    );
+    throw new Error("Ressource introuvable.");
   }
 
   return resource;
@@ -965,57 +889,47 @@ export async function createResource(
 ) {
   const {
     expertProfileId,
-  } = await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  } = await verifyCourseOwnership(courseId, userId);
 
-  const lastResource =
-    await prisma.resource.findFirst({
-      where: {
-        courseId,
-      },
-      orderBy: {
-        order: "desc",
-      },
-      select: {
-        order: true,
-      },
-    });
+  const lastResource = await prisma.resource.findFirst({
+    where: {
+      courseId,
+    },
+    orderBy: {
+      order: "desc",
+    },
+    select: {
+      order: true,
+    },
+  });
 
-  const order =
-    (lastResource?.order ?? -1) + 1;
+  const order = (lastResource?.order ?? -1) + 1;
 
-  const resource =
-    await prisma.resource.create({
-      data: {
-        title: input.title,
-        description:
-          input.description ?? "",
-        type: input.type,
-        fileUrl:
-          input.fileUrl ?? null,
-        coverUrl:
-          input.coverUrl ?? null,
-        fileSizeBytes:
-          input.fileSizeBytes !==
-            undefined &&
-          input.fileSizeBytes !== null
-            ? BigInt(
-                input.fileSizeBytes
-              )
-            : null,
-        isPublished:
-          input.isPublished ?? false,
-        order,
-        expertProfileId,
-        courseId,
-      },
-    });
+  const resource = await prisma.resource.create({
+    data: {
+      title: input.title,
+      description: input.description ?? "",
+      type: input.type,
 
-  await updateCourseLessonCount(
-    courseId
-  );
+      // B2 URL
+      fileUrl: input.fileUrl ?? null,
+
+      coverUrl: input.coverUrl ?? null,
+
+      fileSizeBytes:
+        input.fileSizeBytes !== undefined &&
+        input.fileSizeBytes !== null
+          ? BigInt(input.fileSizeBytes)
+          : null,
+
+      isPublished: input.isPublished ?? false,
+      order,
+      expertProfileId,
+      courseId,
+    },
+  });
+
+  await updateCourseLessonCount(courseId);
 
   return resource;
 }
@@ -1035,23 +949,17 @@ export async function updateResource(
     order?: number;
   }
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const existing =
-    await prisma.resource.findFirst({
-      where: {
-        id: resourceId,
-        courseId,
-      },
-    });
+  const existing = await prisma.resource.findFirst({
+    where: {
+      id: resourceId,
+      courseId,
+    },
+  });
 
   if (!existing) {
-    throw new Error(
-      "Ressource introuvable."
-    );
+    throw new Error("Ressource introuvable.");
   }
 
   return prisma.resource.update({
@@ -1064,8 +972,7 @@ export async function updateResource(
       }),
 
       ...(input.description !== undefined && {
-        description:
-          input.description,
+        description: input.description,
       }),
 
       ...(input.type !== undefined && {
@@ -1080,19 +987,15 @@ export async function updateResource(
         coverUrl: input.coverUrl,
       }),
 
-      ...(input.fileSizeBytes !==
-        undefined && {
+      ...(input.fileSizeBytes !== undefined && {
         fileSizeBytes:
           input.fileSizeBytes === null
             ? null
-            : BigInt(
-                input.fileSizeBytes
-              ),
+            : BigInt(input.fileSizeBytes),
       }),
 
       ...(input.isPublished !== undefined && {
-        isPublished:
-          input.isPublished,
+        isPublished: input.isPublished,
       }),
 
       ...(input.order !== undefined && {
@@ -1107,35 +1010,26 @@ export async function deleteResource(
   resourceId: string,
   userId: string
 ) {
-  await verifyCourseOwnership(
-    courseId,
-    userId
-  );
+  await verifyCourseOwnership(courseId, userId);
 
-  const resource =
-    await prisma.resource.findFirst({
-      where: {
-        id: resourceId,
-        courseId,
-      },
-    });
+  const resource = await prisma.resource.findFirst({
+    where: {
+      id: resourceId,
+      courseId,
+    },
+  });
 
   if (!resource) {
-    throw new Error(
-      "Ressource introuvable."
-    );
+    throw new Error("Ressource introuvable.");
   }
 
-  const result =
-    await prisma.resource.delete({
-      where: {
-        id: resourceId,
-      },
-    });
+  const result = await prisma.resource.delete({
+    where: {
+      id: resourceId,
+    },
+  });
 
-  await updateCourseLessonCount(
-    courseId
-  );
+  await updateCourseLessonCount(courseId);
 
   return result;
 }
@@ -1144,30 +1038,18 @@ export async function deleteResource(
 /* Lesson count                                                               */
 /* -------------------------------------------------------------------------- */
 
-async function updateCourseLessonCount(
-  courseId: string
-) {
-  const [
-    articles,
-    videos,
-    resources,
-  ] = await Promise.all([
+async function updateCourseLessonCount(courseId: string) {
+  const [articles, videos, resources] = await Promise.all([
     prisma.article.count({
-      where: {
-        courseId,
-      },
+      where: { courseId },
     }),
 
     prisma.video.count({
-      where: {
-        courseId,
-      },
+      where: { courseId },
     }),
 
     prisma.resource.count({
-      where: {
-        courseId,
-      },
+      where: { courseId },
     }),
   ]);
 
@@ -1176,64 +1058,78 @@ async function updateCourseLessonCount(
       id: courseId,
     },
     data: {
-      lessonCount:
-        articles +
-        videos +
-        resources,
+      lessonCount: articles + videos + resources,
     },
   });
 }
-export async function getPublishedCourseById(courseId: string) {
-  const course = await prisma.course.findFirst({
-    where: { id: courseId, isPublished: true },
-    include: {
-      articles: { where: { isPublished: true }, orderBy: { order: "asc" } },
-      videos: { where: { isPublished: true }, orderBy: { order: "asc" } },
-      resources: { where: { isPublished: true }, orderBy: { order: "asc" } },
-    },
-  });
 
-  if (!course) {
-    throw new Error("Cours introuvable.");
-  }
+/* -------------------------------------------------------------------------- */
+/* Published lesson                                                           */
+/* -------------------------------------------------------------------------- */
 
-  return course;
-}
 export async function getPublishedLesson(
   courseId: string,
   lessonId: string
 ) {
   const course = await prisma.course.findFirst({
-    where: { id: courseId, isPublished: true },
-    select: { id: true },
+    where: {
+      id: courseId,
+      isPublished: true,
+    },
+    select: {
+      id: true,
+    },
   });
 
   if (!course) {
     throw new Error("Cours introuvable.");
   }
 
-  const article = await prisma.article.findFirst({
-    where: { id: lessonId, courseId, isPublished: true },
-  });
+  const [article, video, resource] = await Promise.all([
+    prisma.article.findFirst({
+      where: {
+        id: lessonId,
+        courseId,
+        isPublished: true,
+      },
+    }),
+
+    prisma.video.findFirst({
+      where: {
+        id: lessonId,
+        courseId,
+        isPublished: true,
+      },
+    }),
+
+    prisma.resource.findFirst({
+      where: {
+        id: lessonId,
+        courseId,
+        isPublished: true,
+      },
+    }),
+  ]);
 
   if (article) {
-    return { type: "article" as const, data: article };
+    return {
+      type: "article" as const,
+      data: article,
+    };
   }
-
-  const video = await prisma.video.findFirst({
-    where: { id: lessonId, courseId, isPublished: true },
-  });
 
   if (video) {
-    return { type: "video" as const, data: video };
+    return {
+      type: "video" as const,
+      data: video,
+    };
   }
 
-  const resource = await prisma.resource.findFirst({
-    where: { id: lessonId, courseId, isPublished: true },
-  });
-
   if (resource) {
-    return { type: "resource" as const, data: resource };
+    return {
+      type: "resource" as const,
+      data: resource,
+    };
   }
 
   throw new Error("Leçon introuvable.");

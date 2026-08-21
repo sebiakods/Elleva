@@ -1,21 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { Role } from '@prisma/client';
+import { Request, Response, NextFunction } from "express";
+import { Role } from "@prisma/client";
+import { verifyAccessToken } from "../services/token.service";
 
-/**
- * Shape of the decoded JWT payload, based on how your tokens are signed
- * (see the AUTH DEBUG log: sub, email, role, name, iat, exp).
- */
-interface JwtPayload {
-  sub: string;
-  email: string;
-  role: Role;
-  name: string;
-  iat: number;
-  exp: number;
-}
-
-// Augment Express's Request type so req.user is typed everywhere.
 declare global {
   namespace Express {
     interface Request {
@@ -29,34 +15,23 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
+export function authenticate(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const token =
+    req.cookies?.accessToken;
 
-if (!JWT_SECRET) {
-  // Fail fast at boot rather than silently accepting unverifiable tokens.
-  throw new Error('JWT_SECRET is not set in environment variables');
-}
-
-/**
- * Verifies the Bearer token on the Authorization header and populates
- * req.user. Responds 401 if the header is missing/malformed or the token
- * is invalid/expired.
- */
-export function authenticate(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Missing or malformed Authorization header' });
+  if (!token) {
+    return res.status(401).json({
+      message: "Authentication required",
+    });
   }
 
-const token = authHeader.slice('Bearer '.length).trim();
-
-
-console.log("AUTH HEADER:", authHeader);
-console.log("TOKEN USED:", token);
-
-
-try {
-    const decoded = jwt.verify(token, JWT_SECRET as string) as JwtPayload;
+  try {
+    const decoded =
+      verifyAccessToken(token);
 
     req.user = {
       id: decoded.sub,
@@ -65,29 +40,14 @@ try {
       name: decoded.name,
     };
 
-    return next();
-  } catch (error) {
-  console.error("JWT VERIFY ERROR:", error);
-
-  if (error instanceof jwt.TokenExpiredError) {
+    next();
+  } catch {
     return res.status(401).json({
-      message: "Token expired",
+      message: "Invalid or expired token",
     });
   }
-
-  if (error instanceof jwt.JsonWebTokenError) {
-    return res.status(401).json({
-      message: error.message, // e.g. "invalid signature", "jwt malformed"
-    });
-  }
-
-  return res.status(401).json({
-    message: "Invalid token",
-  });
-}
 }
 
-export default authenticate;
 export function authorize(...roles: Role[]) {
   return (
     req: Request,
@@ -109,3 +69,5 @@ export function authorize(...roles: Role[]) {
     next();
   };
 }
+
+export default authenticate;

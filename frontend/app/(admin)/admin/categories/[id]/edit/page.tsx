@@ -42,37 +42,40 @@ export default function EditCategoryPage() {
     seoDescription: "",
   });
 
-  useEffect(() => {
-    async function loadCategory() {
-      try {
-        const token = localStorage.getItem("accessToken");
-        const res = await fetch(`${API}/categories/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error("Impossible de charger la catégorie.");
-        const data = await res.json();
+useEffect(() => {
+  async function loadCategory() {
+    try {
+      const res = await fetch(`${API}/categories/${id}`, {
+        credentials: "include",
+      });
 
-        setForm({
-          name: data.name ?? "",
-          slug: data.slug ?? "",
-          description: data.description ?? "",
-          image: data.image ?? "",
-          icon: data.icon ?? "",
-          color: data.color ?? "#9C0E4A",
-          status: data.status ?? "active",
-          featured: data.featured ?? false,
-          seoTitle: data.seoTitle ?? "",
-          seoDescription: data.seoDescription ?? "",
-        });
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error("Impossible de charger la catégorie.");
       }
-    }
-    if (id) loadCategory();
-  }, [id]);
 
+      const data = await res.json();
+
+      setForm({
+        name: data.name ?? "",
+        slug: data.slug ?? "",
+        description: data.description ?? "",
+        image: data.image ?? "",
+        icon: data.icon ?? "",
+        color: data.color ?? "#9C0E4A",
+        status: data.status ?? "active",
+        featured: data.featured ?? false,
+        seoTitle: data.seoTitle ?? "",
+        seoDescription: data.seoDescription ?? "",
+      });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (id) loadCategory();
+}, [id]);
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -85,32 +88,33 @@ export default function EditCategoryPage() {
     setForm((prev) => ({ ...prev, [target.name]: value }));
   };
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
+async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+  setSaving(true);
+  setError("");
 
-    try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${API}/categories/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(form),
-      });
+  try {
+    const res = await fetch(`${API}/categories/${id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(form),
+    });
 
-      if (!res.ok) throw new Error("Impossible de modifier la catégorie.");
-
-      router.push("/admin/categories");
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
+    if (!res.ok) {
+      throw new Error("Impossible de modifier la catégorie.");
     }
+
+    router.push("/admin/categories");
+    router.refresh();
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setSaving(false);
   }
+}
 
   if (loading) {
     return (

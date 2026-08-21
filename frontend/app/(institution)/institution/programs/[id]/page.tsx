@@ -1,18 +1,12 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  useParams,
-  useRouter,
-} from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
-const API =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+).replace(/\/+$/, "");
 
 interface FinancingProgram {
   id: string;
@@ -21,33 +15,24 @@ interface FinancingProgram {
   shortDescription?: string | null;
   description?: string | null;
   category: string;
-
   sector?: string | null;
   fundingType?: string | null;
-
   amountMin: string | number;
   amountMax: string | number;
   currency: string;
-
   openingDate?: string | null;
   closingDate?: string | null;
-
   region?: string | null;
   targetAudience?: string | null;
-
   eligibility?: string[];
   requiredDocuments?: string[];
-
   website?: string | null;
   email?: string | null;
   phone?: string | null;
-
   isPublished: boolean;
   isArchived: boolean;
-
   createdAt: string;
   updatedAt: string;
-
   _count?: {
     applications?: number;
   };
@@ -57,33 +42,119 @@ interface Application {
   id: string;
   applicantId: string;
   applicant?: {
-    name?: string;
-    email?: string;
+    name?: string | null;
+    email?: string | null;
   };
   status: string;
-  amountRequested?: string | number;
+  amountRequested?: string | number | null;
   createdAt: string;
 }
 
-function getToken() {
-  if (typeof window === "undefined") return null;
-
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
+interface ApiErrorResponse {
+  message?: string;
+  error?: string;
+  success?: boolean;
 }
 
-function formatAmount(value: string | number) {
+interface ProgramsResponse {
+  data?: FinancingProgram[];
+  items?: FinancingProgram[];
+  programs?: FinancingProgram[];
+}
+
+interface ApplicationsResponse {
+  data?: Application[];
+  applications?: Application[];
+}
+
+/* ------------------------------------------------------------------ */
+/* API helper                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * All authentication is handled by the HttpOnly cookie.
+ *
+ * IMPORTANT:
+ * - No localStorage
+ * - No sessionStorage
+ * - No accessToken
+ * - No refreshToken
+ * - No Authorization: Bearer header
+ *
+ * credentials: "include" tells the browser to send the
+ * authentication cookie with the request.
+ */
+async function apiFetch(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+
+  headers.set("Accept", "application/json");
+
+  if (
+    options.body &&
+    !(options.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* API response helpers                                               */
+/* ------------------------------------------------------------------ */
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Le serveur a retourné une réponse invalide.");
+  }
+}
+
+function getApiErrorMessage(
+  data: ApiErrorResponse,
+  fallback: string
+): string {
+  return data?.message || data?.error || fallback;
+}
+
+/* ------------------------------------------------------------------ */
+/* Formatting helpers                                                 */
+/* ------------------------------------------------------------------ */
+
+function formatAmount(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
   const num = Number(value);
 
-  if (Number.isNaN(num)) return String(value);
+  if (Number.isNaN(num)) {
+    return String(value);
+  }
 
   return num.toLocaleString("fr-FR");
 }
 
-function formatDate(date?: string | null) {
-  if (!date) return "-";
+function formatDate(date?: string | null): string {
+  if (!date) {
+    return "-";
+  }
 
   const parsed = new Date(date);
 
@@ -98,19 +169,23 @@ function formatDate(date?: string | null) {
   });
 }
 
-function formatCategory(value: string) {
+function formatCategory(value: string): string {
   return value
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function formatStatus(value: string) {
+function formatStatus(value: string): string {
   return value
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+/* ------------------------------------------------------------------ */
+/* Page                                                               */
+/* ------------------------------------------------------------------ */
 
 export default function InstitutionProgramDetailPage() {
   const params = useParams();
@@ -118,11 +193,12 @@ export default function InstitutionProgramDetailPage() {
 
   const rawId = params?.id;
 
-  const id = Array.isArray(rawId)
-    ? rawId[0]
-    : typeof rawId === "string"
-      ? rawId
-      : "";
+  const id =
+    Array.isArray(rawId)
+      ? rawId[0] ?? ""
+      : typeof rawId === "string"
+        ? rawId
+        : "";
 
   const [program, setProgram] =
     useState<FinancingProgram | null>(null);
@@ -130,9 +206,7 @@ export default function InstitutionProgramDetailPage() {
   const [applications, setApplications] =
     useState<Application[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
-
+  const [loading, setLoading] = useState(true);
   const [applicationsLoading, setApplicationsLoading] =
     useState(true);
 
@@ -142,8 +216,11 @@ export default function InstitutionProgramDetailPage() {
   const [applicationsError, setApplicationsError] =
     useState<string | null>(null);
 
-  const [deleting, setDeleting] =
-    useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  /* ---------------------------------------------------------------- */
+  /* Load program                                                     */
+  /* ---------------------------------------------------------------- */
 
   const loadProgram = useCallback(async () => {
     if (!id) {
@@ -156,62 +233,46 @@ export default function InstitutionProgramDetailPage() {
       setLoading(true);
       setError(null);
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error(
-          "Your session has expired. Please log in again."
-        );
-      }
-
       /*
-       * Use the working list endpoint.
-       * This also avoids BigInt JSON serialization
-       * from the direct detail endpoint.
+       * Authentication is handled by the HttpOnly cookie.
+       *
+       * The browser sends the cookie automatically because
+       * apiFetch() uses credentials: "include".
        */
-      const response = await fetch(
-        `${API}/institution/programs`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          cache: "no-store",
-        }
-      );
-
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(
-          "The server returned an invalid response."
-        );
-      }
+      const response = await apiFetch("/institution/programs");
 
       if (!response.ok) {
+        const data = await parseJsonResponse<ApiErrorResponse>(
+          response
+        );
+
         throw new Error(
-          json?.message ||
-            json?.error ||
+          getApiErrorMessage(
+            data,
             `Failed to load programs (${response.status})`
+          )
         );
       }
 
-      const programs: FinancingProgram[] =
-        Array.isArray(json)
-          ? json
-          : json.data ||
-            json.items ||
-            json.programs ||
-            [];
+      const json =
+        await parseJsonResponse<
+          FinancingProgram[] | ProgramsResponse
+        >(response);
+
+      let programs: FinancingProgram[] = [];
+
+      if (Array.isArray(json)) {
+        programs = json;
+      } else if (Array.isArray(json.data)) {
+        programs = json.data;
+      } else if (Array.isArray(json.items)) {
+        programs = json.items;
+      } else if (Array.isArray(json.programs)) {
+        programs = json.programs;
+      }
 
       const found = programs.find(
-        (item) =>
-          String(item.id) === String(id)
+        (item) => String(item.id) === String(id)
       );
 
       if (!found) {
@@ -222,10 +283,9 @@ export default function InstitutionProgramDetailPage() {
 
       setProgram(found);
     } catch (err) {
-      console.error(
-        "LOAD PROGRAM ERROR:",
-        err
-      );
+      console.error("LOAD PROGRAM ERROR:", err);
+
+      setProgram(null);
 
       setError(
         err instanceof Error
@@ -237,8 +297,13 @@ export default function InstitutionProgramDetailPage() {
     }
   }, [id]);
 
+  /* ---------------------------------------------------------------- */
+  /* Load applications                                                */
+  /* ---------------------------------------------------------------- */
+
   const loadApplications = useCallback(async () => {
     if (!id) {
+      setApplications([]);
       setApplicationsLoading(false);
       return;
     }
@@ -247,132 +312,113 @@ export default function InstitutionProgramDetailPage() {
       setApplicationsLoading(true);
       setApplicationsError(null);
 
-      const token = getToken();
-
-      if (!token) {
-        setApplications([]);
-        return;
-      }
-
-      const response = await fetch(
-        `${API}/institution/programs/${encodeURIComponent(
-          id
-        )}/applications`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          cache: "no-store",
-        }
+      /*
+       * Authentication is handled by the HttpOnly cookie.
+       * No token is manually retrieved or sent.
+       */
+      const response = await apiFetch(
+        `/institution/programs/${encodeURIComponent(id)}/applications`
       );
 
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(
-          "Invalid applications response."
-        );
-      }
-
       if (!response.ok) {
+        const data =
+          await parseJsonResponse<ApiErrorResponse>(response);
+
         throw new Error(
-          json?.message ||
-            json?.error ||
-            "Applications could not be loaded."
+          getApiErrorMessage(
+            data,
+            `Applications could not be loaded (${response.status})`
+          )
         );
       }
 
-      const data = Array.isArray(json?.data)
-        ? json.data
-        : Array.isArray(json?.applications)
-          ? json.applications
-          : [];
+      const json =
+        await parseJsonResponse<
+          Application[] | ApplicationsResponse
+        >(response);
+
+      let data: Application[] = [];
+
+      if (Array.isArray(json)) {
+        data = json;
+      } else if (Array.isArray(json.data)) {
+        data = json.data;
+      } else if (Array.isArray(json.applications)) {
+        data = json.applications;
+      }
 
       setApplications(data);
     } catch (err) {
-      console.error(
-        "LOAD APPLICATIONS ERROR:",
-        err
-      );
+      console.error("LOAD APPLICATIONS ERROR:", err);
 
       setApplications([]);
+
       setApplicationsError(
-        "Applications could not be loaded."
+        err instanceof Error
+          ? err.message
+          : "Applications could not be loaded."
       );
     } finally {
       setApplicationsLoading(false);
     }
   }, [id]);
 
+  /* ---------------------------------------------------------------- */
+  /* Initial loading                                                  */
+  /* ---------------------------------------------------------------- */
+
   useEffect(() => {
-    loadProgram();
-    loadApplications();
+    void loadProgram();
+    void loadApplications();
   }, [loadProgram, loadApplications]);
 
+  /* ---------------------------------------------------------------- */
+  /* Delete program                                                   */
+  /* ---------------------------------------------------------------- */
+
   async function handleDelete() {
-    if (!program || deleting) return;
+    if (!program || deleting) {
+      return;
+    }
 
     const confirmed = window.confirm(
       `Are you sure you want to delete "${program.title}"?`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeleting(true);
 
-      const token = getToken();
-
-      if (!token) {
-        throw new Error(
-          "Your session has expired. Please log in again."
-        );
-      }
-
-      const response = await fetch(
-        `${API}/institution/programs/${encodeURIComponent(
-          program.id
-        )}`,
+      /*
+       * The HttpOnly authentication cookie is automatically
+       * included by apiFetch().
+       */
+      const response = await apiFetch(
+        `/institution/programs/${encodeURIComponent(program.id)}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
         }
       );
 
-      const text = await response.text();
-
-      let json: any = {};
-
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        // Ignore invalid JSON
-      }
-
       if (!response.ok) {
+        const data =
+          await parseJsonResponse<ApiErrorResponse>(response);
+
         throw new Error(
-          json?.message ||
-            json?.error ||
-            "Failed to delete program."
+          getApiErrorMessage(
+            data,
+            `Failed to delete program (${response.status})`
+          )
         );
       }
 
       router.push("/institution/programs");
       router.refresh();
     } catch (err) {
-      console.error(
-        "DELETE PROGRAM ERROR:",
-        err
-      );
+      console.error("DELETE PROGRAM ERROR:", err);
 
       alert(
         err instanceof Error
@@ -383,6 +429,10 @@ export default function InstitutionProgramDetailPage() {
       setDeleting(false);
     }
   }
+
+  /* ---------------------------------------------------------------- */
+  /* Loading state                                                    */
+  /* ---------------------------------------------------------------- */
 
   if (loading) {
     return (
@@ -406,6 +456,10 @@ export default function InstitutionProgramDetailPage() {
     );
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Error state                                                      */
+  /* ---------------------------------------------------------------- */
+
   if (error || !program) {
     return (
       <div className="min-h-screen bg-sand-50 p-8">
@@ -425,9 +479,10 @@ export default function InstitutionProgramDetailPage() {
 
             <div className="mt-7 flex justify-center gap-3">
               <button
+                type="button"
                 onClick={() => {
-                  loadProgram();
-                  loadApplications();
+                  void loadProgram();
+                  void loadApplications();
                 }}
                 className="rounded-xl bg-rise-gradient px-5 py-2.5 font-body text-sm font-semibold text-white"
               >
@@ -447,9 +502,14 @@ export default function InstitutionProgramDetailPage() {
     );
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Main page                                                        */
+  /* ---------------------------------------------------------------- */
+
   return (
     <div className="min-h-screen bg-sand-50">
       <div className="mx-auto max-w-6xl p-6 md:p-8">
+
         {/* Back */}
         <Link
           href="/institution/programs"
@@ -462,12 +522,11 @@ export default function InstitutionProgramDetailPage() {
         <div className="card-surface shadow-card">
           <div className="p-6 md:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+
               <div>
                 <div className="mb-4 flex flex-wrap gap-2">
                   <span className="rounded-full bg-wine-100 px-3 py-1 font-body text-xs font-semibold text-wine-500">
-                    {formatCategory(
-                      program.category
-                    )}
+                    {formatCategory(program.category)}
                   </span>
 
                   <span
@@ -522,14 +581,17 @@ export default function InstitutionProgramDetailPage() {
 
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href={`/institution/programs/${program.id}/edit`}
+                  href={`/institution/programs/${encodeURIComponent(
+                    program.id
+                  )}/edit`}
                   className="rounded-xl bg-rise-gradient px-5 py-2.5 font-body text-sm font-semibold text-white shadow-bloom hover:brightness-105"
                 >
                   Edit
                 </Link>
 
                 <button
-                  onClick={handleDelete}
+                  type="button"
+                  onClick={() => void handleDelete()}
                   disabled={deleting}
                   className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-2.5 font-body text-sm font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-50"
                 >
@@ -550,13 +612,8 @@ export default function InstitutionProgramDetailPage() {
             </p>
 
             <p className="font-display mt-3 text-lg font-semibold text-wine-700">
-              {formatAmount(
-                program.amountMin
-              )}{" "}
-              –{" "}
-              {formatAmount(
-                program.amountMax
-              )}{" "}
+              {formatAmount(program.amountMin)} –{" "}
+              {formatAmount(program.amountMax)}{" "}
               {program.currency}
             </p>
           </div>
@@ -567,9 +624,7 @@ export default function InstitutionProgramDetailPage() {
             </p>
 
             <p className="font-display mt-3 text-lg font-semibold text-wine-700">
-              {formatDate(
-                program.openingDate
-              )}
+              {formatDate(program.openingDate)}
             </p>
           </div>
 
@@ -579,9 +634,7 @@ export default function InstitutionProgramDetailPage() {
             </p>
 
             <p className="font-display mt-3 text-lg font-semibold text-wine-700">
-              {formatDate(
-                program.closingDate
-              )}
+              {formatDate(program.closingDate)}
             </p>
           </div>
         </div>
@@ -593,8 +646,7 @@ export default function InstitutionProgramDetailPage() {
           </h2>
 
           <p className="font-body mt-5 whitespace-pre-wrap text-sm leading-7 text-ink-soft">
-            {program.description ||
-              "No description provided."}
+            {program.description || "No description provided."}
           </p>
         </section>
 
@@ -607,20 +659,17 @@ export default function InstitutionProgramDetailPage() {
 
             {program.eligibility?.length ? (
               <ul className="mt-5 space-y-3">
-                {program.eligibility.map(
-                  (item, index) => (
-                    <li
-                      key={`${item}-${index}`}
-                      className="font-body flex gap-3 text-sm text-ink-soft"
-                    >
-                      <span className="text-green-600">
-                        ✓
-                      </span>
-
-                      {item}
-                    </li>
-                  )
-                )}
+                {program.eligibility.map((item, index) => (
+                  <li
+                    key={`${item}-${index}`}
+                    className="font-body flex gap-3 text-sm text-ink-soft"
+                  >
+                    <span className="text-green-600">
+                      ✓
+                    </span>
+                    {item}
+                  </li>
+                ))}
               </ul>
             ) : (
               <p className="font-body mt-5 text-sm text-ink-soft">
@@ -645,7 +694,6 @@ export default function InstitutionProgramDetailPage() {
                       <span className="text-wine-500">
                         ✓
                       </span>
-
                       {item}
                     </li>
                   )
@@ -782,56 +830,50 @@ export default function InstitutionProgramDetailPage() {
                   </thead>
 
                   <tbody>
-                    {applications.map(
-                      (application) => (
-                        <tr
-                          key={application.id}
-                          className="border-b border-sand-100"
-                        >
-                          <td className="px-4 py-4">
-                            <p className="font-body font-medium text-ink">
-                              {application
-                                .applicant?.name ||
-                                application.applicantId}
+                    {applications.map((application) => (
+                      <tr
+                        key={application.id}
+                        className="border-b border-sand-100"
+                      >
+                        <td className="px-4 py-4">
+                          <p className="font-body font-medium text-ink">
+                            {application.applicant?.name ||
+                              application.applicantId}
+                          </p>
+
+                          {application.applicant?.email && (
+                            <p className="font-body mt-1 text-xs text-ink-soft">
+                              {application.applicant.email}
                             </p>
+                          )}
+                        </td>
 
-                            {application
-                              .applicant?.email && (
-                              <p className="font-body mt-1 text-xs text-ink-soft">
-                                {
-                                  application
-                                    .applicant
-                                    .email
-                                }
-                              </p>
+                        <td className="px-4 py-4 font-body text-sm text-ink-soft">
+                          {application.amountRequested !==
+                            undefined &&
+                          application.amountRequested !==
+                            null
+                            ? formatAmount(
+                                application.amountRequested
+                              )
+                            : "-"}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span className="rounded-full bg-sand-100 px-3 py-1 font-body text-xs font-semibold text-ink-soft">
+                            {formatStatus(
+                              application.status
                             )}
-                          </td>
+                          </span>
+                        </td>
 
-                          <td className="px-4 py-4 font-body text-sm text-ink-soft">
-                            {application.amountRequested !==
-                            undefined
-                              ? formatAmount(
-                                  application.amountRequested
-                                )
-                              : "-"}
-                          </td>
-
-                          <td className="px-4 py-4">
-                            <span className="rounded-full bg-sand-100 px-3 py-1 font-body text-xs font-semibold text-ink-soft">
-                              {formatStatus(
-                                application.status
-                              )}
-                            </span>
-                          </td>
-
-                          <td className="px-4 py-4 font-body text-sm text-ink-soft">
-                            {formatDate(
-                              application.createdAt
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    )}
+                        <td className="px-4 py-4 font-body text-sm text-ink-soft">
+                          {formatDate(
+                            application.createdAt
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -842,17 +884,11 @@ export default function InstitutionProgramDetailPage() {
         {/* Metadata */}
         <div className="pb-10 pt-6 text-center font-body text-xs text-ink-soft">
           <p>
-            Created{" "}
-            {formatDate(
-              program.createdAt
-            )}
+            Created {formatDate(program.createdAt)}
           </p>
 
           <p className="mt-1">
-            Last updated{" "}
-            {formatDate(
-              program.updatedAt
-            )}
+            Last updated {formatDate(program.updatedAt)}
           </p>
         </div>
       </div>

@@ -39,31 +39,29 @@ export default function LoginPage() {
 
       switch (user.role) {
         case "ADMIN":
-          router.replace("/admin");
-          return;
+          window.location.href = "/admin";
+          break;
 
         case "EXPERT":
-          router.replace("/expert");
-          return;
+          window.location.href = "/expert";
+          break;
 
         case "INSTITUTION":
-          router.replace("/institution");
-          return;
+          window.location.href = "/institution";
+          break;
 
         case "ENTREPRENEUR":
-          router.replace("/dashboard");
-          return;
+          window.location.href = "/dashboard";
+          break;
 
         default:
-          console.error("Unknown role:", user.role);
           setError(`Rôle inconnu : ${user.role}`);
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Login error:", err);
 
       setError(
-        err?.response?.data?.message ??
-          err?.message ??
+        err?.message ||
           "Email ou mot de passe incorrect."
       );
     } finally {
@@ -85,7 +83,9 @@ export default function LoginPage() {
           type="email"
           placeholder="vous@email.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) =>
+            setEmail(e.target.value)
+          }
           required
         />
 
@@ -94,7 +94,9 @@ export default function LoginPage() {
           type="password"
           placeholder="••••••••"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) =>
+            setPassword(e.target.value)
+          }
           required
         />
 
@@ -104,9 +106,10 @@ export default function LoginPage() {
           </div>
         )}
 
+
         <Button
           type="submit"
-          className="w-full"
+          className={`w-full ${loading ? "pointer-events-none opacity-60" : ""}`}
           size="lg"
         >
           {loading ? "Connexion..." : "Se connecter"}

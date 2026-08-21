@@ -1,308 +1,139 @@
 import { api } from "./api";
 
-
 export type UserRole =
   | "ADMIN"
   | "ENTREPRENEUR"
   | "EXPERT"
   | "INSTITUTION";
 
-
-
 export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
 
-  id:string;
-  email:string;
-  name:string;
-  role:UserRole;
-
-  language?:string;
-  avatarUrl?:string|null;
-  bio?:string|null;
-  isVerified?:boolean;
-
+  language?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  isVerified?: boolean;
 }
-
-
 
 export interface LoginData {
-
-  email:string;
-  password:string;
-
+  email: string;
+  password: string;
 }
-
-
 
 export interface RegisterData {
-
-  name:string;
-  email:string;
-  password:string;
-  role:UserRole;
-
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
 }
-
-
-
-interface AuthPayload {
-
-  user:User;
-  accessToken:string;
-  refreshToken?:string;
-
-}
-
-
 
 interface AuthResponse {
-
-  success:boolean;
-  message?:string;
-  data:AuthPayload;
-
+  success: boolean;
+  message?: string;
+  data: {
+    user: User;
+  };
 }
 
-
-
 class AuthService {
-
-
-async login(
-  credentials:LoginData
-):Promise<User>{
-
-
-  const response =
-    await api.post<AuthResponse>(
+  async login(credentials: LoginData): Promise<User> {
+    const response = await api.post<AuthResponse>(
       "/auth/login",
       credentials
     );
 
-
-  const {
-    user,
-    accessToken
-  } = response.data;
-
-
-
-  if(!accessToken){
-    throw new Error(
-      "TOKEN_MISSING"
-    );
+    return response.data.user;
   }
 
+  async register(data: RegisterData): Promise<User> {
+    const response = await api.post<AuthResponse>(
+      "/auth/register",
+      data
+    );
 
+    return response.data.user;
+  }
 
-  localStorage.setItem(
-    "accessToken",
-    accessToken
-  );
+  async logout(): Promise<void> {
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      console.warn("Logout failed", err);
+    }
+  }
 
+  async getCurrentUser(): Promise<User> {
+    const response = await api.get<{
+      success: boolean;
+      data: User;
+    }>("/auth/me");
 
-  localStorage.setItem(
-    "user",
-    JSON.stringify(user)
-  );
+    return response.data;
+  }
 
+  async refresh(): Promise<void> {
+    await api.post("/auth/refresh");
+  }
 
-  return user;
+  /**
+   * Authentication is handled by HttpOnly cookies.
+   * The browser sends the cookies automatically.
+   */
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      await this.getCurrentUser();
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
+  /**
+   * There is intentionally no getToken().
+   * JWT tokens must never be read by frontend JavaScript.
+   */
+  getToken(): null {
+    return null;
+  }
+
+  /**
+   * There is intentionally no localStorage user.
+   * Use getCurrentUser() instead.
+   */
+  getUser(): null {
+    return null;
+  }
+
+  async getUserRole(): Promise<UserRole | null> {
+    try {
+      const user = await this.getCurrentUser();
+      return user.role;
+    } catch {
+      return null;
+    }
+  }
+
+  async isAdmin(): Promise<boolean> {
+    return (await this.getUserRole()) === "ADMIN";
+  }
+
+  async isExpert(): Promise<boolean> {
+    return (await this.getUserRole()) === "EXPERT";
+  }
+
+  async isInstitution(): Promise<boolean> {
+    return (await this.getUserRole()) === "INSTITUTION";
+  }
+
+  async isEntrepreneur(): Promise<boolean> {
+    return (await this.getUserRole()) === "ENTREPRENEUR";
+  }
 }
 
-
-
-
-async register(
- data:RegisterData
-):Promise<User>{
-
-
- const response =
- await api.post<AuthResponse>(
-   "/auth/register",
-   data
- );
-
-
- const {
-  user,
-  accessToken
- } = response.data;
-
-
-
- localStorage.setItem(
-   "accessToken",
-   accessToken
- );
-
-
- localStorage.setItem(
-   "user",
-   JSON.stringify(user)
- );
-
-
- return user;
-
-}
-
-
-
-
-async logout():Promise<void>{
-
-
- try{
-
-  await api.post(
-    "/auth/logout"
-  );
-
- }
- catch(err){
-
-  console.warn(
-    "Logout failed",
-    err
-  );
-
- }
-
-
- localStorage.removeItem(
-   "accessToken"
- );
-
-
- localStorage.removeItem(
-   "user"
- );
-
-
-}
-
-
-
-
-
-async getCurrentUser():Promise<User>{
-
-
- const response =
- await api.get<{
-   success:boolean;
-   data:User;
- }>(
-   "/auth/me"
- );
-
-
- return response.data;
-
-}
-
-
-
-
-getUser():User|null{
-
-
- if(typeof window==="undefined")
- return null;
-
-
-
- const stored =
- localStorage.getItem(
-   "user"
- );
-
-
- if(!stored)
- return null;
-
-
-
- try{
-
-  return JSON.parse(
-    stored
-  );
-
- }
- catch{
-
-  return null;
-
- }
-
-}
-
-
-
-
-getToken(){
-
- if(typeof window==="undefined")
- return null;
-
-
- return localStorage.getItem(
-   "accessToken"
- );
-
-}
-
-
-
-
-isAuthenticated(){
-
- return !!this.getToken();
-
-}
-
-
-
-isAdmin(){
-
- return this.getUser()?.role==="ADMIN";
-
-}
-
-
-isExpert(){
-
- return this.getUser()?.role==="EXPERT";
-
-}
-
-
-isInstitution(){
-
- return this.getUser()?.role==="INSTITUTION";
-
-}
-
-
-isEntrepreneur(){
-
- return this.getUser()?.role==="ENTREPRENEUR";
-
-}
-
-
-
-}
-
-
-
-const authService =
- new AuthService();
-
+const authService = new AuthService();
 
 export default authService;
-export {authService};
+export { authService };

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
 import {
   Search,
   Plus,
@@ -36,15 +37,6 @@ type Category = {
   updatedAt: string;
 };
 
-function getAuthToken() {
-  if (typeof window === "undefined") return null;
-
-  return (
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token")
-  );
-}
-
 function formatDate(date: string) {
   if (!date) return "-";
 
@@ -73,30 +65,31 @@ export default function AdminCategoriesPage() {
       setLoading(true);
       setError("");
 
-      const token = getAuthToken();
-
       const response = await fetch(`${API_URL}/categories`, {
+        method: "GET",
+        credentials: "include",
         headers: {
           Accept: "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
         },
         cache: "no-store",
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        throw new Error("Impossible de charger les catégories.");
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Impossible de charger les catégories."
+        );
       }
 
-      const data = await response.json();
+      const categoriesData = Array.isArray(data)
+        ? data
+        : data?.data ?? data?.categories ?? [];
 
       setCategories(
-        Array.isArray(data)
-          ? data
-          : data.data ?? data.categories ?? []
+        Array.isArray(categoriesData) ? categoriesData : []
       );
     } catch (err) {
       console.error("FETCH CATEGORIES ERROR:", err);
@@ -126,18 +119,13 @@ export default function AdminCategoriesPage() {
 
     try {
       setDeletingId(id);
-
-      const token = getAuthToken();
+      setError("");
 
       const response = await fetch(`${API_URL}/categories/${id}`, {
         method: "DELETE",
+        credentials: "include",
         headers: {
           Accept: "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
         },
       });
 
@@ -170,7 +158,9 @@ export default function AdminCategoriesPage() {
   const filteredCategories = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) return categories;
+    if (!query) {
+      return categories;
+    }
 
     return categories.filter((category) => {
       return (
@@ -206,12 +196,11 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           BREADCRUMB
       ====================================================== */}
+
       <div className="mb-7 text-sm text-ink-soft">
         <span>Espace Admin</span>
 
-        <span className="mx-2 text-ink-soft/40">
-          /
-        </span>
+        <span className="mx-2 text-ink-soft/40">/</span>
 
         <span className="font-medium text-wine-700">
           Gestion des catégories
@@ -221,6 +210,7 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           HERO
       ====================================================== */}
+
       <div className="relative mb-8">
         <div
           aria-hidden
@@ -261,6 +251,7 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           SEARCH + CREATE
       ====================================================== */}
+
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
           className="
@@ -322,7 +313,8 @@ export default function AdminCategoriesPage() {
         <div className="flex items-center justify-between gap-3 sm:justify-end">
           <p className="text-xs text-ink-soft">
             {filteredCategories.length} catégorie
-            {filteredCategories.length !== 1 ? "s" : ""} affichée
+            {filteredCategories.length !== 1 ? "s" : ""}{" "}
+            affichée
             {filteredCategories.length !== 1 ? "s" : ""}
           </p>
 
@@ -355,6 +347,7 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           ERROR
       ====================================================== */}
+
       {error && (
         <div
           className="
@@ -362,6 +355,7 @@ export default function AdminCategoriesPage() {
             flex
             items-center
             justify-between
+            gap-3
             rounded-xl
             border
             border-rose-200
@@ -393,8 +387,10 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           STATS
       ====================================================== */}
+
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {/* TOTAL */}
+
         <div className="card-surface p-4 shadow-card">
           <div className="flex items-start justify-between">
             <div>
@@ -421,6 +417,7 @@ export default function AdminCategoriesPage() {
         </div>
 
         {/* ACTIVE */}
+
         <div className="card-surface p-4 shadow-card">
           <div className="flex items-start justify-between">
             <div>
@@ -447,6 +444,7 @@ export default function AdminCategoriesPage() {
         </div>
 
         {/* HIDDEN */}
+
         <div className="card-surface p-4 shadow-card">
           <div className="flex items-start justify-between">
             <div>
@@ -473,6 +471,7 @@ export default function AdminCategoriesPage() {
         </div>
 
         {/* FEATURED */}
+
         <div className="card-surface p-4 shadow-card">
           <div className="flex items-start justify-between">
             <div>
@@ -502,8 +501,10 @@ export default function AdminCategoriesPage() {
       {/* =====================================================
           TABLE
       ====================================================== */}
+
       <div className="card-surface w-full max-w-full overflow-hidden shadow-card">
         {/* TABLE HEADER */}
+
         <div className="flex flex-col gap-1.5 border-b border-sand-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display text-base font-semibold text-ink">
@@ -518,6 +519,7 @@ export default function AdminCategoriesPage() {
         </div>
 
         {/* TABLE */}
+
         <div className="w-full overflow-x-auto">
           <table
             className="
@@ -567,6 +569,7 @@ export default function AdminCategoriesPage() {
 
             <tbody>
               {/* LOADING */}
+
               {loading && (
                 <tr>
                   <td
@@ -596,6 +599,7 @@ export default function AdminCategoriesPage() {
               )}
 
               {/* CATEGORIES */}
+
               {!loading &&
                 filteredCategories.map((category) => (
                   <tr
@@ -610,9 +614,9 @@ export default function AdminCategoriesPage() {
                     "
                   >
                     {/* CATEGORY */}
+
                     <td className="px-3 py-3">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        {/* IMAGE / COLOR */}
                         <div
                           className="
                             h-9
@@ -664,6 +668,7 @@ export default function AdminCategoriesPage() {
                     </td>
 
                     {/* STATUS */}
+
                     <td className="px-3 py-3">
                       <Badge
                         tone={
@@ -681,6 +686,7 @@ export default function AdminCategoriesPage() {
                     </td>
 
                     {/* FEATURED */}
+
                     <td className="px-3 py-3">
                       {category.featured ? (
                         <Badge tone="gold">
@@ -698,6 +704,7 @@ export default function AdminCategoriesPage() {
                     </td>
 
                     {/* COLOR */}
+
                     <td className="px-3 py-3">
                       {category.color ? (
                         <div className="flex items-center gap-1.5">
@@ -721,14 +728,17 @@ export default function AdminCategoriesPage() {
                     </td>
 
                     {/* DATE */}
+
                     <td className="px-3 py-3 text-[11px] text-ink-soft">
                       {formatDate(category.createdAt)}
                     </td>
 
                     {/* ACTIONS */}
+
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {/* EDIT */}
+
                         <Link
                           href={`/admin/categories/${category.id}/edit`}
                           className="
@@ -760,6 +770,7 @@ export default function AdminCategoriesPage() {
                         </Link>
 
                         {/* DELETE */}
+
                         <button
                           type="button"
                           onClick={() =>
@@ -797,6 +808,7 @@ export default function AdminCategoriesPage() {
                 ))}
 
               {/* EMPTY */}
+
               {!loading &&
                 filteredCategories.length === 0 && (
                   <tr>

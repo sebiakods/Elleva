@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -39,33 +44,44 @@ export default function CreateResourcePage() {
 
   const [file, setFile] = useState<File | null>(null);
 
+  /*
+   * Load course.
+   *
+   * IMPORTANT:
+   * Authentication is now handled by the httpOnly cookie.
+   * We do NOT read accessToken from localStorage.
+   *
+   * credentials: "include" tells the browser to send the
+   * authentication cookie with the request.
+   */
   useEffect(() => {
+    if (!courseId) return;
+
     async function loadCourse() {
       try {
-        const token = localStorage.getItem("accessToken");
+        setLoading(true);
 
-        const res = await fetch(
-          `${API_URL}/courses/${courseId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
+        const res = await fetch(`${API_URL}/courses/${courseId}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
 
         const json = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            json.message ||
-              "Impossible de charger le cours."
+            json.message || "Impossible de charger le cours."
           );
+        }
+
+        if (!json.data) {
+          throw new Error("Les données du cours sont introuvables.");
         }
 
         setCourse(json.data);
       } catch (error) {
-        console.error(error);
+        console.error("Load course error:", error);
 
         alert(
           error instanceof Error
@@ -77,14 +93,10 @@ export default function CreateResourcePage() {
       }
     }
 
-    if (courseId) {
-      loadCourse();
-    }
+    loadCourse();
   }, [courseId]);
 
-  function handleFileChange(
-    e: ChangeEvent<HTMLInputElement>
-  ) {
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const selectedFile = e.target.files?.[0];
 
     if (!selectedFile) return;
@@ -92,9 +104,7 @@ export default function CreateResourcePage() {
     const maxSize = 100 * 1024 * 1024;
 
     if (selectedFile.size > maxSize) {
-      alert(
-        "Le fichier ne doit pas dépasser 100 MB."
-      );
+      alert("Le fichier ne doit pas dépasser 100 MB.");
 
       e.target.value = "";
       return;
@@ -115,8 +125,10 @@ export default function CreateResourcePage() {
     }
   }
 
-  async function createResource(e: FormEvent) {
+  async function createResource(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (saving) return;
 
     if (!title.trim()) {
       alert("Veuillez renseigner le titre de la ressource.");
@@ -128,37 +140,31 @@ export default function CreateResourcePage() {
       return;
     }
 
+    if (order < 0) {
+      alert("La position ne peut pas être négative.");
+      return;
+    }
+
     try {
       setSaving(true);
 
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        throw new Error(
-          "Votre session a expiré. Veuillez vous reconnecter."
-        );
-      }
-
+      /*
+       * No localStorage.
+       *
+       * The authentication cookie is automatically sent by
+       * the browser because credentials: "include" is used.
+       */
       const formData = new FormData();
 
       formData.append("title", title.trim());
-      formData.append(
-        "description",
-        description.trim()
-      );
+      formData.append("description", description.trim());
       formData.append("type", type.trim());
       formData.append("order", String(Number(order)));
-      formData.append(
-        "isPublished",
-        String(isPublished)
-      );
+      formData.append("isPublished", String(isPublished));
 
       /*
        * IMPORTANT:
-       * Send the real file as "files".
-       *
-       * This follows the same multipart convention
-       * already used by the article system.
+       * Your backend expects the uploaded file under "files".
        */
       formData.append("files", file);
 
@@ -166,9 +172,7 @@ export default function CreateResourcePage() {
         `${API_URL}/courses/${courseId}/resources`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
           body: formData,
         }
       );
@@ -177,19 +181,13 @@ export default function CreateResourcePage() {
 
       if (!res.ok) {
         throw new Error(
-          json.message ||
-            "Impossible de créer la ressource."
+          json.message || "Impossible de créer la ressource."
         );
       }
 
-      router.push(
-        `/expert/courses/${courseId}/resources`
-      );
+      router.push(`/expert/courses/${courseId}/resources`);
     } catch (error) {
-      console.error(
-        "Create resource error:",
-        error
-      );
+      console.error("Create resource error:", error);
 
       alert(
         error instanceof Error
@@ -244,7 +242,6 @@ export default function CreateResourcePage() {
   return (
     <main className="p-6">
       <div className="mx-auto max-w-4xl">
-
         {/* Header */}
         <div className="mb-6">
           <button
@@ -277,7 +274,6 @@ export default function CreateResourcePage() {
           onSubmit={createResource}
           className="card-surface space-y-6 p-6"
         >
-
           {/* Title */}
           <div className="space-y-2">
             <label
@@ -291,11 +287,10 @@ export default function CreateResourcePage() {
               id="resource-title"
               type="text"
               value={title}
-              onChange={(e) =>
-                setTitle(e.target.value)
-              }
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex. Guide du Business Plan"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              disabled={saving}
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
           </div>
 
@@ -311,18 +306,16 @@ export default function CreateResourcePage() {
             <textarea
               id="resource-description"
               value={description}
-              onChange={(e) =>
-                setDescription(e.target.value)
-              }
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Décrivez brièvement cette ressource..."
               rows={4}
-              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 leading-6 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              disabled={saving}
+              className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 leading-6 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
           </div>
 
           {/* Type + order */}
           <div className="grid gap-5 md:grid-cols-2">
-
             <div className="space-y-2">
               <label
                 htmlFor="resource-type"
@@ -334,22 +327,15 @@ export default function CreateResourcePage() {
               <select
                 id="resource-type"
                 value={type}
-                onChange={(e) =>
-                  setType(e.target.value)
-                }
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                onChange={(e) => setType(e.target.value)}
+                disabled={saving}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
               >
                 <option value="PDF">PDF</option>
-                <option value="DOCUMENT">
-                  Document
-                </option>
+                <option value="DOCUMENT">Document</option>
                 <option value="GUIDE">Guide</option>
-                <option value="TEMPLATE">
-                  Template
-                </option>
-                <option value="CHECKLIST">
-                  Checklist
-                </option>
+                <option value="TEMPLATE">Template</option>
+                <option value="CHECKLIST">Checklist</option>
                 <option value="OTHER">Autre</option>
               </select>
             </div>
@@ -370,21 +356,29 @@ export default function CreateResourcePage() {
                 onChange={(e) =>
                   setOrder(Number(e.target.value))
                 }
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                disabled={saving}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-50"
               />
             </div>
           </div>
 
           {/* File */}
           <div className="space-y-3">
-            <label className="text-sm font-medium text-gray-800">
+            <label
+              htmlFor="resource-file"
+              className="text-sm font-medium text-gray-800"
+            >
               Fichier
             </label>
 
             {!file ? (
               <label
                 htmlFor="resource-file"
-                className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center transition hover:border-purple-300 hover:bg-purple-50"
+                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center transition ${
+                  saving
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer hover:border-purple-300 hover:bg-purple-50"
+                }`}
               >
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
                   <Upload size={22} />
@@ -406,12 +400,12 @@ export default function CreateResourcePage() {
                   id="resource-file"
                   type="file"
                   onChange={handleFileChange}
+                  disabled={saving}
                   className="hidden"
                 />
               </label>
             ) : (
               <div className="flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 p-4">
-
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-purple-600 shadow-sm">
                     <FileText size={22} />
@@ -423,10 +417,7 @@ export default function CreateResourcePage() {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(
-                        2
-                      )}{" "}
-                      MB
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                 </div>
@@ -434,7 +425,8 @@ export default function CreateResourcePage() {
                 <button
                   type="button"
                   onClick={removeFile}
-                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white hover:text-red-600"
+                  disabled={saving}
+                  className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Supprimer le fichier"
                 >
                   <X size={18} />
@@ -461,23 +453,29 @@ export default function CreateResourcePage() {
               onChange={(e) =>
                 setIsPublished(e.target.checked)
               }
+              disabled={saving}
               className="h-5 w-5 accent-purple-600"
             />
           </div>
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">
-            <Button
+            {/*
+              Don't use disabled on the custom Button component
+              because its ButtonProps currently doesn't define it.
+            */}
+            <button
               type="button"
-              variant="secondary"
               onClick={() =>
                 router.push(
                   `/expert/courses/${courseId}/resources`
                 )
               }
+              disabled={saving}
+              className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Annuler
-            </Button>
+            </button>
 
             <button
               type="submit"

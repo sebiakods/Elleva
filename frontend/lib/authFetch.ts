@@ -1,26 +1,31 @@
-import authService from "@/services/auth";
+import { api } from "@/services/api";
 
 export async function authFetch(
   url: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const token = authService.getToken();
+  const headers =
+    new Headers(init.headers);
 
-  const headers = new Headers(init.headers);
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    init.body instanceof FormData;
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
-
-  if (init.body && !isFormData && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  if (
+    init.body &&
+    !isFormData &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set(
+      "Content-Type",
+      "application/json"
+    );
   }
 
   return fetch(url, {
     ...init,
     headers,
+    credentials: "include",
     cache: "no-store",
   });
 }
