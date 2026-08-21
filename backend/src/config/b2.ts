@@ -79,32 +79,54 @@ export function extractB2Key(value: string): string {
 
   const normalized = value.trim();
 
-  /* Already an object key */
-  if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+  // Already a clean B2 object key
+  if (
+    !normalized.startsWith("http://") &&
+    !normalized.startsWith("https://")
+  ) {
     return normalized.replace(/^\/+/, "");
   }
 
-  /*
-   * Handles:
-   * https://f004.backblazeb2.com/file/bucket-name/path/file.pdf
-   */
-  const marker = `/file/${env.B2_BUCKET_NAME}/`;
-
-  const markerIndex = normalized.indexOf(marker);
-
-  if (markerIndex !== -1) {
-    return normalized
-      .substring(markerIndex + marker.length)
-      .replace(/^\/+/, "");
-  }
-
-  /*
-   * Fallback for old B2 URLs.
-   */
   try {
     const url = new URL(normalized);
 
-    const parts = url.pathname.split("/").filter(Boolean);
+    const pathname = decodeURIComponent(url.pathname);
+
+    /*
+     * S3-compatible B2 URL:
+     *
+     * https://s3.us-west-004.backblazeb2.com/ellevadz-files/courses/...
+     *
+     * pathname:
+     * /ellevadz-files/courses/...
+     */
+    const bucketPrefix = `/${env.B2_BUCKET_NAME}/`;
+
+    if (pathname.startsWith(bucketPrefix)) {
+      return pathname
+        .substring(bucketPrefix.length)
+        .replace(/^\/+/, "");
+    }
+
+    /*
+     * Native B2 URL:
+     *
+     * https://f004.backblazeb2.com/file/ellevadz-files/courses/...
+     */
+    const marker = `/file/${env.B2_BUCKET_NAME}/`;
+
+    const markerIndex = pathname.indexOf(marker);
+
+    if (markerIndex !== -1) {
+      return pathname
+        .substring(markerIndex + marker.length)
+        .replace(/^\/+/, "");
+    }
+
+    /*
+     * Generic fallback for /file/bucket/key
+     */
+    const parts = pathname.split("/").filter(Boolean);
 
     const fileIndex = parts.indexOf("file");
 
@@ -118,10 +140,10 @@ export function extractB2Key(value: string): string {
       return afterFile.join("/");
     }
   } catch {
-    // Ignore malformed URLs and return original value.
+    // Ignore malformed URLs
   }
 
-  return normalized;
+  throw new Error(`Invalid B2 URL or key: ${value}`);
 }
 
 /* -------------------------------------------------------------------------- */
