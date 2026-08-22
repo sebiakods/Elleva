@@ -1,20 +1,26 @@
 import { Request, Response } from "express";
 import { Role, AuthenticatedRequest } from "../types";
 import * as authService from "../services/auth.service";
+import { verifyRefreshToken } from "../services/token.service";
 import * as R from "../utils/response";
 
+const isProd = process.env.NODE_ENV === "production";
+
+// IMPORTANT: sameSite:"none" REQUIRES secure:true or the browser silently
+// drops the cookie. On localhost (http, non-prod) that combo always failed,
+// which is why /auth/me kept returning 401 even right after login.
 const accessCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "none" as const,
+  secure: isProd,
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   maxAge: 15 * 60 * 1000, // 15 minutes
   path: "/",
 };
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "none" as const,
+  secure: isProd,
+  sameSite: isProd ? ("none" as const) : ("lax" as const),
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: "/",
 };
@@ -39,32 +45,18 @@ function setAuthCookies(
 function clearAuthCookies(res: Response): void {
   const baseOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "none" as const,
+    secure: isProd,
+    sameSite: isProd ? ("none" as const) : ("lax" as const),
   };
 
   // Current cookies: Path=/
-  res.clearCookie("accessToken", {
-    ...baseOptions,
-    path: "/",
-  });
+  res.clearCookie("accessToken", { ...baseOptions, path: "/" });
+  res.clearCookie("refreshToken", { ...baseOptions, path: "/" });
 
-  res.clearCookie("refreshToken", {
-    ...baseOptions,
-    path: "/",
-  });
-
-  // Old refreshToken cookie
-  res.clearCookie("refreshToken", {
-    ...baseOptions,
-    path: "/api/auth",
-  });
-
-  // In case an older version used /api
-  res.clearCookie("refreshToken", {
-    ...baseOptions,
-    path: "/api",
-  });
+  // Belt-and-suspenders: also clear any stale cookies set under older
+  // path/sameSite combos so leftover browser state can't linger.
+  res.clearCookie("refreshToken", { ...baseOptions, path: "/api/auth" });
+  res.clearCookie("refreshToken", { ...baseOptions, path: "/api" });
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
@@ -220,39 +212,30 @@ export async function refresh(
 // POST /api/auth/logout
 // ─────────────────────────────────────────────────────────────────────────────
 export async function logout(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
 ): Promise<void> {
-  console.log("🔴🔴🔴 LOGOUT CONTROLLER REACHED");
-  console.log("METHOD:", req.method);
-  console.log("URL:", req.originalUrl);
-  console.log("USER:", req.user);
-  console.log("COOKIES:", req.cookies);
-
   try {
-    if (req.user) {
-      console.log("🟡 Revoking tokens for user:", req.user.id);
+    // NOTE: the "/logout" route has no verifyToken middleware, so
+    // req.user is never populated — revoking by req.user.id was always a
+    // no-op. Read the userId straight out of the refresh token instead,
+    // which also lets logout succeed even if the access token expired.
+    const rawRefreshToken = req.cookies?.refreshToken;
 
-      await authService.logout(req.user.id);
-
-      console.log("🟢 Tokens revoked successfully");
-    } else {
-      console.warn("⚠️ No req.user found");
+    if (rawRefreshToken) {
+      try {
+        const payload = verifyRefreshToken(rawRefreshToken);
+        await authService.logout(payload.sub);
+      } catch {
+        // token already invalid/expired — nothing to revoke, just clear cookies
+      }
     }
-
-    console.log("🟡 Clearing auth cookies...");
 
     clearAuthCookies(res);
 
-    console.log("🟢 Auth cookies cleared");
-
-    R.ok(
-      res,
-      null,
-      "Déconnexion réussie"
-    );
+    R.ok(res, null, "Déconnexion réussie");
   } catch (err) {
-    console.error("❌ LOGOUT ERROR:", err);
+    console.error("LOGOUT ERROR:", err);
 
     clearAuthCookies(res);
 

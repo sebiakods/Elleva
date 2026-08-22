@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import authService from "@/services/auth";
@@ -12,28 +12,39 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!authService.isAuthenticated()) {
-      router.replace("/login");
-      return;
+    let mounted = true;
+
+    async function checkEntrepreneur() {
+      const isEntrepreneur = await authService.isEntrepreneur();
+
+      if (!isEntrepreneur) {
+        router.replace("/login");
+        return;
+      }
+
+      if (mounted) {
+        setChecking(false);
+      }
     }
 
-    if (!authService.isEntrepreneur()) {
-      router.replace("/login");
-    }
+    checkEntrepreneur();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
-  if (
-    !authService.isAuthenticated() ||
-    !authService.isEntrepreneur()
-  ) {
+  if (checking) {
     return null;
   }
 
   return (
     <div className="flex min-h-screen bg-sand-50">
       <DashboardSidebar />
+
       <main className="flex-1 px-6 py-8 lg:px-10 lg:py-10">
         {children}
       </main>
