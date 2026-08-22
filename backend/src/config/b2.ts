@@ -2,8 +2,8 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
-
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { env } from "./env";
@@ -15,15 +15,20 @@ import { env } from "./env";
 const b2Client = new S3Client({
   region: env.B2_REGION,
   endpoint: env.B2_ENDPOINT,
-
   credentials: {
     accessKeyId: env.B2_APPLICATION_KEY_ID,
     secretAccessKey: env.B2_APPLICATION_KEY,
   },
-
   forcePathStyle: true,
 });
 
+export async function checkB2Connection(): Promise<void> {
+  await b2Client.send(
+    new HeadBucketCommand({
+      Bucket: env.B2_BUCKET_NAME,
+    })
+  );
+}
 /* -------------------------------------------------------------------------- */
 /* UPLOAD                                                                     */
 /* -------------------------------------------------------------------------- */

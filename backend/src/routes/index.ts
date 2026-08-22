@@ -28,6 +28,7 @@ import expertProfileRoutes from "./expertProfile.routes";
 import expertsRoutes from "./experts.routes";
 console.log("DEBUG expertsRoutes:", expertsRoutes);
 console.log("DEBUG expertsRoutes type:", typeof expertsRoutes);
+import { checkB2Connection } from "../config/b2";
 const router = Router();
 
 /* ========================================================================= */
@@ -176,6 +177,38 @@ router.get("/health", async (_req, res) => {
         environment: process.env.NODE_ENV ?? "development",
       },
       error: "Database connection failed",
+    });
+  }
+});
+
+
+router.get("/health/b2", async (_req, res) => {
+  try {
+    await checkB2Connection();
+
+    res.json({
+      success: true,
+      data: {
+        status: "ok",
+        storage: "connected",
+        provider: "backblaze-b2",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV ?? "development",
+      },
+    });
+  } catch (error) {
+    console.error("[HEALTH] B2 connection failed:", error);
+
+    res.status(503).json({
+      success: false,
+      data: {
+        status: "ok",
+        storage: "disconnected",
+        provider: "backblaze-b2",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV ?? "development",
+      },
+      error: "Backblaze B2 connection failed",
     });
   }
 });
