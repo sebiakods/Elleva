@@ -1,6 +1,16 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4000/api";
+// IMPORTANT:
+// Always call the backend through a RELATIVE path ("/api/...") so the
+// browser treats every request as same-origin with the frontend
+// (elleva-flame.vercel.app). Next.js rewrites() then proxies it server-side
+// to the real backend on Render. This is what makes the HttpOnly cookies
+// work reliably — same-origin cookies don't depend on SameSite=None/Secure
+// edge cases or browser cross-site cookie restrictions.
+//
+// NEVER default this to the full onrender.com URL — doing so turns every
+// request into a real cross-site request and cookies stop being sent
+// reliably (this was the root cause of the recurring 401s across
+// /auth/me, /notifications, /my/applications, etc).
+const API_BASE_URL = "/api";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
