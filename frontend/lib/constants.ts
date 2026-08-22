@@ -49,7 +49,7 @@ export const INSTITUTION_NAV_LINKS = [
   { href: "/institution/applications", label: "Candidatures", icon: "ClipboardList" },
   { href: "/institution/messages", label: "Messages", icon: "MessageSquare" },
   { href: "/institution/events", label: "Événements", icon: "CalendarDays" },
-  { href: "/institution/documents", label: "Documents", icon: "FolderOpen" },,
+{ href: "/institution/documents", label: "Documents", icon: "FolderOpen" },
   { href: "/institution/analytics", label: "Analytics", icon: "BarChart2" },
   { href: "/institution/profile", label: "Profil", icon: "Building2" },
   { href: "/institution/settings", label: "Paramètres", icon: "Settings" },

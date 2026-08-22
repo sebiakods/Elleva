@@ -170,6 +170,11 @@ export default function RequestDetailsPage() {
         setError("");
         setActionError("");
 
+       if (!type) {
+          setActionError("Type de demande invalide.");
+          return;
+        }
+
         const endpoint = endpointFor(type);
 
         /*
