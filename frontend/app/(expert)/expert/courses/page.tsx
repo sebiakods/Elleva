@@ -51,9 +51,7 @@ type ApiResponse = {
   message?: string;
 };
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/+$/, "");
+const API_URL = "/api";
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
