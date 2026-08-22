@@ -58,10 +58,17 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
+    console.log("🔴 authService.logout() CALLED");
+
     try {
-      await api.post("/auth/logout");
+      console.log("🟡 Sending POST /auth/logout...");
+
+      const response = await api.post("/auth/logout");
+
+      console.log("🟢 POST /auth/logout SUCCESS:", response);
     } catch (err) {
-      console.warn("Logout failed", err);
+      console.error("❌ POST /auth/logout FAILED:", err);
+      throw err;
     }
   }
 
