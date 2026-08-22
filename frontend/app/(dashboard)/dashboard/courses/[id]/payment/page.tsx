@@ -34,49 +34,165 @@ interface PaymentPageProps {
 type PaymentMethod = "baridimob" | "ccp" | "card";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:4000/api";
 
 const FIXED_PRICE_DZD = 1900;
+
+/*
+ * ============================================================
+ * FRONTEND COURSE PAYMENT STORAGE
+ * ============================================================
+ *
+ * This is ONLY for course access.
+ *
+ * It has nothing to do with authentication.
+ * Your authentication remains HttpOnly-cookie based.
+ */
+const PAID_COURSES_KEY = "ellevadz_paid_courses";
+
+/*
+ * Get all courses paid for in this browser.
+ */
+function getPaidCourseIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      PAID_COURSES_KEY
+    );
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (id): id is string => typeof id === "string"
+    );
+  } catch (error) {
+    console.error(
+      "Erreur de lecture des formations payées:",
+      error
+    );
+
+    return [];
+  }
+}
+
+/*
+ * Check whether this course has already been paid.
+ */
+function hasPaidForCourse(courseId: string): boolean {
+  return getPaidCourseIds().includes(courseId);
+}
+
+/*
+ * Save a course as paid.
+ */
+function markCourseAsPaid(courseId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const current = getPaidCourseIds();
+
+    if (!current.includes(courseId)) {
+      current.push(courseId);
+    }
+
+    window.localStorage.setItem(
+      PAID_COURSES_KEY,
+      JSON.stringify(current)
+    );
+  } catch (error) {
+    console.error(
+      "Erreur lors de l'enregistrement du paiement:",
+      error
+    );
+  }
+}
 
 export default function CoursePaymentPage({
   params,
 }: PaymentPageProps) {
   const { id } = use(params);
+
   const router = useRouter();
 
-  const [course, setCourse] = useState<CourseDetail | null>(null);
+  const [course, setCourse] =
+    useState<CourseDetail | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [success, setSuccess] =
+    useState(false);
 
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>("baridimob");
 
-  const [transactionRef, setTransactionRef] = useState("");
-  const [senderAccount, setSenderAccount] = useState("");
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [transactionRef, setTransactionRef] =
+    useState("");
+
+  const [senderAccount, setSenderAccount] =
+    useState("");
+
+  const [receiptFile, setReceiptFile] =
+    useState<File | null>(null);
+
+  /*
+   * ============================================================
+   * CHECK EXISTING PAYMENT
+   * ============================================================
+   *
+   * If this course was already paid for in this browser,
+   * NEVER show the payment form again.
+   */
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      setError("Identifiant du cours manquant.");
+      return;
+    }
+
+    if (hasPaidForCourse(id)) {
+      router.replace(
+        `/dashboard/courses/${encodeURIComponent(id)}`
+      );
+      return;
+    }
+  }, [id, router]);
 
   /*
    * ============================================================
    * LOAD COURSE
    * ============================================================
-   *
-   * Authentication is handled by the HTTP-only cookie.
-   *
-   * IMPORTANT:
-   * We do NOT use:
-   * - localStorage
-   * - sessionStorage
-   * - accessToken
-   * - token
-   * - Authorization: Bearer ...
-   *
-   * credentials: "include" tells the browser to send the
-   * authentication cookie to the backend.
    */
   useEffect(() => {
     if (!id) {
+      setLoading(false);
+      setError("Identifiant du cours manquant.");
+      return;
+    }
+
+    /*
+     * Don't load payment page if already paid.
+     */
+    if (hasPaidForCourse(id)) {
       return;
     }
 
@@ -87,25 +203,26 @@ export default function CoursePaymentPage({
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`${API_URL}/courses/${id}`, {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `${API_URL}/courses/${encodeURIComponent(id)}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Accept: "application/json",
+            },
+            cache: "no-store",
+          }
+        );
 
-        /*
-         * If the session cookie is missing/expired, the backend
-         * should return 401.
-         */
         if (response.status === 401) {
           router.push("/login");
           return;
         }
 
-        const json = await response.json().catch(() => ({}));
+        const json = await response
+          .json()
+          .catch(() => ({}));
 
         if (!response.ok) {
           throw new Error(
@@ -114,7 +231,8 @@ export default function CoursePaymentPage({
           );
         }
 
-        const data = (json?.data || json) as CourseDetail;
+        const data =
+          (json?.data || json) as CourseDetail;
 
         if (!data?.id) {
           throw new Error(
@@ -159,17 +277,16 @@ export default function CoursePaymentPage({
 
   /*
    * ============================================================
-   * PAYMENT / ENROLLMENT
+   * PAYMENT
    * ============================================================
    *
-   * IMPORTANT:
-   * There is no localStorage anymore.
+   * Frontend-only.
    *
-   * The backend should receive the payment information and use
-   * the authenticated user from the HTTP-only cookie.
+   * Once the user confirms:
    *
-   * Change the endpoint below if your backend uses a different
-   * payment/enrollment route.
+   * 1. course ID is saved in localStorage
+   * 2. it will remain after logout/login
+   * 3. the same course will never show payment again
    */
   async function handleEnrollment(
     event: React.FormEvent<HTMLFormElement>
@@ -181,83 +298,59 @@ export default function CoursePaymentPage({
     }
 
     setError(null);
+
+    /*
+     * Extra protection against paying twice.
+     */
+    if (hasPaidForCourse(course.id)) {
+      router.replace(
+        `/dashboard/courses/${encodeURIComponent(
+          course.id
+        )}`
+      );
+      return;
+    }
+
+    if (!senderAccount.trim()) {
+      setError(
+        "Veuillez renseigner le numéro CCP/RIP ou le nom de l'émetteur."
+      );
+      return;
+    }
+
+    if (!transactionRef.trim()) {
+      setError(
+        "Veuillez renseigner le numéro de transaction ou la référence."
+      );
+      return;
+    }
+
     setSubmitting(true);
 
-    try {
-      /*
-       * For now, create FormData because the receipt is a file.
-       */
-      const formData = new FormData();
+    /*
+     * Simulate payment processing.
+     */
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 800);
+    });
 
-      formData.append("courseId", course.id);
-      formData.append("paymentMethod", paymentMethod);
-      formData.append(
-        "transactionRef",
-        transactionRef.trim()
-      );
-      formData.append(
-        "senderAccount",
-        senderAccount.trim()
-      );
-      formData.append(
-        "amount",
-        String(FIXED_PRICE_DZD)
-      );
+    /*
+     * IMPORTANT:
+     *
+     * The course is now permanently marked as paid
+     * in this browser.
+     */
+    markCourseAsPaid(course.id);
 
-      if (receiptFile) {
-        formData.append("receipt", receiptFile);
-      }
+markCourseAsPaid(course.id);
 
-      /*
-       * NO Authorization header.
-       *
-       * The authentication cookie is automatically sent.
-       */
-      const response = await fetch(
-        `${API_URL}/courses/${course.id}/payment`,
-        {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        }
-      );
+setSubmitting(false);
+setSuccess(true);
 
-      if (response.status === 401) {
-        router.push("/login");
-        return;
-      }
-
-      const json = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          json?.message ||
-            "Impossible de confirmer le paiement."
-        );
-      }
-
-      setSuccess(true);
-
-      /*
-       * Give the success message a moment before redirecting.
-       */
-      window.setTimeout(() => {
-        router.push(`/dashboard/courses/${course.id}`);
-      }, 1800);
-    } catch (err) {
-      console.error(
-        "Erreur de paiement:",
-        err
-      );
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Une erreur est survenue lors du paiement."
-      );
-
-      setSubmitting(false);
-    }
+// Go directly to the course/lesson page
+router.replace(
+  `/dashboard/courses/${encodeURIComponent(course.id)}`
+);
   }
 
   /*
@@ -282,7 +375,7 @@ export default function CoursePaymentPage({
 
   /*
    * ============================================================
-   * COURSE NOT FOUND
+   * ERROR
    * ============================================================
    */
   if (!course) {
@@ -360,7 +453,6 @@ export default function CoursePaymentPage({
         Retour aux formations
       </Link>
 
-      {/* ERROR */}
       {error && !success && (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
           <p className="font-body text-sm font-semibold text-red-700">
@@ -369,7 +461,6 @@ export default function CoursePaymentPage({
         </div>
       )}
 
-      {/* SUCCESS */}
       {success && (
         <div className="mb-6 flex items-center gap-3 rounded-2xl bg-[#e9f9ef] p-4 text-[#176b3a]">
           <CheckCircle2
@@ -378,8 +469,8 @@ export default function CoursePaymentPage({
           />
 
           <p className="font-body text-sm font-semibold">
-            Paiement confirmé avec succès ! Redirection
-            vers la formation...
+            Paiement confirmé avec succès ! Votre accès
+            est maintenant enregistré.
           </p>
         </div>
       )}
@@ -388,11 +479,7 @@ export default function CoursePaymentPage({
         onSubmit={handleEnrollment}
         className="grid grid-cols-1 gap-8 md:grid-cols-3"
       >
-        {/* ======================================================
-            LEFT
-        ====================================================== */}
         <div className="space-y-6 md:col-span-2">
-          {/* COURSE */}
           <div className="card-surface relative overflow-hidden p-6">
             <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gradient-to-br from-[#ffc1d8] to-[#e0156a]/10 opacity-60 blur-2xl" />
 
@@ -419,7 +506,6 @@ export default function CoursePaymentPage({
             )}
           </div>
 
-          {/* PAYMENT FORM */}
           <div className="card-surface space-y-5 p-6">
             <div>
               <span className="mb-1 block font-script text-lg text-[#e0156a]">
@@ -436,7 +522,6 @@ export default function CoursePaymentPage({
               </p>
             </div>
 
-            {/* METHODS */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {paymentOptions.map((option) => {
                 const active =
@@ -493,7 +578,6 @@ export default function CoursePaymentPage({
               })}
             </div>
 
-            {/* COORDINATES */}
             <div className="space-y-1 rounded-2xl border border-[#eadfc4] bg-[#f6efe1] p-4 font-body text-xs text-[#6b5620]">
               <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-[#8a6d1f]">
                 <Sparkles size={13} />
@@ -522,7 +606,6 @@ export default function CoursePaymentPage({
               </p>
             </div>
 
-            {/* SENDER */}
             <div>
               <label
                 htmlFor="senderAccount"
@@ -545,7 +628,6 @@ export default function CoursePaymentPage({
               />
             </div>
 
-            {/* TRANSACTION */}
             <div>
               <label
                 htmlFor="transactionRef"
@@ -568,7 +650,6 @@ export default function CoursePaymentPage({
               />
             </div>
 
-            {/* RECEIPT */}
             <div>
               <label
                 htmlFor="receipt"
@@ -623,9 +704,6 @@ export default function CoursePaymentPage({
           </div>
         </div>
 
-        {/* ======================================================
-            RIGHT SUMMARY
-        ====================================================== */}
         <div className="space-y-6">
           <div className="card-surface p-6">
             <h2 className="mb-4 font-display text-lg font-bold text-[#1e1620]">
@@ -635,13 +713,18 @@ export default function CoursePaymentPage({
             <div className="space-y-3 font-body text-sm">
               <div className="flex justify-between text-[#1e1620]/60">
                 <span>Prix de la formation</span>
+
                 <span>
-                  {FIXED_PRICE_DZD.toLocaleString("fr-FR")} DZD
+                  {FIXED_PRICE_DZD.toLocaleString(
+                    "fr-FR"
+                  )}{" "}
+                  DZD
                 </span>
               </div>
 
               <div className="flex justify-between text-[#1e1620]/60">
                 <span>Frais de traitement</span>
+
                 <span className="text-[#176b3a]">
                   Gratuit
                 </span>
@@ -653,7 +736,10 @@ export default function CoursePaymentPage({
                 <span>Total</span>
 
                 <span className="text-[#e0156a]">
-                  {FIXED_PRICE_DZD.toLocaleString("fr-FR")} DZD
+                  {FIXED_PRICE_DZD.toLocaleString(
+                    "fr-FR"
+                  )}{" "}
+                  DZD
                 </span>
               </div>
             </div>

@@ -43,14 +43,22 @@ export function GenericSidebar({
 
   const isDark = theme === "dark";
 
-  const handleLogout = async () => {
-    try {
-      await authService.logout();
-    } finally {
-      router.replace("/login");
-    }
-  };
+const handleLogout = async () => {
+  console.log("🔴 LOGOUT BUTTON CLICKED");
 
+  try {
+    console.log("🟡 Calling authService.logout()...");
+
+    await authService.logout();
+
+    console.log("🟢 authService.logout() SUCCESS");
+  } catch (error) {
+    console.error("❌ handleLogout ERROR:", error);
+  } finally {
+    console.log("➡️ Redirecting to /login");
+    router.replace("/login");
+  }
+};
   return (
     <aside
       className={cn(

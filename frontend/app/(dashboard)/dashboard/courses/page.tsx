@@ -3,594 +3,391 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  BookOpen,
+  Clock,
+  Loader2,
+  PlayCircle,
   Search,
-  Eye,
-  Trash2,
-  FileCheck2,
-  Clock3,
+  Sparkles,
   Users,
-  X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-type ApplicationType = "EXPERT" | "INSTITUTION";
-type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
-
-interface ApplicationRequest {
+type Course = {
   id: string;
-  type: ApplicationType;
-  status: ApplicationStatus;
-  fullName: string;
-  email: string;
-  createdAt: string;
-}
-
-interface RawApplication {
-  id: string;
-  status: ApplicationStatus;
-  createdAt: string;
-  email: string;
-  fullName?: string;
-  organizationName?: string;
-  contactName?: string;
-}
-
-const TYPE_LABELS: Record<ApplicationType, string> = {
-  EXPERT: "Experte",
-  INSTITUTION: "Institution",
+  title: string;
+  description?: string | null;
+  thumbnail?: string | null;
+  imageUrl?: string | null;
+  category?: string | null;
+  level?: string | null;
+  duration?: number | null;
+  price?: number | null;
+  studentsCount?: number | null;
+  _count?: {
+    enrollments?: number;
+    videos?: number;
+    articles?: number;
+  };
+  expert?: {
+    id?: string;
+    name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
 };
 
-const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  PENDING: "En attente",
-  APPROVED: "Validée",
-  REJECTED: "Refusée",
-};
-
-function formatDate(date: string) {
-  if (!date) return "-";
-
-  const parsed = new Date(date);
-
-  if (Number.isNaN(parsed.getTime())) return "-";
-
-  return parsed.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function getInitials(name: string) {
-  if (!name) return "?";
-
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-}
-
-function StatusBadge({ status }: { status: ApplicationStatus }) {
-  if (status === "APPROVED") {
-    return (
-      <Badge tone="wine">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-        Validée
-      </Badge>
-    );
-  }
-
-  if (status === "REJECTED") {
-    return (
-      <Badge tone="rose">
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-        Refusée
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge tone="gold">
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-      En attente
-    </Badge>
-  );
-}
-
-async function fetchApplications(
-  type: ApplicationType
-): Promise<ApplicationRequest[]> {
-  const endpoint =
-    type === "EXPERT"
-      ? "expert-applications"
-      : "institution-applications";
-
-  const response = await fetch(`${API_URL}/${endpoint}`, {
-    method: "GET",
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message ||
-        (type === "EXPERT"
-          ? "Impossible de charger les candidatures expertes."
-          : "Impossible de charger les candidatures institutions.")
-    );
-  }
-
-  const applications: RawApplication[] =
-    data?.applications ?? data?.data ?? data?.items ?? [];
-
-  return applications.map((application) => ({
-    id: application.id,
-    type,
-    status: application.status,
-    fullName:
-      application.fullName ||
-      application.organizationName ||
-      application.contactName ||
-      application.email,
-    email: application.email,
-    createdAt: application.createdAt,
-  }));
-}
-
-export default function AdminRequestsPage() {
-  const [requests, setRequests] = useState<ApplicationRequest[]>([]);
+export default function CoursesPage() {
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  async function loadRequests() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const [experts, institutions] = await Promise.all([
-        fetchApplications("EXPERT"),
-        fetchApplications("INSTITUTION"),
-      ]);
-
-      const merged = [...experts, ...institutions].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime()
-      );
-
-      setRequests(merged);
-    } catch (err) {
-      console.error("FETCH REQUESTS ERROR:", err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de charger les demandes."
-      );
-
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void loadRequests();
+    let cancelled = false;
+
+    async function loadCourses() {
+      try {
+        setLoading(true);
+        setError("");
+
+        // IMPORTANT:
+        // No localStorage
+        // No accessToken
+        // No Authorization header
+        const response = await fetch(`${API_URL}/courses`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Impossible de charger les cours (${response.status})`
+          );
+        }
+
+        const data = await response.json();
+
+        // Supports:
+        // { courses: [...] }
+        // { data: [...] }
+        // [...]
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.courses)
+          ? data.courses
+          : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+        if (!cancelled) {
+          setCourses(list);
+        }
+      } catch (err) {
+        console.error("Error loading courses:", err);
+
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Une erreur est survenue lors du chargement des cours."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadCourses();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  async function handleDelete(
-    id: string,
-    type: ApplicationType
-  ) {
-    const confirmed = window.confirm(
-      "Voulez-vous vraiment supprimer cette demande ?"
-    );
+  const filteredCourses = useMemo(() => {
+    const value = search.trim().toLowerCase();
 
-    if (!confirmed) return;
+    if (!value) return courses;
 
-    try {
-      const endpoint =
-        type === "EXPERT"
-          ? "expert-applications"
-          : "institution-applications";
-
-      const response = await fetch(
-        `${API_URL}/${endpoint}/${id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        }
-      );
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message || "Erreur lors de la suppression."
-        );
-      }
-
-      setRequests((previous) =>
-        previous.filter((request) => request.id !== id)
-      );
-    } catch (err) {
-      console.error("DELETE REQUEST ERROR:", err);
-
-      window.alert(
-        err instanceof Error
-          ? err.message
-          : "Impossible de supprimer cette demande."
-      );
-    }
-  }
-
-  const filteredRequests = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) return requests;
-
-    return requests.filter((request) => {
+    return courses.filter((course) => {
       return (
-        request.fullName.toLowerCase().includes(query) ||
-        request.email.toLowerCase().includes(query) ||
-        TYPE_LABELS[request.type].toLowerCase().includes(query) ||
-        STATUS_LABELS[request.status].toLowerCase().includes(query)
+        course.title?.toLowerCase().includes(value) ||
+        course.description?.toLowerCase().includes(value) ||
+        course.category?.toLowerCase().includes(value) ||
+        course.level?.toLowerCase().includes(value)
       );
     });
-  }, [requests, search]);
+  }, [courses, search]);
 
-  const stats = useMemo(
-    () => ({
-      total: requests.length,
-      pending: requests.filter((r) => r.status === "PENDING").length,
-      approved: requests.filter((r) => r.status === "APPROVED").length,
-      rejected: requests.filter((r) => r.status === "REJECTED").length,
-    }),
-    [requests]
-  );
+  const getExpertName = (course: Course) => {
+    if (!course.expert) return "Expert";
 
-  return (
-    <div className="p-6 lg:p-8">
-      <div className="mb-8 text-sm text-ink-soft">
-        <span>Espace Admin</span>
-        <span className="mx-2 text-ink-soft/40">/</span>
-        <span className="font-medium text-wine-700">
-          Gestion des demandes
-        </span>
-      </div>
+    if (course.expert.firstName || course.expert.lastName) {
+      return `${course.expert.firstName || ""} ${
+        course.expert.lastName || ""
+      }`.trim();
+    }
 
-      <div className="relative mb-10">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
-        />
+    return course.expert.name || "Expert";
+  };
 
-        <p className="font-script text-2xl leading-none text-rose-500">
-          Administration,
-        </p>
+  const getStudentsCount = (course: Course) => {
+    return course.studentsCount ?? course._count?.enrollments ?? 0;
+  };
 
-        <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
-          Gestion des{" "}
-          <span className="text-gradient-rise">demandes</span>
-        </h1>
+  const getCourseImage = (course: Course) => {
+    return course.thumbnail || course.imageUrl || null;
+  };
 
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-          Consultez, examinez et gérez les demandes d'inscription
-          des expertes et des institutions sur Ellevadz.
-        </p>
-      </div>
+  /* ============================================================
+     LOADING
+     ============================================================ */
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-sand-200 bg-white px-4 py-3 shadow-sm transition-all focus-within:border-rose-300 focus-within:shadow-card">
-          <Search size={17} className="shrink-0 text-ink-soft" />
-
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Rechercher une demande..."
-            className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft/60"
-          />
-
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="rounded-full p-1 text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink"
-              aria-label="Effacer la recherche"
-            >
-              <X size={14} />
-            </button>
-          )}
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mb-8">
+          <div className="h-4 w-40 animate-pulse rounded-full bg-[#ffe3ee]" />
+          <div className="mt-3 h-8 w-64 animate-pulse rounded-lg bg-[#f6efe1]" />
+          <div className="mt-3 h-4 w-96 max-w-full animate-pulse rounded bg-[#f6efe1]" />
         </div>
 
-        <p className="text-xs text-ink-soft">
-          {filteredRequests.length} demande
-          {filteredRequests.length !== 1 ? "s" : ""} affichée
-          {filteredRequests.length !== 1 ? "s" : ""}
-        </p>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div
+              key={index}
+              className="card-surface overflow-hidden p-0"
+            >
+              <div className="h-40 animate-pulse bg-gradient-to-br from-[#ffe3ee] to-[#f6efe1]" />
+              <div className="space-y-3 p-5">
+                <div className="h-5 w-3/4 animate-pulse rounded bg-[#f6efe1]" />
+                <div className="h-3.5 w-full animate-pulse rounded bg-[#f6efe1]" />
+                <div className="h-3.5 w-2/3 animate-pulse rounded bg-[#f6efe1]" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+    );
+  }
 
-      {error && (
-        <div className="mb-6 flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          <span>{error}</span>
+  /* ============================================================
+     ERROR
+     ============================================================ */
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-xl px-6 py-16">
+        <div className="card-surface p-10 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffe3ee] font-display text-xl font-bold text-[#e0156a]">
+            !
+          </div>
+
+          <h2 className="font-display text-xl font-bold text-[#1e1620]">
+            Impossible de charger les cours
+          </h2>
+
+          <p className="mt-2 font-body text-sm text-[#1e1620]/60">
+            {error}
+          </p>
 
           <button
             type="button"
-            onClick={() => setError("")}
-            className="rounded-full p-1 transition-colors hover:bg-rose-100"
-            aria-label="Fermer"
+            onClick={() => window.location.reload()}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#e0156a] to-[#7a1352] px-6 py-3 font-body text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
           >
-            <X size={15} />
+            <Loader2 size={15} />
+            Réessayer
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ============================================================
+     PAGE
+     ============================================================ */
+
+  return (
+    <div className="mx-auto max-w-6xl px-6 py-8">
+      {/* HEADER */}
+      <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <span className="font-script text-lg text-[#e0156a]">
+            Développez vos compétences
+          </span>
+
+          <h1 className="font-display text-3xl font-bold text-[#1e1620]">
+            Nos formations
+          </h1>
+
+          <p className="mt-2 max-w-2xl font-body text-sm text-[#1e1620]/55">
+            Découvrez nos formations et progressez à votre rythme.
+          </p>
+        </div>
+
+        <div className="relative w-full md:w-80">
+          <Search
+            size={17}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#e0156a]/50"
+          />
+
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher une formation..."
+            className="w-full rounded-full border border-[#f1e9de] bg-[#fdfbf8] py-3 pl-10 pr-4 font-body text-sm text-[#1e1620] outline-none transition focus:border-[#e0156a]/40"
+          />
+        </div>
+      </div>
+
+      {/* EMPTY STATE */}
+      {filteredCourses.length === 0 && (
+        <div className="card-surface p-12 text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe3ee]">
+            <BookOpen size={28} className="text-[#e0156a]" />
+          </div>
+
+          <h2 className="font-display text-xl font-bold text-[#1e1620]">
+            {search ? "Aucune formation trouvée" : "Aucune formation disponible"}
+          </h2>
+
+          <p className="mt-2 font-body text-sm text-[#1e1620]/55">
+            {search
+              ? "Essayez avec un autre terme de recherche."
+              : "Les formations apparaîtront ici dès qu'elles seront disponibles."}
+          </p>
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="card-surface p-5 shadow-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                Total demandes
-              </p>
+      {/* COURSES GRID */}
+      {filteredCourses.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredCourses.map((course) => {
+            const image = getCourseImage(course);
+            const students = getStudentsCount(course);
 
-              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
-                {loading ? "…" : stats.total}
-              </p>
+            return (
+              <Link
+                key={course.id}
+                href={`/dashboard/courses/${encodeURIComponent(course.id)}`}
+                className="group card-surface overflow-hidden p-0 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_-20px_rgba(224,21,106,0.35)]"
+              >
+                {/* IMAGE */}
+                <div className="relative h-44 overflow-hidden bg-gradient-to-br from-[#e0156a] via-[#c4136a] to-[#7a1352]">
+                  <div
+                    aria-hidden
+                    className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10"
+                  />
 
-              <p className="mt-1 text-xs text-ink-soft">
-                Toutes les demandes
-              </p>
-            </div>
+                  <div
+                    aria-hidden
+                    className="absolute -bottom-12 -left-8 h-28 w-28 rounded-full bg-white/10"
+                  />
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
-              <Users size={18} className="text-rose-500" />
-            </div>
-          </div>
-        </div>
+                  {image ? (
+                    <img
+                      src={image}
+                      alt={course.title}
+                      className="relative h-full w-full object-cover opacity-95 transition duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="relative flex h-full items-center justify-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] border border-white/60 bg-white/20 text-white backdrop-blur-sm">
+                        <BookOpen size={28} strokeWidth={1.8} />
+                      </div>
+                    </div>
+                  )}
 
-        <div className="card-surface p-5 shadow-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                En attente
-              </p>
+                  <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
 
-              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
-                {loading ? "…" : stats.pending}
-              </p>
+                  {course.category && (
+                    <span className="absolute left-4 top-4 rounded-full border border-white/50 bg-white/90 px-3 py-1 font-body text-[11px] font-semibold text-[#7a1352] backdrop-blur-sm">
+                      {course.category}
+                    </span>
+                  )}
 
-              <p className="mt-1 text-xs text-ink-soft">
-                À examiner
-              </p>
-            </div>
+                  <div className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#e0156a] opacity-0 shadow-lg transition group-hover:opacity-100">
+                    <PlayCircle size={22} />
+                  </div>
+                </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-              <Clock3 size={18} className="text-amber-600" />
-            </div>
-          </div>
-        </div>
+                {/* CONTENT */}
+                <div className="p-5">
+                  {course.level && (
+                    <span className="mb-2 inline-flex rounded-full bg-[#f6efe1] px-3 py-1 font-body text-[11px] font-semibold text-[#8a6d1f]">
+                      {course.level}
+                    </span>
+                  )}
 
-        <div className="card-surface p-5 shadow-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                Validées
-              </p>
+                  <h2 className="line-clamp-2 font-display text-base font-bold text-[#1e1620] transition-colors group-hover:text-[#e0156a]">
+                    {course.title}
+                  </h2>
 
-              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
-                {loading ? "…" : stats.approved}
-              </p>
+                  {course.description && (
+                    <p className="mt-2 line-clamp-2 font-body text-sm leading-relaxed text-[#1e1620]/55">
+                      {course.description}
+                    </p>
+                  )}
 
-              <p className="mt-1 text-xs text-ink-soft">
-                Demandes acceptées
-              </p>
-            </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-[#f1e9de] pt-4 font-body text-xs text-[#1e1620]/50">
+                    {course.duration != null && (
+                      <span className="flex items-center gap-1.5">
+                        <Clock size={13} />
+                        {course.duration} min
+                      </span>
+                    )}
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-wine-50">
-              <FileCheck2 size={18} className="text-wine-700" />
-            </div>
-          </div>
-        </div>
+                    <span className="flex items-center gap-1.5">
+                      <Users size={13} />
+                      {students} étudiant{students !== 1 ? "s" : ""}
+                    </span>
 
-        <div className="card-surface p-5 shadow-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                Refusées
-              </p>
+                    <div className="ml-auto flex items-center gap-1 text-[#e0156a] opacity-0 transition-opacity group-hover:opacity-100">
+                      <Sparkles size={12} />
+                      <span className="font-semibold">Voir</span>
+                    </div>
+                  </div>
 
-              <p className="mt-2 font-display text-3xl font-semibold text-wine-900">
-                {loading ? "…" : stats.rejected}
-              </p>
-
-              <p className="mt-1 text-xs text-ink-soft">
-                Demandes refusées
-              </p>
-            </div>
-
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
-              <X size={18} className="text-rose-500" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card-surface overflow-hidden shadow-card">
-        <div className="flex flex-col gap-2 border-b border-sand-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-ink">
-              Demandes d'inscription
-            </h2>
-
-            <p className="mt-1 text-xs text-ink-soft">
-              Liste des demandes reçues par la plateforme.
-            </p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-sand-100 bg-sand-50/70">
-                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Candidat
-                </th>
-                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Type
-                </th>
-                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Date
-                </th>
-                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Statut
-                </th>
-                <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-sand-200 border-t-rose-500" />
-                      <p className="text-sm text-ink-soft">
-                        Chargement des demandes...
+                  <div className="mt-4 flex items-center justify-between border-t border-[#f1e9de] pt-4">
+                    <div>
+                      <p className="font-body text-[11px] text-[#1e1620]/40">
+                        Formateur
+                      </p>
+                      <p className="mt-0.5 font-body text-sm font-semibold text-[#7a1352]">
+                        {getExpertName(course)}
                       </p>
                     </div>
-                  </td>
-                </tr>
-              )}
 
-              {!loading &&
-                filteredRequests.map((request) => (
-                  <tr
-                    key={`${request.type}-${request.id}`}
-                    className="group border-b border-sand-100 transition-colors last:border-b-0 hover:bg-rose-50/30"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rise-gradient text-xs font-semibold text-white shadow-sm">
-                          {getInitials(request.fullName)}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-ink">
-                            {request.fullName}
-                          </p>
-
-                          <p className="truncate text-xs text-ink-soft">
-                            {request.email}
-                          </p>
-                        </div>
+                    {course.price != null && (
+                      <div className="text-right">
+                        <p className="font-body text-[11px] text-[#1e1620]/40">
+                          Prix
+                        </p>
+                        <p className="mt-0.5 font-display text-sm font-bold text-[#e0156a]">
+                          {course.price === 0
+                            ? "Gratuit"
+                            : `${course.price.toLocaleString("fr-FR")} DA`}
+                        </p>
                       </div>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <Badge
-                        tone={
-                          request.type === "EXPERT"
-                            ? "wine"
-                            : "gold"
-                        }
-                      >
-                        {TYPE_LABELS[request.type]}
-                      </Badge>
-                    </td>
-
-                    <td className="px-5 py-4 text-sm text-ink-soft">
-                      {formatDate(request.createdAt)}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <StatusBadge status={request.status} />
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/admin/requests/${request.type.toLowerCase()}/${request.id}`}
-                          className="inline-flex items-center gap-2 rounded-xl border border-sand-200 bg-white px-3 py-2 text-xs font-medium text-ink transition-all hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Eye size={15} />
-                          <span className="hidden sm:inline">
-                            Voir
-                          </span>
-                        </Link>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDelete(
-                              request.id,
-                              request.type
-                            )
-                          }
-                          className="inline-flex items-center justify-center rounded-xl border border-rose-100 bg-white p-2 text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-700"
-                          aria-label="Supprimer la demande"
-                          title="Supprimer"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-              {!loading && filteredRequests.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-14 text-center">
-                    <div className="mx-auto flex max-w-sm flex-col items-center">
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sand-50">
-                        <Search
-                          size={22}
-                          className="text-ink-soft"
-                        />
-                      </div>
-
-                      <p className="font-medium text-ink">
-                        Aucune demande trouvée
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-ink-soft">
-                        {search
-                          ? "Essayez avec un autre terme de recherche."
-                          : "Aucune demande d'inscription n'est disponible pour le moment."}
-                      </p>
-
-                      {search && (
-                        <button
-                          type="button"
-                          onClick={() => setSearch("")}
-                          className="mt-4 text-xs font-medium text-rose-600 hover:text-rose-700"
-                        >
-                          Effacer la recherche
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }

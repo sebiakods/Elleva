@@ -41,40 +41,163 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:4000/api";
 
+/*
+ * ============================================================
+ * FRONTEND COURSE PAYMENT STORAGE
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * This MUST be exactly the same key used by:
+ *
+ * /dashboard/courses/[id]/payment/page.tsx
+ *
+ * It is NOT an authentication token.
+ *
+ * It only stores course IDs that have been "paid" in this
+ * browser.
+ */
+const PAID_COURSES_KEY = "ellevadz_paid_courses";
+
+/*
+ * ============================================================
+ * GET PAID COURSE IDS
+ * ============================================================
+ */
+function getPaidCourseIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      PAID_COURSES_KEY
+    );
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (id): id is string => typeof id === "string"
+    );
+  } catch (error) {
+    console.error(
+      "Erreur de lecture des formations payées:",
+      error
+    );
+
+    return [];
+  }
+}
+
+/*
+ * ============================================================
+ * CHECK IF COURSE IS PAID
+ * ============================================================
+ */
+function hasPaidForCourse(courseId: string): boolean {
+  if (!courseId) {
+    return false;
+  }
+
+  return getPaidCourseIds().includes(courseId);
+}
+
 export default function CoursePage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
 
+  /*
+   * ============================================================
+   * COURSE ID
+   * ============================================================
+   */
   const courseId =
-    typeof params.id === "string"
+    typeof params?.id === "string"
       ? params.id
-      : Array.isArray(params.id)
-        ? params.id[0]
-        : "";
+      : "";
 
-  const [course, setCourse] = useState<Course | null>(null);
+  const [course, setCourse] =
+    useState<Course | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState<string | null>(null);
+  const [checkingPayment, setCheckingPayment] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  /*
+   * ============================================================
+   * CHECK PAYMENT
+   * ============================================================
+   *
+   * Flow:
+   *
+   * 1. User opens /courses/[id]
+   * 2. Check localStorage
+   * 3. If NOT paid:
+   *       -> /courses/[id]/payment
+   *
+   * 4. If paid:
+   *       -> load course
+   *       -> show lessons
+   *
+   * NO accessToken.
+   * NO localStorage authentication token.
+   */
+  useEffect(() => {
+    if (!courseId) {
+      setCheckingPayment(false);
+      setLoading(false);
+      setError("Identifiant du cours manquant.");
+      return;
+    }
+
+    const paid = hasPaidForCourse(courseId);
+
+    console.log(
+      "[COURSE ACCESS]",
+      {
+        courseId,
+        paid,
+        paidCourses: getPaidCourseIds(),
+      }
+    );
+
+    if (!paid) {
+      router.replace(
+        `/dashboard/courses/${encodeURIComponent(
+          courseId
+        )}/payment`
+      );
+
+      return;
+    }
+
+    /*
+     * Course is paid.
+     * Allow the course to load.
+     */
+    setCheckingPayment(false);
+  }, [courseId, router]);
 
   /*
    * ============================================================
    * LOAD COURSE
    * ============================================================
-   *
-   * Authentication is handled by the HTTP-only session cookie.
-   *
-   * IMPORTANT:
-   * We do NOT read accessToken/token from localStorage.
-   *
-   * credentials: "include" tells the browser to send the
-   * authentication cookie with the request.
    */
   useEffect(() => {
-    if (!courseId) {
-      setLoading(false);
-      setError("Identifiant du cours manquant.");
+    if (!courseId || checkingPayment) {
       return;
     }
 
@@ -85,14 +208,24 @@ export default function CoursePage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(
-          `${API_URL}/courses/${encodeURIComponent(courseId)}`,
+        const response = await fetch(
+          `${API_URL}/courses/${encodeURIComponent(
+            courseId
+          )}`,
           {
             method: "GET",
+
+            /*
+             * Authentication is handled by HttpOnly cookies.
+             *
+             * There is NO accessToken here.
+             */
             credentials: "include",
+
             headers: {
               Accept: "application/json",
             },
+
             cache: "no-store",
           }
         );
@@ -100,25 +233,43 @@ export default function CoursePage() {
         let json: unknown = null;
 
         try {
-          json = await res.json();
+          json = await response.json();
         } catch {
           json = null;
         }
 
-        if (!res.ok) {
-          const message =
+        if (!response.ok) {
+          let message =
+            "Impossible de charger cette formation.";
+
+          if (
             typeof json === "object" &&
             json !== null &&
             "message" in json &&
             typeof json.message === "string"
-              ? json.message
-              : res.status === 401
-                ? "Votre session a expiré. Veuillez vous reconnecter."
-                : `Erreur ${res.status}: Impossible de charger la formation.`;
+          ) {
+            message = json.message;
+          } else if (response.status === 401) {
+            message =
+              "Votre session a expiré. Veuillez vous reconnecter.";
+          } else {
+            message = `Erreur ${response.status}: Impossible de charger la formation.`;
+          }
 
           throw new Error(message);
         }
 
+        /*
+         * Backend may return:
+         *
+         * {
+         *   data: {...}
+         * }
+         *
+         * OR:
+         *
+         * {...}
+         */
         const responseData =
           typeof json === "object" &&
           json !== null &&
@@ -167,7 +318,7 @@ export default function CoursePage() {
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [courseId, checkingPayment]);
 
   /*
    * ============================================================
@@ -180,8 +331,8 @@ export default function CoursePage() {
     }
 
     /*
-     * If the backend already returns a normalized lessons array,
-     * use it directly.
+     * If backend already provides lessons,
+     * use them.
      */
     if (
       Array.isArray(course.lessons) &&
@@ -191,7 +342,11 @@ export default function CoursePage() {
     }
 
     /*
-     * Otherwise build the list from articles/videos/resources.
+     * Otherwise combine:
+     *
+     * Articles
+     * Videos
+     * Resources
      */
     return [
       ...(Array.isArray(course.articles)
@@ -222,7 +377,11 @@ export default function CoursePage() {
    * LOADING
    * ============================================================
    */
-  if (loading) {
+  if (
+    loading ||
+    checkingPayment ||
+    !courseId
+  ) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
         <Loader2
@@ -285,10 +444,15 @@ export default function CoursePage() {
    * ============================================================
    * COURSE PAGE
    * ============================================================
+   *
+   * At this point:
+   *
+   * - course is paid
+   * - backend course loaded
+   * - lessons are available
    */
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
-      {/* Back */}
       <Link
         href="/dashboard/courses"
         className="mb-6 inline-flex items-center gap-1.5 font-body text-sm font-medium text-[#e0156a] transition hover:text-[#7a1352]"
@@ -297,9 +461,9 @@ export default function CoursePage() {
         Retour aux formations
       </Link>
 
-      {/* ========================================================
+      {/* =====================================================
           HERO
-      ======================================================== */}
+      ====================================================== */}
       <section className="card-surface mb-8 overflow-hidden">
         <div className="relative bg-gradient-to-br from-[#e0156a] via-[#c4136a] to-[#7a1352] px-7 py-10 md:px-10">
           <div
@@ -313,7 +477,6 @@ export default function CoursePage() {
           />
 
           <div className="relative z-10">
-            {/* Badges */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {course.category && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-body text-xs font-semibold text-white backdrop-blur">
@@ -334,19 +497,16 @@ export default function CoursePage() {
               </span>
             </div>
 
-            {/* Title */}
             <h1 className="max-w-3xl font-display text-3xl font-bold leading-tight text-white md:text-4xl">
               {course.title}
             </h1>
 
-            {/* Description */}
             {course.description && (
               <p className="mt-4 max-w-2xl font-body text-sm leading-relaxed text-white/80 md:text-base">
                 {course.description}
               </p>
             )}
 
-            {/* Stats */}
             <div className="mt-6 flex flex-wrap items-center gap-5 font-body text-sm text-white/85">
               <div className="flex items-center gap-2">
                 <BookOpen size={16} />
@@ -370,13 +530,10 @@ export default function CoursePage() {
         </div>
       </section>
 
-      {/* ========================================================
+      {/* =====================================================
           CONTENT
-      ======================================================== */}
+      ====================================================== */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* ======================================================
-            LESSONS
-        ====================================================== */}
         <div className="lg:col-span-2">
           <div className="mb-5">
             <span className="font-script text-lg text-[#e0156a]">
@@ -388,8 +545,7 @@ export default function CoursePage() {
             </h2>
 
             <p className="mt-1 font-body text-sm text-[#1e1620]/55">
-              Progressez à votre rythme et découvrez
-              chaque leçon.
+              Progressez à votre rythme et découvrez chaque leçon.
             </p>
           </div>
 
@@ -401,8 +557,7 @@ export default function CoursePage() {
               />
 
               <p className="font-body text-sm text-[#1e1620]/55">
-                Le contenu de cette formation sera
-                bientôt disponible.
+                Le contenu de cette formation sera bientôt disponible.
               </p>
             </div>
           ) : (
@@ -421,13 +576,16 @@ export default function CoursePage() {
                     type="button"
                     onClick={() =>
                       router.push(
-                        `/dashboard/courses/${course.id}/lesson/${lesson.id}`
+                        `/dashboard/courses/${encodeURIComponent(
+                          course.id
+                        )}/lesson/${encodeURIComponent(
+                          lesson.id
+                        )}`
                       )
                     }
                     className="group card-surface w-full p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-15px_rgba(224,21,106,0.25)] md:p-5"
                   >
                     <div className="flex items-center gap-4">
-                      {/* Number */}
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ffe3ee] font-display font-bold text-[#e0156a]">
                         {String(index + 1).padStart(
                           2,
@@ -435,12 +593,10 @@ export default function CoursePage() {
                         )}
                       </div>
 
-                      {/* Icon */}
                       <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#f1e9de] bg-[#fdfbf8] text-[#7a1352] sm:flex">
                         <Icon size={18} />
                       </div>
 
-                      {/* Content */}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-display text-sm font-bold text-[#1e1620] transition-colors group-hover:text-[#e0156a] md:text-base">
@@ -487,9 +643,9 @@ export default function CoursePage() {
           )}
         </div>
 
-        {/* ======================================================
+        {/* =================================================
             SIDEBAR
-        ====================================================== */}
+        ================================================== */}
         <aside>
           <div className="card-surface sticky top-6 p-6">
             <div className="mb-5 flex items-center gap-2">
@@ -511,7 +667,6 @@ export default function CoursePage() {
               </div>
             </div>
 
-            {/* Access status */}
             <div className="mb-6 flex items-center gap-3 rounded-xl border border-[#86cfa5] bg-[#e9f9ef] p-3">
               <CheckCircle2
                 size={18}
@@ -524,13 +679,11 @@ export default function CoursePage() {
                 </p>
 
                 <p className="mt-0.5 font-body text-[10px] text-[#176b3a]/70">
-                  Votre accès est enregistré sur
-                  votre compte.
+                  Votre accès est enregistré sur ce navigateur.
                 </p>
               </div>
             </div>
 
-            {/* Stats */}
             <div className="space-y-3 border-t border-[#f1e9de] pt-5">
               <div className="flex items-center justify-between">
                 <span className="font-body text-sm text-[#1e1620]/55">
@@ -567,10 +720,13 @@ export default function CoursePage() {
               )}
             </div>
 
-            {/* Start */}
             {lessons.length > 0 && (
               <Link
-                href={`/dashboard/courses/${course.id}/lesson/${lessons[0].id}`}
+                href={`/dashboard/courses/${encodeURIComponent(
+                  course.id
+                )}/lesson/${encodeURIComponent(
+                  lessons[0].id
+                )}`}
                 className="group/btn relative mt-6 block w-full overflow-hidden rounded-full bg-gradient-to-r from-[#e0156a] to-[#7a1352] py-3 text-center font-body text-sm font-semibold text-white transition-all hover:brightness-105 hover:shadow-[0_10px_25px_-8px_rgba(224,21,106,0.55)]"
               >
                 <span className="relative z-10">
@@ -585,8 +741,7 @@ export default function CoursePage() {
             )}
 
             <p className="mt-4 text-center font-body text-[10px] leading-relaxed text-[#1e1620]/35">
-              Vous avez accès à cette formation
-              depuis votre compte.
+              Votre accès à cette formation est conservé sur ce navigateur.
             </p>
           </div>
         </aside>
