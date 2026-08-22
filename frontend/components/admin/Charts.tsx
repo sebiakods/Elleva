@@ -1,47 +1,99 @@
 "use client";
+
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from "recharts";
 
-const data = [
-  { month: "Jan", users: 120, plans: 34 },
-  { month: "Fév", users: 190, plans: 52 },
-  { month: "Mar", users: 280, plans: 71 },
-  { month: "Avr", users: 340, plans: 89 },
-  { month: "Mai", users: 450, plans: 105 },
-  { month: "Jun", users: 600, plans: 140 },
-];
+export interface ChartPoint {
+  label: string;
+  value: number;
+}
 
-export function Charts() {
+interface ChartsProps {
+  data: ChartPoint[];
+  loading?: boolean;
+}
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="card-surface p-6 shadow-card">
-      <h3 className="mb-5 font-display text-lg text-ink">Inscriptions & Business Plans</h3>
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+    <div className="rounded-xl border border-sand-200 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs font-medium text-ink-soft">{label}</p>
+      <p className="font-display text-sm font-semibold text-wine-900">
+        {payload[0].value.toLocaleString("fr-FR")}
+      </p>
+    </div>
+  );
+}
+
+export function Charts({ data, loading = false }: ChartsProps) {
+  if (loading) {
+    return (
+      <div className="h-72 w-full animate-pulse rounded-2xl bg-sand-50" />
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-72 w-full items-center justify-center rounded-2xl bg-sand-50">
+        <p className="text-sm text-ink-soft">Aucune donnée disponible.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-72 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <defs>
-            <linearGradient id="gradUsers" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#E0156A" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#E0156A" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="gradPlans" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#7A1352" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#7A1352" stopOpacity={0} />
+            <linearGradient id="riseGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e11d67" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#e11d67" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#F1E9DE" />
-          <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#4A3F47" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 12, fill: "#4A3F47" }} axisLine={false} tickLine={false} />
-          <Tooltip
-            contentStyle={{ borderRadius: "12px", border: "1px solid #F1E9DE", boxShadow: "0 8px 30px -12px rgba(30,22,32,.12)" }}
+
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1e7e0" vertical={false} />
+
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: "#9c8f88" }}
           />
-          <Area type="monotone" dataKey="users" name="Utilisateurs" stroke="#E0156A" strokeWidth={2} fill="url(#gradUsers)" />
-          <Area type="monotone" dataKey="plans" name="Business Plans" stroke="#7A1352" strokeWidth={2} fill="url(#gradPlans)" />
+
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: "#9c8f88" }}
+            width={40}
+          />
+
+          <Tooltip content={<ChartTooltip />} />
+
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke="#be123c"
+            strokeWidth={2}
+            fill="url(#riseGradient)"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>

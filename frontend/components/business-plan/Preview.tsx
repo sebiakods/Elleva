@@ -73,7 +73,7 @@ export function Preview({ planId }: { planId: string }) {
 
       {plan.reviewNotes && (
         <div className="mt-6 rounded-xl bg-rose-50 p-4">
-          <p className="text-xs font-semibold text-rose-700">Retour de l'experte {plan.reviewScore != null && `— ${plan.reviewScore}/100`}</p>
+          <p className="text-xs font-semibold text-rose-700">Retour de l&apos;experte {plan.reviewScore != null && `— ${plan.reviewScore}/100`}</p>
           <p className="mt-1 text-sm text-rose-700">{plan.reviewNotes}</p>
         </div>
       )}

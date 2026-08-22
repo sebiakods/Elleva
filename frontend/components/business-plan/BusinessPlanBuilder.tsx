@@ -241,8 +241,7 @@ export function BusinessPlanBuilder({ planId: initialPlanId }: { planId?: string
         {current === 4 && (
           <FormSection title="Révision finale" description="Vérifiez votre plan avant de le soumettre à une experte.">
             <p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
-              Votre business plan est prêt. Vous pouvez le prévisualiser ou l'envoyer directement à une experte pour révision.
-            </p>
+                Votre business plan est prêt. Vous pouvez le prévisualiser ou l&apos;envoyer directement à une experte pour révision.            </p>
           </FormSection>
         )}
       </div>

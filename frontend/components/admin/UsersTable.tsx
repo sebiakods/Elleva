@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MoreHorizontal,
@@ -13,6 +12,7 @@ import {
   CalendarDays,
   Users,
 } from "lucide-react";
+
 import { Badge } from "@/components/ui/Badge";
 
 const API_URL = (
@@ -26,6 +26,22 @@ interface User {
   role: string;
   isActive: boolean;
   createdAt: string;
+}
+
+interface UsersTableProps {
+  /**
+   * If users are provided by the parent, the component will use them
+   * and will NOT fetch /users itself.
+   */
+  users?: User[];
+
+  /**
+   * Loading state controlled by the parent when users are provided.
+   */
+  loading?: boolean;
+
+  search?: string;
+  role?: string;
 }
 
 const roleMap: Record<string, string> = {
@@ -42,11 +58,6 @@ const roleTone: Record<string, "gold" | "wine" | "rose"> = {
   ADMIN: "wine",
 };
 
-interface UsersTableProps {
-  search?: string;
-  role?: string;
-}
-
 async function getErrorMessage(response: Response): Promise<string> {
   try {
     const data: unknown = await response.json();
@@ -55,10 +66,7 @@ async function getErrorMessage(response: Response): Promise<string> {
       const payload = data as {
         message?: unknown;
         error?: unknown;
-        data?: {
-          message?: unknown;
-          error?: unknown;
-        };
+        data?: unknown;
       };
 
       if (typeof payload.message === "string") {
@@ -69,18 +77,19 @@ async function getErrorMessage(response: Response): Promise<string> {
         return payload.error;
       }
 
-      if (
-        payload.data &&
-        typeof payload.data.message === "string"
-      ) {
-        return payload.data.message;
-      }
+      if (payload.data && typeof payload.data === "object") {
+        const nested = payload.data as {
+          message?: unknown;
+          error?: unknown;
+        };
 
-      if (
-        payload.data &&
-        typeof payload.data.error === "string"
-      ) {
-        return payload.data.error;
+        if (typeof nested.message === "string") {
+          return nested.message;
+        }
+
+        if (typeof nested.error === "string") {
+          return nested.error;
+        }
       }
     }
   } catch {
@@ -117,10 +126,7 @@ function extractUsers(data: unknown): User[] {
     return payload.data as User[];
   }
 
-  if (
-    payload.data &&
-    typeof payload.data === "object"
-  ) {
+  if (payload.data && typeof payload.data === "object") {
     const nested = payload.data as {
       users?: unknown;
       items?: unknown;
@@ -157,113 +163,131 @@ function formatDate(date?: string): string {
 }
 
 export function UsersTable({
+  users: externalUsers,
+  loading: externalLoading = false,
   search = "",
   role = "",
 }: UsersTableProps) {
   const router = useRouter();
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  /**
+   * If externalUsers exists, parent owns the data.
+   * Otherwise this component fetches its own data.
+   */
+  const isControlled = externalUsers !== undefined;
+
+  const [users, setUsers] = useState<User[]>(externalUsers ?? []);
+  const [loading, setLoading] = useState(externalUsers === undefined);
   const [error, setError] = useState<string | null>(null);
+
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] =
-    useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Keep internal state synchronized when the parent provides users.
+   */
+  useEffect(() => {
+    if (externalUsers !== undefined) {
+      setUsers(externalUsers);
+      setLoading(externalLoading);
+      setError(null);
+    }
+  }, [externalUsers, externalLoading]);
 
   /**
    * ============================================================
    * FETCH USERS
    * ============================================================
    *
-   * Authentication is handled exclusively by the httpOnly
-   * session cookie.
+   * Authentication:
+   * - httpOnly cookie
+   * - credentials: "include"
    *
-   * IMPORTANT:
-   * - No localStorage
-   * - No sessionStorage
-   * - No accessToken
-   * - No refreshToken
-   * - No Authorization: Bearer header
-   *
-   * credentials: "include" sends the httpOnly cookie.
+   * NEVER:
+   * - localStorage
+   * - sessionStorage
+   * - accessToken
+   * - refreshToken
+   * - Authorization: Bearer
    */
-  async function fetchUsers(
-    signal?: AbortSignal
-  ): Promise<void> {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams();
-
-      const trimmedSearch = search.trim();
-
-      if (trimmedSearch) {
-        params.set("search", trimmedSearch);
+  const fetchUsers = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      if (isControlled) {
+        return;
       }
 
-      if (role) {
-        params.set("role", role);
-      }
+      setLoading(true);
+      setError(null);
 
-      params.set("limit", "50");
+      try {
+        const params = new URLSearchParams();
 
-      const query = params.toString();
+        const trimmedSearch = search.trim();
 
-      const response = await fetch(
-        `${API_URL}/users${query ? `?${query}` : ""}`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-          credentials: "include",
-          cache: "no-store",
-          signal,
+        if (trimmedSearch) {
+          params.set("search", trimmedSearch);
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(
-          await getErrorMessage(response)
+        if (role) {
+          params.set("role", role);
+        }
+
+        params.set("limit", "50");
+
+        const query = params.toString();
+
+        const response = await fetch(
+          `${API_URL}/users${query ? `?${query}` : ""}`,
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+            },
+            credentials: "include",
+            cache: "no-store",
+            signal,
+          }
         );
+
+        if (!response.ok) {
+          throw new Error(await getErrorMessage(response));
+        }
+
+        const data: unknown = await response.json();
+
+        if (signal?.aborted) {
+          return;
+        }
+
+        setUsers(extractUsers(data));
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+
+        if (signal?.aborted) {
+          return;
+        }
+
+        console.error("FETCH USERS ERROR:", err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger les utilisateurs."
+        );
+
+        setUsers([]);
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
-
-      const data: unknown = await response.json();
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      setUsers(extractUsers(data));
-    } catch (err) {
-      if (
-        err instanceof DOMException &&
-        err.name === "AbortError"
-      ) {
-        return;
-      }
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      console.error("FETCH USERS ERROR:", err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de charger les utilisateurs."
-      );
-
-      setUsers([]);
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
-  }
+    },
+    [isControlled, role, search]
+  );
 
   /**
    * ============================================================
@@ -271,6 +295,10 @@ export function UsersTable({
    * ============================================================
    */
   useEffect(() => {
+    if (isControlled) {
+      return;
+    }
+
     const controller = new AbortController();
 
     const timeout = window.setTimeout(() => {
@@ -281,14 +309,11 @@ export function UsersTable({
       window.clearTimeout(timeout);
       controller.abort();
     };
-
-    // fetchUsers intentionally depends on search/role.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, role]);
+  }, [fetchUsers, isControlled]);
 
   /**
    * ============================================================
-   * CLOSE ACTION MENU WHEN CLICKING OUTSIDE
+   * CLOSE MENU WHEN CLICKING OUTSIDE
    * ============================================================
    */
   useEffect(() => {
@@ -304,16 +329,10 @@ export function UsersTable({
       }
     }
 
-    document.addEventListener(
-      "mousedown",
-      closeMenu
-    );
+    document.addEventListener("mousedown", closeMenu);
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        closeMenu
-      );
+      document.removeEventListener("mousedown", closeMenu);
     };
   }, []);
 
@@ -322,15 +341,11 @@ export function UsersTable({
    * ACTIVATE / SUSPEND USER
    * ============================================================
    */
-  async function toggleActive(
-    user: User
-  ): Promise<void> {
+  async function toggleActive(user: User): Promise<void> {
     const userId = user.id;
 
     if (!userId) {
-      window.alert(
-        "Identifiant utilisateur manquant."
-      );
+      window.alert("Identifiant utilisateur manquant.");
       return;
     }
 
@@ -338,9 +353,7 @@ export function UsersTable({
       return;
     }
 
-    const action = user.isActive
-      ? "suspend"
-      : "activate";
+    const action = user.isActive ? "suspend" : "activate";
 
     const confirmed = window.confirm(
       user.isActive
@@ -356,9 +369,7 @@ export function UsersTable({
 
     try {
       const response = await fetch(
-        `${API_URL}/users/${encodeURIComponent(
-          userId
-        )}/${action}`,
+        `${API_URL}/users/${encodeURIComponent(userId)}/${action}`,
         {
           method: "PATCH",
           headers: {
@@ -370,13 +381,10 @@ export function UsersTable({
       );
 
       if (!response.ok) {
-        throw new Error(
-          await getErrorMessage(response)
-        );
+        throw new Error(await getErrorMessage(response));
       }
 
-      const data: unknown =
-        await response.json().catch(() => null);
+      const data: unknown = await response.json().catch(() => null);
 
       let updatedIsActive: boolean | null = null;
 
@@ -386,71 +394,50 @@ export function UsersTable({
           user?: unknown;
         };
 
-        const candidates = [
-          payload.user,
-          payload.data,
-        ];
+        const candidates = [payload.user, payload.data];
 
         for (const candidate of candidates) {
+          if (!candidate || typeof candidate !== "object") {
+            continue;
+          }
+
+          const candidateUser = candidate as {
+            user?: unknown;
+            isActive?: unknown;
+          };
+
+          if (typeof candidateUser.isActive === "boolean") {
+            updatedIsActive = candidateUser.isActive;
+            break;
+          }
+
           if (
-            candidate &&
-            typeof candidate === "object"
+            candidateUser.user &&
+            typeof candidateUser.user === "object"
           ) {
-            const candidateUser = candidate as {
-              user?: unknown;
+            const nestedUser = candidateUser.user as {
               isActive?: unknown;
             };
 
-            if (
-              typeof candidateUser.isActive ===
-              "boolean"
-            ) {
-              updatedIsActive =
-                candidateUser.isActive;
+            if (typeof nestedUser.isActive === "boolean") {
+              updatedIsActive = nestedUser.isActive;
               break;
-            }
-
-            if (
-              candidateUser.user &&
-              typeof candidateUser.user ===
-                "object"
-            ) {
-              const nestedUser =
-                candidateUser.user as {
-                  isActive?: unknown;
-                };
-
-              if (
-                typeof nestedUser.isActive ===
-                "boolean"
-              ) {
-                updatedIsActive =
-                  nestedUser.isActive;
-                break;
-              }
             }
           }
         }
       }
 
-      const nextIsActive =
-        updatedIsActive ?? !user.isActive;
+      const nextIsActive = updatedIsActive ?? !user.isActive;
 
       setUsers((currentUsers) =>
         currentUsers.map((currentUser) =>
           currentUser.id === userId
-            ? {
-                ...currentUser,
-                isActive: nextIsActive,
-              }
+            ? { ...currentUser, isActive: nextIsActive }
             : currentUser
         )
       );
     } catch (err) {
-      console.error(
-        "TOGGLE ACTIVE ERROR:",
-        err
-      );
+      console.error("TOGGLE ACTIVE ERROR:", err);
 
       window.alert(
         err instanceof Error
@@ -467,15 +454,11 @@ export function UsersTable({
    * DELETE USER
    * ============================================================
    */
-  async function deleteUser(
-    id: string
-  ): Promise<void> {
+  async function deleteUser(id: string): Promise<void> {
     const userId = id;
 
     if (!userId) {
-      window.alert(
-        "Identifiant utilisateur manquant."
-      );
+      window.alert("Identifiant utilisateur manquant.");
       return;
     }
 
@@ -495,9 +478,7 @@ export function UsersTable({
 
     try {
       const response = await fetch(
-        `${API_URL}/users/${encodeURIComponent(
-          userId
-        )}`,
+        `${API_URL}/users/${encodeURIComponent(userId)}`,
         {
           method: "DELETE",
           headers: {
@@ -509,22 +490,14 @@ export function UsersTable({
       );
 
       if (!response.ok) {
-        throw new Error(
-          await getErrorMessage(response)
-        );
+        throw new Error(await getErrorMessage(response));
       }
 
       setUsers((currentUsers) =>
-        currentUsers.filter(
-          (currentUser) =>
-            currentUser.id !== userId
-        )
+        currentUsers.filter((currentUser) => currentUser.id !== userId)
       );
     } catch (err) {
-      console.error(
-        "DELETE USER ERROR:",
-        err
-      );
+      console.error("DELETE USER ERROR:", err);
 
       window.alert(
         err instanceof Error
@@ -536,12 +509,9 @@ export function UsersTable({
     }
   }
 
-  /**
-   * ============================================================
-   * LOADING
-   * ============================================================
-   */
-  if (loading) {
+  const isLoading = isControlled ? externalLoading : loading;
+
+  if (isLoading) {
     return (
       <div className="card-surface overflow-hidden shadow-card">
         <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
@@ -559,11 +529,6 @@ export function UsersTable({
     );
   }
 
-  /**
-   * ============================================================
-   * ERROR
-   * ============================================================
-   */
   if (error) {
     return (
       <div className="card-surface shadow-card">
@@ -580,31 +545,24 @@ export function UsersTable({
             {error}
           </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              void fetchUsers();
-            }}
-            className="mt-5 rounded-xl bg-rise-gradient px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
-          >
-            Réessayer
-          </button>
+          {!isControlled && (
+            <button
+              type="button"
+              onClick={() => {
+                void fetchUsers();
+              }}
+              className="mt-5 rounded-xl bg-rise-gradient px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Réessayer
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  /**
-   * ============================================================
-   * TABLE
-   * ============================================================
-   */
   return (
-    <div
-      ref={menuRef}
-      className="card-surface overflow-hidden shadow-card"
-    >
-      {/* TABLE HEADER */}
+    <div ref={menuRef} className="card-surface overflow-hidden shadow-card">
       <div className="flex flex-col gap-3 border-b border-sand-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold text-wine-900">
@@ -612,10 +570,7 @@ export function UsersTable({
           </h2>
 
           <p className="mt-1 text-xs text-ink-soft">
-            {users.length}{" "}
-            {users.length > 1
-              ? "utilisateurs"
-              : "utilisateur"}{" "}
+            {users.length} {users.length > 1 ? "utilisateurs" : "utilisateur"}{" "}
             affiché{users.length > 1 ? "s" : ""}
           </p>
         </div>
@@ -626,7 +581,6 @@ export function UsersTable({
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
@@ -656,10 +610,7 @@ export function UsersTable({
           <tbody className="divide-y divide-sand-100">
             {users.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-6 py-14"
-                >
+                <td colSpan={5} className="px-6 py-14">
                   <div className="flex flex-col items-center justify-center text-center">
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-sand-50 text-ink-soft">
                       <Users size={21} />
@@ -670,8 +621,8 @@ export function UsersTable({
                     </p>
 
                     <p className="mt-1 max-w-sm text-xs leading-5 text-ink-soft">
-                      Aucun compte ne correspond aux
-                      critères de recherche actuels.
+                      Aucun compte ne correspond aux critères de recherche
+                      actuels.
                     </p>
                   </div>
                 </td>
@@ -684,20 +635,16 @@ export function UsersTable({
                     .split(/\s+/)
                     .filter(Boolean)
                     .slice(0, 2)
-                    .map((part) =>
-                      part.charAt(0).toUpperCase()
-                    )
+                    .map((part) => part.charAt(0).toUpperCase())
                     .join("") || "?";
 
-                const isActionLoading =
-                  actionLoading === user.id;
+                const isActionLoading = actionLoading === user.id;
 
                 return (
                   <tr
                     key={user.id}
                     className="group transition-colors hover:bg-rose-50/30"
                   >
-                    {/* USER */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rise-gradient text-sm font-semibold text-white shadow-sm">
@@ -706,45 +653,29 @@ export function UsersTable({
 
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-ink">
-                            {user.name ||
-                              "Utilisateur"}
+                            {user.name || "Utilisateur"}
                           </p>
 
                           <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-soft">
-                            <Mail
-                              size={11}
-                              className="shrink-0"
-                            />
+                            <Mail size={11} className="shrink-0" />
 
-                            <span className="truncate">
-                              {user.email}
-                            </span>
+                            <span className="truncate">{user.email}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* ROLE */}
                     <td className="px-5 py-4">
-                      <Badge
-                        tone={
-                          roleTone[user.role] ??
-                          "rose"
-                        }
-                      >
-                        {roleMap[user.role] ??
-                          user.role}
+                      <Badge tone={roleTone[user.role] ?? "rose"}>
+                        {roleMap[user.role] ?? user.role}
                       </Badge>
                     </td>
 
-                    {/* STATUS */}
                     <td className="px-5 py-4">
                       <div className="inline-flex items-center gap-2">
                         <span
                           className={`h-2 w-2 rounded-full ${
-                            user.isActive
-                              ? "bg-emerald-500"
-                              : "bg-rose-400"
+                            user.isActive ? "bg-emerald-500" : "bg-rose-400"
                           }`}
                         />
 
@@ -755,62 +686,42 @@ export function UsersTable({
                               : "text-rose-600"
                           }`}
                         >
-                          {user.isActive
-                            ? "Actif"
-                            : "Suspendu"}
+                          {user.isActive ? "Actif" : "Suspendu"}
                         </span>
                       </div>
                     </td>
 
-                    {/* DATE */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 text-xs text-ink-soft">
-                        <CalendarDays
-                          size={13}
-                          className="shrink-0"
-                        />
+                        <CalendarDays size={13} className="shrink-0" />
 
-                        <span>
-                          {formatDate(
-                            user.createdAt
-                          )}
-                        </span>
+                        <span>{formatDate(user.createdAt)}</span>
                       </div>
                     </td>
 
-                    {/* ACTIONS */}
                     <td className="relative px-5 py-4 text-right">
                       <button
                         type="button"
                         disabled={isActionLoading}
                         onClick={() =>
-                          setOpenMenu(
-                            openMenu === user.id
-                              ? null
-                              : user.id
-                          )
+                          setOpenMenu(openMenu === user.id ? null : user.id)
                         }
                         className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-sand-100 hover:text-ink focus-ring disabled:pointer-events-none disabled:opacity-50"
                         aria-label={`Actions pour ${user.name}`}
-                        aria-expanded={
-                          openMenu === user.id
-                        }
+                        aria-expanded={openMenu === user.id}
                       >
                         <MoreHorizontal size={18} />
                       </button>
 
                       {openMenu === user.id && (
                         <div className="absolute right-5 top-14 z-50 w-56 overflow-hidden rounded-2xl border border-sand-200 bg-white p-1.5 text-left shadow-xl">
-                          {/* VIEW */}
                           <button
                             type="button"
                             onClick={() => {
                               setOpenMenu(null);
 
                               router.push(
-                                `/admin/users/${encodeURIComponent(
-                                  user.id
-                                )}`
+                                `/admin/users/${encodeURIComponent(user.id)}`
                               );
                             }}
                             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink transition-colors hover:bg-sand-50"
@@ -830,15 +741,12 @@ export function UsersTable({
                             </span>
                           </button>
 
-                          {/* STATUS */}
                           <button
                             type="button"
                             disabled={isActionLoading}
                             onClick={() => {
                               setOpenMenu(null);
-                              void toggleActive(
-                                user
-                              );
+                              void toggleActive(user);
                             }}
                             className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-sand-50 disabled:pointer-events-none disabled:opacity-50 ${
                               user.isActive
@@ -850,36 +758,29 @@ export function UsersTable({
                               {user.isActive ? (
                                 <Ban size={15} />
                               ) : (
-                                <CheckCircle
-                                  size={15}
-                                />
+                                <CheckCircle size={15} />
                               )}
                             </span>
 
                             <span>
                               <span className="block font-medium">
-                                {user.isActive
-                                  ? "Suspendre"
-                                  : "Réactiver"}
+                                {user.isActive ? "Suspendre" : "Réactiver"}
                               </span>
 
                               <span className="block text-[11px] text-ink-soft">
-                                Modifier l'accès
+                                Modifier l&apos;accès
                               </span>
                             </span>
                           </button>
 
                           <div className="my-1.5 border-t border-sand-100" />
 
-                          {/* DELETE */}
                           <button
                             type="button"
                             disabled={isActionLoading}
                             onClick={() => {
                               setOpenMenu(null);
-                              void deleteUser(
-                                user.id
-                              );
+                              void deleteUser(user.id);
                             }}
                             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition-colors hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-50"
                           >

@@ -19,7 +19,7 @@ export interface AdminOverviewData {
   };
 
   chart: {
-    month: string;
+    label: string;
     value: number;
   }[];
 
@@ -37,6 +37,7 @@ export interface AdminOverviewData {
     email: string;
     role: string;
     avatarUrl: string | null;
+    isActive: boolean;
     createdAt: string;
   }[];
 }

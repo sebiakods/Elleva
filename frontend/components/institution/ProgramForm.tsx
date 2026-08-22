@@ -527,8 +527,8 @@ const submit = async (
             </h1>
 
             <p className="mt-3 max-w-3xl text-ink-soft">
-              Définissez les informations de votre programme, les montants,
-              les critères d'éligibilité, les dates importantes ainsi que les
+              D&apos;finissez les informations de votre programme, les montants,
+              les critères d&apos;éligibilité, les dates importantes ainsi que les
               coordonnées de contact avant la publication.
             </p>
           </div>
@@ -776,7 +776,7 @@ const submit = async (
 
                 <div>
                   <h2 className="font-display text-2xl text-ink">
-                    Conditions d'éligibilité
+                    Conditions d&apos;éligibilité
                   </h2>
 
                   <p className="text-sm text-ink-soft">
@@ -804,7 +804,7 @@ const submit = async (
 
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink-soft">
-                    Critères d'éligibilité
+                    Critères d&apos;éligibilité
                   </span>
 
                   <textarea
