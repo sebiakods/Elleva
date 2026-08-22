@@ -36,19 +36,17 @@ function setAuthCookies(
     refreshCookieOptions
   );
 }
-
 function clearAuthCookies(res: Response): void {
-  res.clearCookie(
-    "accessToken",
-    accessCookieOptions
-  );
+  const clearOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "none" as const,
+    path: "/",
+  };
 
-  res.clearCookie(
-    "refreshToken",
-    refreshCookieOptions
-  );
+  res.clearCookie("accessToken", clearOptions);
+  res.clearCookie("refreshToken", clearOptions);
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,7 +206,7 @@ export async function logout(
   res: Response
 ): Promise<void> {
   try {
-    if (req.user) {
+    if (req.user?.id) {
       await authService.logout(req.user.id);
     }
 
@@ -223,13 +221,16 @@ export async function logout(
     console.error("LOGOUT ERROR:", err);
 
     // Même si la révocation serveur échoue,
-    // on essaie quand même de supprimer les cookies.
+    // on supprime quand même les cookies.
     clearAuthCookies(res);
 
-    R.serverError(res);
+    R.ok(
+      res,
+      null,
+      "Déconnexion réussie"
+    );
   }
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/auth/me
 // ─────────────────────────────────────────────────────────────────────────────

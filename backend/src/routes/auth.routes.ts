@@ -72,7 +72,6 @@ router.post(
 
 router.post(
   "/logout",
-  verifyToken,
   ctrl.logout
 );
 
