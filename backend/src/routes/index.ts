@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { prisma } from "../prisma";
 
 import authRoutes from "./auth.routes";
 import usersRoutes from "./users.routes";
@@ -150,15 +151,32 @@ router.use("/expert-profile", expertProfileRoutes);
 //expert routes 
 router.use("/experts", expertsRoutes);
 
-router.get("/health", (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV ?? "development",
-    },
-  });
-});
+router.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
 
+    res.json({
+      success: true,
+      data: {
+        status: "ok",
+        database: "connected",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV ?? "development",
+      },
+    });
+  } catch (error) {
+    console.error("[HEALTH] Database connection failed:", error);
+
+    res.status(503).json({
+      success: false,
+      data: {
+        status: "ok",
+        database: "disconnected",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV ?? "development",
+      },
+      error: "Database connection failed",
+    });
+  }
+});
 export default router;
