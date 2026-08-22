@@ -37,15 +37,34 @@ function setAuthCookies(
   );
 }
 function clearAuthCookies(res: Response): void {
-  const clearOptions = {
+  const baseOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "none" as const,
-    path: "/",
   };
 
-  res.clearCookie("accessToken", clearOptions);
-  res.clearCookie("refreshToken", clearOptions);
+  // Current cookies: Path=/
+  res.clearCookie("accessToken", {
+    ...baseOptions,
+    path: "/",
+  });
+
+  res.clearCookie("refreshToken", {
+    ...baseOptions,
+    path: "/",
+  });
+
+  // Old refreshToken cookie
+  res.clearCookie("refreshToken", {
+    ...baseOptions,
+    path: "/api/auth",
+  });
+
+  // In case an older version used /api
+  res.clearCookie("refreshToken", {
+    ...baseOptions,
+    path: "/api",
+  });
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
@@ -200,17 +219,32 @@ export async function refresh(
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/logout
 // ─────────────────────────────────────────────────────────────────────────────
-
 export async function logout(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
+  console.log("🔴🔴🔴 LOGOUT CONTROLLER REACHED");
+  console.log("METHOD:", req.method);
+  console.log("URL:", req.originalUrl);
+  console.log("USER:", req.user);
+  console.log("COOKIES:", req.cookies);
+
   try {
-    if (req.user?.id) {
+    if (req.user) {
+      console.log("🟡 Revoking tokens for user:", req.user.id);
+
       await authService.logout(req.user.id);
+
+      console.log("🟢 Tokens revoked successfully");
+    } else {
+      console.warn("⚠️ No req.user found");
     }
 
+    console.log("🟡 Clearing auth cookies...");
+
     clearAuthCookies(res);
+
+    console.log("🟢 Auth cookies cleared");
 
     R.ok(
       res,
@@ -218,17 +252,11 @@ export async function logout(
       "Déconnexion réussie"
     );
   } catch (err) {
-    console.error("LOGOUT ERROR:", err);
+    console.error("❌ LOGOUT ERROR:", err);
 
-    // Même si la révocation serveur échoue,
-    // on supprime quand même les cookies.
     clearAuthCookies(res);
 
-    R.ok(
-      res,
-      null,
-      "Déconnexion réussie"
-    );
+    R.serverError(res);
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
