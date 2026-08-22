@@ -6,30 +6,57 @@ import * as R from "../utils/response";
 const accessCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
-  maxAge: 15 * 60 * 1000,
+  sameSite: "none" as const,
+  maxAge: 15 * 60 * 1000, // 15 minutes
   path: "/",
 };
 
 const refreshCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: "/api/auth",
+  sameSite: "none" as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: "/",
 };
 
 function setAuthCookies(
   res: Response,
   accessToken: string,
   refreshToken: string
-) {
-  res.cookie("accessToken", accessToken, accessCookieOptions);
-  res.cookie("refreshToken", refreshToken, refreshCookieOptions);
+): void {
+  res.cookie(
+    "accessToken",
+    accessToken,
+    accessCookieOptions
+  );
+
+  res.cookie(
+    "refreshToken",
+    refreshToken,
+    refreshCookieOptions
+  );
 }
 
+function clearAuthCookies(res: Response): void {
+  res.clearCookie(
+    "accessToken",
+    accessCookieOptions
+  );
+
+  res.clearCookie(
+    "refreshToken",
+    refreshCookieOptions
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
-export async function register(req: Request, res: Response): Promise<void> {
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function register(
+  req: Request,
+  res: Response
+): Promise<void> {
   try {
     const { email, password, name, role } = req.body as {
       email: string;
@@ -67,13 +94,17 @@ export async function register(req: Request, res: Response): Promise<void> {
         res,
         "Cette adresse email est déjà utilisée"
       );
-    } else {
-      R.serverError(res);
+      return;
     }
+
+    R.serverError(res);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/login
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function login(
   req: Request,
   res: Response
@@ -103,17 +134,19 @@ export async function login(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message === "INVALID_CREDENTIALS") {
-        return void R.unauthorized(
+        R.unauthorized(
           res,
           "Email ou mot de passe incorrect"
         );
+        return;
       }
 
       if (err.message === "ACCOUNT_DISABLED") {
-        return void R.forbidden(
+        R.forbidden(
           res,
           "Ce compte est désactivé"
         );
+        return;
       }
     }
 
@@ -121,7 +154,10 @@ export async function login(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/refresh
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function refresh(
   req: Request,
   res: Response
@@ -151,16 +187,10 @@ export async function refresh(
       null,
       "Token renouvelé"
     );
-  } catch {
-    res.clearCookie(
-      "accessToken",
-      { path: "/" }
-    );
+  } catch (err) {
+    console.error("REFRESH ERROR:", err);
 
-    res.clearCookie(
-      "refreshToken",
-      { path: "/api/auth" }
-    );
+    clearAuthCookies(res);
 
     R.unauthorized(
       res,
@@ -169,7 +199,10 @@ export async function refresh(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/logout
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function logout(
   req: AuthenticatedRequest,
   res: Response
@@ -179,15 +212,7 @@ export async function logout(
       await authService.logout(req.user.id);
     }
 
-    res.clearCookie(
-      "accessToken",
-      { path: "/" }
-    );
-
-    res.clearCookie(
-      "refreshToken",
-      { path: "/api/auth" }
-    );
+    clearAuthCookies(res);
 
     R.ok(
       res,
@@ -195,19 +220,35 @@ export async function logout(
       "Déconnexion réussie"
     );
   } catch (err) {
-    console.error(err);
+    console.error("LOGOUT ERROR:", err);
+
+    // Même si la révocation serveur échoue,
+    // on essaie quand même de supprimer les cookies.
+    clearAuthCookies(res);
+
     R.serverError(res);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/auth/me
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function me(
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
   try {
+    if (!req.user?.id) {
+      R.unauthorized(
+        res,
+        "Authentification requise"
+      );
+      return;
+    }
+
     const user =
-      await authService.me(req.user!.id);
+      await authService.me(req.user.id);
 
     R.ok(res, user);
   } catch (err: unknown) {
@@ -215,10 +256,11 @@ export async function me(
       err instanceof Error &&
       err.message === "USER_NOT_FOUND"
     ) {
-      return void R.notFound(
+      R.notFound(
         res,
         "Utilisateur introuvable"
       );
+      return;
     }
 
     R.serverError(res);
