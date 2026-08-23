@@ -13,8 +13,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_URL = "/api";
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 

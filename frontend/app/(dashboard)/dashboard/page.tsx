@@ -22,9 +22,8 @@ import { NotificationPanel } from "@/components/dashboard/NotificationPanel";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+
+const API_URL = "/api";
 
 interface Program {
   id: string;
