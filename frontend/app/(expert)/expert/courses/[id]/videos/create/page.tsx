@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Film, Loader2, Upload, X } from "lucide-react";
 
@@ -79,7 +79,6 @@ export default function CreateVideoPage() {
         : "";
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const thumbInputRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -88,22 +87,10 @@ export default function CreateVideoPage() {
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(
-    null
-  );
 
   const [detectingDuration, setDetectingDuration] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (thumbnailPreview) {
-        URL.revokeObjectURL(thumbnailPreview);
-      }
-    };
-  }, [thumbnailPreview]);
 
   async function handleVideoSelect(
     e: React.ChangeEvent<HTMLInputElement>
@@ -132,19 +119,6 @@ export default function CreateVideoPage() {
     } finally {
       setDetectingDuration(false);
     }
-  }
-
-  function handleThumbnailSelect(
-    e: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const file = e.target.files?.[0] ?? null;
-    setThumbnailFile(file);
-
-    if (thumbnailPreview) {
-      URL.revokeObjectURL(thumbnailPreview);
-    }
-
-    setThumbnailPreview(file ? URL.createObjectURL(file) : null);
   }
 
   function formatDuration(seconds: number | null): string {
@@ -176,17 +150,20 @@ export default function CreateVideoPage() {
     try {
       setSubmitting(true);
 
+      // IMPORTANT: the backend route uses
+      // upload.single("videoFile"), which only accepts ONE file field
+      // named exactly "videoFile" — any other field name (or a second
+      // file field like "thumbnail") triggers multer's
+      // "Unexpected field" error and a 500. Until the backend route
+      // is upgraded to upload.fields([...]) to accept a thumbnail too,
+      // only the video file is sent here.
       const formData = new FormData();
       formData.append("title", title.trim());
       formData.append("description", description.trim());
       formData.append("category", category);
       formData.append("isPublished", String(isPublished));
       formData.append("durationSeconds", String(videoDuration ?? 0));
-      formData.append("video", videoFile);
-
-      if (thumbnailFile) {
-        formData.append("thumbnail", thumbnailFile);
-      }
+      formData.append("videoFile", videoFile);
 
       const response = await fetch(
         `${API_URL}/courses/${encodeURIComponent(courseId)}/videos`,
@@ -372,52 +349,14 @@ export default function CreateVideoPage() {
             )}
           </div>
 
-          {/* Thumbnail (optional) */}
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold text-wine-900">
-              Miniature (optionnel)
-            </label>
-
-            <input
-              ref={thumbInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleThumbnailSelect}
-              className="hidden"
-            />
-
-            {thumbnailPreview ? (
-              <div className="flex items-center gap-3">
-                <img
-                  src={thumbnailPreview}
-                  alt="Aperçu de la miniature"
-                  className="h-16 w-24 rounded-xl object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setThumbnailFile(null);
-                    setThumbnailPreview(null);
-                    if (thumbInputRef.current) {
-                      thumbInputRef.current.value = "";
-                    }
-                  }}
-                  className="rounded-lg p-1.5 text-ink-soft transition hover:bg-red-50 hover:text-red-600"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => thumbInputRef.current?.click()}
-                className="flex items-center gap-2 rounded-xl border border-sand-200 px-4 py-2.5 text-sm font-medium text-ink-soft transition hover:bg-sand-50"
-              >
-                <Upload size={15} />
-                Choisir une image
-              </button>
-            )}
-          </div>
+          {/*
+            Thumbnail upload removed for now: the backend route only
+            accepts a single "videoFile" field
+            (upload.single("videoFile")), so a second file here would
+            trigger multer's "Unexpected field" error again. Re-add
+            this once the /:id/videos POST route is upgraded to
+            upload.fields([{name:"videoFile"},{name:"thumbnail"}]).
+          */}
 
           <div className="flex items-center justify-end gap-3 border-t border-sand-100 pt-6">
             <button
@@ -431,6 +370,7 @@ export default function CreateVideoPage() {
             >
               Annuler
             </button>
+
 <Button
   type="submit"
   variant="primary"
