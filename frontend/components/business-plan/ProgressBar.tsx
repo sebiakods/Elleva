@@ -8,3 +8,4 @@ export function ProgressBar({ value }: { value: number }) {
     </div>
   );
 }
+

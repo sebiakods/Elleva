@@ -14,7 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 export default function CreateResourcePage() {
   const router = useRouter();

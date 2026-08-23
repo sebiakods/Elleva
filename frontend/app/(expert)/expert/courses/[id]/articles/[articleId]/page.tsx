@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 

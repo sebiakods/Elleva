@@ -9,8 +9,7 @@ import { AuthShell } from "@/components/forms/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = '/api';
 
 interface ExpertForm {
   fullName: string;

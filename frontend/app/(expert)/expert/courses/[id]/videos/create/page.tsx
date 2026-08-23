@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 // (like other pages in this app do via NEXT_PUBLIC_API_URL) turns the
 // request cross-site and the HttpOnly auth cookie stops being sent
 // reliably — that's the root cause behind the recurring 401s.
-const API_URL = "/api";
+const API_URL = '/api';
 
 const CATEGORY_OPTIONS = [
   "business plan",

@@ -30,3 +30,4 @@ export function Tabs({
     </div>
   );
 }
+

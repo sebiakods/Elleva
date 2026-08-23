@@ -23,7 +23,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 interface Program {
   id: string;

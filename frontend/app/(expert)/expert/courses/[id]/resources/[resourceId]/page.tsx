@@ -18,7 +18,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 type Course = {
   id: string;

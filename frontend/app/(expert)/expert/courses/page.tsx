@@ -51,7 +51,7 @@ type ApiResponse = {
   message?: string;
 };
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */

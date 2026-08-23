@@ -7,3 +7,4 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDZD(amount: number) {
   return new Intl.NumberFormat("fr-DZ").format(amount) + " DA";
 }
+

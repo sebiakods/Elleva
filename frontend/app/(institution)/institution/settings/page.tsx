@@ -558,3 +558,4 @@ export default function InstitutionSettingsPage() {
     </div>
   );
 }
+
