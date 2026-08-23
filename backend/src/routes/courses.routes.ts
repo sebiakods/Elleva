@@ -273,6 +273,13 @@ router.delete(
    ARTICLES
    Expert only — content management
 ============================================================ */
+router.get(
+  "/:id/articles",
+  verifyToken,
+  expertOnly,
+  getArticles
+);
+
 
 router.post(
   "/:id/articles",
