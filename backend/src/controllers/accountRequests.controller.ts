@@ -49,11 +49,7 @@ function parseSpecialties(raw?: string): string[] {
   return raw.split(/[,،]/).map((s) => s.trim()).filter(Boolean);
 }
 
-// ======================================
-// CREATE ACCOUNT REQUEST
-// Expert / Institution registration
-// Hashes the password immediately — the plaintext is never persisted.
-// ======================================
+
 export async function createRequest(req: Request, res: Response) {
   try {
     const { type, email, fullName, data } = req.body as {
@@ -113,9 +109,7 @@ export async function createRequest(req: Request, res: Response) {
   }
 }
 
-// ======================================
-// GET ALL REQUESTS (ADMIN)
-// ======================================
+
 export async function getRequests(req: Request, res: Response) {
   try {
     const requests = await prisma.accountRequest.findMany({
@@ -128,9 +122,6 @@ export async function getRequests(req: Request, res: Response) {
   }
 }
 
-// ======================================
-// GET REQUEST BY ID (ADMIN)
-// ======================================
 export async function getRequestById(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -246,10 +237,7 @@ export async function approveRequest(req: Request, res: Response) {
   }
 }
 
-// ======================================
-// REJECT REQUEST
-// No User was ever created, so there's nothing to delete — just mark + email.
-// ======================================
+
 export async function rejectRequest(req: Request, res: Response) {
   try {
     const { id } = req.params;

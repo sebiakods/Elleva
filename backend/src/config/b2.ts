@@ -58,25 +58,7 @@ export async function uploadToB2(
   return key;
 }
 
-/* -------------------------------------------------------------------------- */
-/* B2 URL / KEY NORMALIZATION                                                 */
-/* -------------------------------------------------------------------------- */
 
-/**
- * Converts:
- *
- * https://f004.backblazeb2.com/file/ellevadz-files/courses/123/file.pdf
- *
- * into:
- *
- * courses/123/file.pdf
- *
- * Also supports:
- *
- * http://f004.backblazeb2.com/file/...
- *
- * and already-normalized B2 object keys.
- */
 export function extractB2Key(value: string): string {
   if (!value) {
     return value;
@@ -84,7 +66,6 @@ export function extractB2Key(value: string): string {
 
   const normalized = value.trim();
 
-  // Already a clean B2 object key
   if (
     !normalized.startsWith("http://") &&
     !normalized.startsWith("https://")
@@ -151,21 +132,7 @@ export function extractB2Key(value: string): string {
   throw new Error(`Invalid B2 URL or key: ${value}`);
 }
 
-/* -------------------------------------------------------------------------- */
-/* SIGNED DOWNLOAD URL                                                        */
-/* -------------------------------------------------------------------------- */
 
-/**
- * Generates a temporary signed URL for a private B2 file.
- *
- * Works with both:
- *
- * 1. New DB values:
- *    courses/123/file.pdf
- *
- * 2. Old DB values:
- *    https://f004.backblazeb2.com/file/ellevadz-files/courses/123/file.pdf
- */
 export async function getB2SignedUrl(
   value: string,
   expiresIn = 3600

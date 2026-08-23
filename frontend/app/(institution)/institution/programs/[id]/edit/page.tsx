@@ -49,10 +49,7 @@ async function parseApiResponse(response: Response): Promise<ApiResponse> {
   }
 }
 
-/**
- * Redirect the user when the HTTP-only session cookie
- * is missing or expired.
- */
+
 function redirectToLogin(router: ReturnType<typeof useRouter>) {
   router.push("/login?redirect=/institution/programs");
 }
@@ -82,14 +79,7 @@ export default function EditInstitutionProgramPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Load the program.
-   *
-   * IMPORTANT:
-   * We no longer read any token from localStorage.
-   *
-   * Authentication is handled by the HTTP-only cookie.
-   */
+
   const loadProgram = useCallback(async () => {
     if (!id) {
       setLoadError("L'identifiant du programme est manquant.");

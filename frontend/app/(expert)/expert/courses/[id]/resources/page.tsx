@@ -31,11 +31,7 @@ type Resource = {
   createdAt?: string;
 };
 
-/**
- * Converts relative backend file paths into absolute URLs.
- *
- * Absolute URLs such as Backblaze B2 URLs are returned unchanged.
- */
+
 function getFileUrl(url?: string | null): string | null {
   if (!url) {
     return null;

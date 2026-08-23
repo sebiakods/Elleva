@@ -136,10 +136,7 @@ export const getApplication = async (req: Request, res: Response) => {
   }
 };
 
-// APPROVE — activates the user created at submission time, creates
-// InstitutionProfile, sends the approval email. Same "never fabricate a
-// password" rule as the expert flow: if no User exists, the applicant
-// needs to resubmit.
+
 export const approveApplication = async (req: Request, res: Response) => {
   try {
     const application = await prisma.institutionApplication.findUnique({

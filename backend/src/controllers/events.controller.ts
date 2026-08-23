@@ -2,9 +2,7 @@
 import { Request, Response, NextFunction } from "express";
 import * as eventsService from "../services/events.service";
 
-/**
- * Helper to safely resolve route params as a single string
- */
+
 function getParamId(param: string | string[] | undefined): string {
   if (Array.isArray(param)) {
     return param[0];

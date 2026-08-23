@@ -27,15 +27,10 @@ interface User {
 }
 
 interface UsersTableProps {
-  /**
-   * If users are provided by the parent, the component will use them
-   * and will NOT fetch /users itself.
-   */
+
   users?: User[];
 
-  /**
-   * Loading state controlled by the parent when users are provided.
-   */
+
   loading?: boolean;
 
   search?: string;
@@ -168,10 +163,7 @@ export function UsersTable({
 }: UsersTableProps) {
   const router = useRouter();
 
-  /**
-   * If externalUsers exists, parent owns the data.
-   * Otherwise this component fetches its own data.
-   */
+
   const isControlled = externalUsers !== undefined;
 
   const [users, setUsers] = useState<User[]>(externalUsers ?? []);

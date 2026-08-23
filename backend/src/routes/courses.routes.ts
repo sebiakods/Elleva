@@ -48,17 +48,6 @@ const router = Router();
 
 const storage = multer.memoryStorage();
 
-/*
- * Allowed files:
- *
- * PDF
- * Images
- * Videos
- * DOC/DOCX
- * XLS/XLSX
- * PPT/PPTX
- * ZIP
- */
 
 const allowedMimeTypes = [
   // PDF

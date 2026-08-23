@@ -17,17 +17,10 @@ import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
-// IMPORTANT: use the relative "/api" path so requests stay same-origin
-// with the frontend and the Next.js rewrite proxies them to the real
-// backend. Do NOT default this to the full onrender.com URL — that
-// turns every request into a cross-site request and the HttpOnly auth
-// cookie stops being sent reliably (root cause of the recurring 401s
-// on /auth/me, /notifications, /my/applications, etc across this app).
+
 const API_URL = '/api';
 
-// Backend origin, derived only for building absolute file URLs
-// (thumbnails/videos stored as backend-relative paths). This does NOT
-// affect API calls — those always go through the relative API_URL above.
+
 const BACKEND_URL =
   (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) ||
   "https://ellevadz-backend.onrender.com";
