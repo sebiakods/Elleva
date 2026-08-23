@@ -1,7 +1,4 @@
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:4000/api"
-).replace(/\/+$/, "");
+const API_URL = '/api';
 
 export interface AdminOverviewData {
   analytics: {
@@ -113,3 +110,4 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
 
   return json.data;
 }
+

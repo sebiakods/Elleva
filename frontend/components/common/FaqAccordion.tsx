@@ -34,3 +34,4 @@ export function FaqAccordion({ items }: { items: { q: string; a: string }[] }) {
     </div>
   );
 }
+

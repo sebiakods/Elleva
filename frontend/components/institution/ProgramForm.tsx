@@ -20,9 +20,7 @@ import {
   Users,
 } from "lucide-react";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL = '/api';
 
 const PROGRAMS_ENDPOINT = `${API_URL}/institution/programs`;
 /* -------------------------------------------------------------------------- */

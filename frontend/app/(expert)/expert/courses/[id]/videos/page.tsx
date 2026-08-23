@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 // turns every request into a cross-site request and the HttpOnly auth
 // cookie stops being sent reliably (root cause of the recurring 401s
 // on /auth/me, /notifications, /my/applications, etc across this app).
-const API_URL = "/api";
+const API_URL = '/api';
 
 // Backend origin, derived only for building absolute file URLs
 // (thumbnails/videos stored as backend-relative paths). This does NOT

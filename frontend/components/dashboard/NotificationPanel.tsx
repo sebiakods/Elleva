@@ -20,9 +20,7 @@ interface NotificationsResponse {
   count: number;
 }
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL = '/api';
 
 export function NotificationPanel() {
   const [notifications, setNotifications] = useState<

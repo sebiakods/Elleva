@@ -13,7 +13,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 
-const API_URL = "/api";
+const API_URL = '/api';
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 

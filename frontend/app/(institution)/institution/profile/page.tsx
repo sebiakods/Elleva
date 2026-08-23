@@ -58,7 +58,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_BASE = "/api";
 const ASSET_ORIGIN = API_BASE.replace(/\/api$/, "");
 
 export default function InstitutionProfilePage() {

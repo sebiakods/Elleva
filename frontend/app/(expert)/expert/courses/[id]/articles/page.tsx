@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/Badge";
 // backend. Do NOT default this to the full onrender.com URL — that
 // turns every request into a cross-site request and the HttpOnly auth
 // cookie stops being sent reliably.
-const API_URL = "/api";
+const API_URL = '/api';
 
 const BACKEND_URL =
   (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) ||

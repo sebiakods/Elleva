@@ -17,9 +17,7 @@ import {
 
 import { Badge } from "@/components/ui/Badge";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL = '/api';
 
 type Category = {
   id: string;

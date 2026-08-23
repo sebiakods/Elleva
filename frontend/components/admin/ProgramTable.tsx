@@ -11,9 +11,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL = '/api';
 
 interface Institution {
   id?: string;

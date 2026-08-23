@@ -14,9 +14,7 @@ import {
 
 import { Header } from "@/components/layout/Header";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
-).replace(/\/$/, "");
+const API_URL = '/api';
 
 type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 type UrlType = "expert" | "institution";

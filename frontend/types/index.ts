@@ -229,3 +229,4 @@ export interface InstitutionDocument {
   createdAt: string;
   required: boolean;
 }
+

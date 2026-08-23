@@ -23,3 +23,4 @@ export function RiseStroke({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
