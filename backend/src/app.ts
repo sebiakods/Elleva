@@ -38,13 +38,13 @@ app.use(
 // ─── Rate limiting ───────────────────────────────────────────────────────────
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 60 * 1000,
   max: env.NODE_ENV === "development" ? 1000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    error: "Trop de requêtes, réessayez dans 15 minutes",
+    error: "Trop de requêtes, réessayez dans 1 minute",
   },
 });
 
@@ -53,13 +53,13 @@ app.use(limiter);
 // ─── Auth rate limiting ──────────────────────────────────────────────────────
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 60 * 1000,
   max: env.NODE_ENV === "development" ? 500 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    error: "Trop de tentatives, réessayez dans 15 minutes",
+    error: "Trop de tentatives, réessayez dans 1 minute",
   },
 });
 
