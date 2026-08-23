@@ -114,6 +114,27 @@ const upload = multer({
 });
 
 /* ============================================================
+   VIDEO UPLOAD FIELDS
+
+   A video creation/update needs the main video file AND,
+   optionally, a thumbnail image. upload.single() only ever
+   accepts one field name, so any second file (or any field
+   name other than the one it was given) triggers multer's
+   "Unexpected field" error. upload.fields([...]) accepts a
+   named SET of fields instead.
+
+   NOTE: this populates req.files as an object keyed by field
+   name (each value is an array), NOT req.file like
+   upload.single() does — the controller must be updated to
+   match (see courses.controller.ts).
+============================================================ */
+
+const videoUpload = upload.fields([
+  { name: "videoFile", maxCount: 1 },
+  { name: "thumbnail", maxCount: 1 },
+]);
+
+/* ============================================================
    EXPERT: MY COURSES
 
    IMPORTANT:
@@ -253,18 +274,11 @@ router.delete(
    Expert only — content management
 ============================================================ */
 
-router.get(
-  "/:id/articles",
-  verifyToken,
-  expertOnly,
-  getArticles
-);
-
 router.post(
   "/:id/articles",
   verifyToken,
   expertOnly,
-  upload.array("files", 10),
+  upload.single("pdfFile"),
   createArticle
 );
 
@@ -274,12 +288,11 @@ router.get(
   expertOnly,
   getArticle
 );
-
 router.put(
   "/:id/articles/:contentId",
   verifyToken,
   expertOnly,
-  upload.array("files", 10),
+  upload.single("pdfFile"),
   updateArticle
 );
 
@@ -293,6 +306,11 @@ router.delete(
 /* ============================================================
    VIDEOS
    Expert only — content management
+
+   videoUpload = upload.fields([videoFile, thumbnail])
+   (see definition above). Controller must read
+   req.files.videoFile?.[0] and req.files.thumbnail?.[0]
+   instead of req.file.
 ============================================================ */
 
 router.get(
@@ -306,7 +324,7 @@ router.post(
   "/:id/videos",
   verifyToken,
   expertOnly,
-  upload.single("videoFile"),
+  videoUpload,
   createVideo
 );
 
@@ -321,7 +339,7 @@ router.put(
   "/:id/videos/:contentId",
   verifyToken,
   expertOnly,
-  upload.single("videoFile"),
+  videoUpload,
   updateVideo
 );
 
