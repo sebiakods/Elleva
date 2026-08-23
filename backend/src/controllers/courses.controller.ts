@@ -63,9 +63,23 @@ function booleanOrUndefined(value: unknown): boolean | undefined {
  *   videoFiles: File[]
  * }
  */
-function getFiles(req: Request): Record<string, Express.Multer.File[]> {
-  if (!req.files || Array.isArray(req.files)) {
+function getFiles(
+  req: Request
+): Record<string, Express.Multer.File[]> {
+  if (!req.files) {
+    if (req.file) {
+      return {
+        single: [req.file],
+      };
+    }
+
     return {};
+  }
+
+  if (Array.isArray(req.files)) {
+    return {
+      files: req.files,
+    };
   }
 
   return req.files as Record<string, Express.Multer.File[]>;
@@ -528,14 +542,19 @@ export async function createArticle(
       });
     }
 
-    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+const files = getFiles(req);
 
-    const pdfFile = uploadedFiles.find(
-      (file) =>
-        file.mimetype === "application/pdf" ||
-        file.originalname.toLowerCase().endsWith(".pdf")
-    );
+const uploadedFiles = [
+  ...(files.articleFiles || []),
+  ...(files.files || []),
+  ...(files.single || []),
+];
 
+const pdfFile = uploadedFiles.find(
+  (file) =>
+    file.mimetype === "application/pdf" ||
+    file.originalname.toLowerCase().endsWith(".pdf")
+);
     let pdfUrl: string | null = null;
 
     if (pdfFile) {
@@ -586,13 +605,19 @@ export async function updateArticle(
       order,
     } = req.body;
 
-    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+const files = getFiles(req);
 
-    const pdfFile = uploadedFiles.find(
-      (file) =>
-        file.mimetype === "application/pdf" ||
-        file.originalname.toLowerCase().endsWith(".pdf")
-    );
+const uploadedFiles = [
+  ...(files.articleFiles || []),
+  ...(files.files || []),
+  ...(files.single || []),
+];
+
+const pdfFile = uploadedFiles.find(
+  (file) =>
+    file.mimetype === "application/pdf" ||
+    file.originalname.toLowerCase().endsWith(".pdf")
+);
 
     let pdfUrl: string | undefined = undefined;
 
@@ -744,7 +769,13 @@ export async function createVideo(
       isPublished,
     } = req.body;
 
-    const uploadedVideo = req.file;
+    // The route uses upload.fields([{name:"videoFile"},{name:"thumbnail"}]),
+    // which populates req.files (an object keyed by field name), NOT
+    // req.file (singular) — that's only set by upload.single(). Reading
+    // req.file here silently skipped the B2 upload on every request.
+    const files = getFiles(req);
+    const uploadedVideo = files.videoFile?.[0];
+    const uploadedThumbnail = files.thumbnail?.[0];
 
     if (!title?.trim()) {
       return res.status(400).json({
@@ -762,11 +793,20 @@ export async function createVideo(
       );
     }
 
+    let finalThumbnailUrl: string | null = thumbnailUrl || null;
+
+    if (uploadedThumbnail) {
+      finalThumbnailUrl = await uploadToB2(
+        uploadedThumbnail,
+        `courses/${courseId}/videos/thumbnails`
+      );
+    }
+
     const video = await coursesService.createVideo(courseId, userId, {
       title: title.trim(),
       description: description?.trim() ?? "",
       durationSeconds: numberOrUndefined(durationSeconds) ?? 0,
-      thumbnailUrl: thumbnailUrl || null,
+      thumbnailUrl: finalThumbnailUrl,
       videoUrl: finalVideoUrl,
       category: category?.trim() || undefined,
       isPublished: booleanOrUndefined(isPublished) ?? false,
@@ -805,7 +845,11 @@ export async function updateVideo(
       order,
     } = req.body;
 
-    const uploadedVideo = req.file;
+    // Same fix as createVideo: this route uses upload.fields(), so files
+    // live in req.files.videoFile / req.files.thumbnail, not req.file.
+    const files = getFiles(req);
+    const uploadedVideo = files.videoFile?.[0];
+    const uploadedThumbnail = files.thumbnail?.[0];
 
     let finalVideoUrl: string | undefined = undefined;
 
@@ -816,6 +860,17 @@ export async function updateVideo(
       );
     } else if (videoUrl !== undefined) {
       finalVideoUrl = videoUrl || null;
+    }
+
+    let finalThumbnailUrl: string | undefined = undefined;
+
+    if (uploadedThumbnail) {
+      finalThumbnailUrl = await uploadToB2(
+        uploadedThumbnail,
+        `courses/${courseId}/videos/thumbnails`
+      );
+    } else if (thumbnailUrl !== undefined) {
+      finalThumbnailUrl = thumbnailUrl || null;
     }
 
     const video = await coursesService.updateVideo(
@@ -835,8 +890,8 @@ export async function updateVideo(
           durationSeconds: numberOrUndefined(durationSeconds) ?? 0,
         }),
 
-        ...(thumbnailUrl !== undefined && {
-          thumbnailUrl: thumbnailUrl || null,
+        ...(finalThumbnailUrl !== undefined && {
+          thumbnailUrl: finalThumbnailUrl,
         }),
 
         ...(finalVideoUrl !== undefined && {
