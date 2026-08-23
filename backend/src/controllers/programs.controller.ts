@@ -5,18 +5,6 @@ import { ProgramCategory } from "@prisma/client";
 import * as programService from "../services/programs.service";
 import type { ListQuery } from "../services/programs.service";
 
-/**
- * Assumes your existing authenticate middleware populates:
- *
- * req.user = {
- *   id: string;
- *   role: "ADMIN" | "INSTITUTION" | "ENTREPRENEUR" | "EXPERT"
- * }
- */
-
-// ---------------------------------------------------------------------------
-// HELPERS
-// ---------------------------------------------------------------------------
 
 function serializeBigInt<T>(data: T): T {
   return JSON.parse(
@@ -101,9 +89,7 @@ function handleError(
   });
 }
 
-// ===========================================================================
-// INSTITUTION
-// ===========================================================================
+
 
 export async function listInstitutionPrograms(
   req: Request,
@@ -326,9 +312,7 @@ export async function getInstitutionProgramApplications(
   }
 }
 
-// ===========================================================================
-// ENTREPRENEUR / PUBLIC
-// ===========================================================================
+
 
 export async function listPrograms(
   req: Request,
@@ -469,9 +453,6 @@ export async function listMyApplications(
   }
 }
 
-// ===========================================================================
-// EXPERT
-// ===========================================================================
 
 export async function listExpertPrograms(
   req: Request,
@@ -518,26 +499,7 @@ export async function getExpertProgram(
   }
 }
 
-// ===========================================================================
-// ADMIN
-// ===========================================================================
 
-/**
- * IMPORTANT:
- *
- * This returns ALL programs from FinancingProgram.
- *
- * It does NOT filter by:
- *   isPublished = true
- *   isArchived = false
- *
- * Therefore the admin can see:
- *
- * - Published programs
- * - Draft programs
- * - Archived programs
- * - Newly created institution programs
- */
 export async function listAllPrograms(
   req: Request,
   res: Response

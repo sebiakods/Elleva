@@ -65,23 +65,7 @@ interface ApplicationsResponse {
   applications?: Application[];
 }
 
-/* ------------------------------------------------------------------ */
-/* API helper                                                         */
-/* ------------------------------------------------------------------ */
 
-/**
- * All authentication is handled by the HttpOnly cookie.
- *
- * IMPORTANT:
- * - No localStorage
- * - No sessionStorage
- * - No accessToken
- * - No refreshToken
- * - No Authorization: Bearer header
- *
- * credentials: "include" tells the browser to send the
- * authentication cookie with the request.
- */
 async function apiFetch(
   endpoint: string,
   options: RequestInit = {}

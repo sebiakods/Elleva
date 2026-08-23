@@ -8,12 +8,7 @@ import {
   deleteNotification,
 } from "../services/notifications.service";
 
-/**
- * GET /api/notifications
- *
- * Returns notifications belonging to the
- * currently authenticated user.
- */
+
 export async function getUserNotifications(
   req: Request,
   res: Response
@@ -66,9 +61,7 @@ export async function getUserNotifications(
   }
 }
 
-/**
- * GET /api/notifications/unread-count
- */
+
 export async function getUnreadNotificationsCount(
   req: Request,
   res: Response
@@ -102,9 +95,6 @@ export async function getUnreadNotificationsCount(
   }
 }
 
-/**
- * PATCH /api/notifications/:id/read
- */
 export async function markNotificationAsRead(
   req: Request,
   res: Response
@@ -117,10 +107,7 @@ export async function markNotificationAsRead(
       });
     }
 
-    /**
-     * Express can type params as string | string[].
-     * We normalize it to a string.
-     */
+
     const notificationId = Array.isArray(
       req.params.id
     )
@@ -209,9 +196,7 @@ export async function markAllNotificationsAsRead(
   }
 }
 
-/**
- * DELETE /api/notifications/:id
- */
+
 export async function removeNotification(
   req: Request,
   res: Response

@@ -3,11 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-/**
- * GET /api/expert/calendar?month=6&year=2026
- * Returns all calendar notes for the logged-in expert.
- * If month/year are provided, filters to that month (month is 0-indexed).
- */
+
 export const getCalendarEvents = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -47,12 +43,7 @@ export const getCalendarEvents = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * POST /api/expert/calendar
- * body: { title: string, description?: string, date: string (ISO), allDay?: boolean }
- * Creates a new note on the expert's calendar, on whatever date the expert picked.
- * No booking/messaging involved.
- */
+
 export const createCalendarEvent = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -93,10 +84,7 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * PATCH /api/expert/calendar/:id
- * Updates a note owned by the logged-in expert.
- */
+
 export const updateCalendarEvent = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -142,10 +130,7 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * DELETE /api/expert/calendar/:id
- * Deletes a note owned by the logged-in expert.
- */
+
 export const deleteCalendarEvent = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;

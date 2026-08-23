@@ -9,9 +9,6 @@ import {
 
 const router = Router();
 
-// ============================================================================
-// INSTITUTION
-// ============================================================================
 
 router.get(
   "/institution/programs",
@@ -76,9 +73,7 @@ router.get(
   programController.getInstitutionProgramApplications
 );
 
-// ============================================================================
-// PUBLIC / ENTREPRENEUR
-// ============================================================================
+
 
 router.get(
   "/programs",
@@ -118,9 +113,7 @@ router.get(
   programController.listMyApplications
 );
 
-// ============================================================================
-// EXPERT
-// ============================================================================
+
 
 router.get(
   "/expert/programs",
@@ -136,17 +129,7 @@ router.get(
   programController.getExpertProgram
 );
 
-// ============================================================================
-// ADMIN
-// ============================================================================
 
-// IMPORTANT:
-// This endpoint returns ALL programs:
-// - published
-// - unpublished
-// - archived
-// - drafts
-// - programs created by institutions
 
 router.get(
   "/admin/programs",

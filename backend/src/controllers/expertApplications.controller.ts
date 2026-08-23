@@ -14,7 +14,6 @@ function parseSpecialties(raw: string): string[] {
     .filter(Boolean);
 }
 
-// CREATE
 export const createApplication = async (req: Request, res: Response) => {
   try {
     const {
@@ -99,14 +98,7 @@ export const getApplication = async (req: Request, res: Response) => {
   }
 };
 
-// APPROVE — activates the user created at submission time, creates
-// ExpertProfile, sends the approval email.
-//
-// The User row must already exist (createApplication creates it as
-// inactive/unverified). We deliberately never fabricate a password here:
-// the plaintext was never stored, so a "no user found" state can't be
-// safely recovered from — it means something upstream went wrong and the
-// applicant needs to resubmit.
+
 export const approveApplication = async (req: Request, res: Response) => {
   try {
     const application = await prisma.expertApplication.findUnique({

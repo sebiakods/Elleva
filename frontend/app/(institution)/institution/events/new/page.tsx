@@ -216,15 +216,6 @@ export default function NewEventPage() {
       isPublished: status === "published",
     };
 
-    /**
-     * IMPORTANT:
-     *
-     * No localStorage.
-     * No accessToken.
-     * No Authorization header.
-     *
-     * Authentication is handled by the httpOnly cookie.
-     */
     const response = await fetch(
       `${API_URL}/institution/events`,
       {

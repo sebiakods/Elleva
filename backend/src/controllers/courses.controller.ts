@@ -54,15 +54,6 @@ function booleanOrUndefined(value: unknown): boolean | undefined {
   return undefined;
 }
 
-/**
- * Multer upload.fields() returns:
- * {
- *   cover: File[],
- *   resourceFiles: File[],
- *   articleFiles: File[],
- *   videoFiles: File[]
- * }
- */
 function getFiles(
   req: Request
 ): Record<string, Express.Multer.File[]> {
@@ -85,9 +76,7 @@ function getFiles(
   return req.files as Record<string, Express.Multer.File[]>;
 }
 
-/**
- * Safely serialize Prisma BigInt values.
- */
+
 function serialize<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_key, item) =>
@@ -119,9 +108,7 @@ async function signB2File(
   }
 }
 
-/**
- * Sign course cover + all course content files.
- */
+
 async function signCourseFiles(course: any) {
   const result = serialize(course);
 
@@ -172,9 +159,7 @@ async function signCourseFiles(course: any) {
   return result;
 }
 
-/**
- * Sign an article's B2 files.
- */
+
 async function signArticleFiles(article: any) {
   const result = serialize(article);
 
@@ -189,9 +174,6 @@ async function signArticleFiles(article: any) {
   return result;
 }
 
-/**
- * Sign a video's B2 files.
- */
 async function signVideoFiles(video: any) {
   const result = serialize(video);
 
@@ -206,9 +188,7 @@ async function signVideoFiles(video: any) {
   return result;
 }
 
-/**
- * Sign a resource's B2 files.
- */
+
 async function signResourceFiles(resource: any) {
   const result = serialize(resource);
 
@@ -769,10 +749,7 @@ export async function createVideo(
       isPublished,
     } = req.body;
 
-    // The route uses upload.fields([{name:"videoFile"},{name:"thumbnail"}]),
-    // which populates req.files (an object keyed by field name), NOT
-    // req.file (singular) — that's only set by upload.single(). Reading
-    // req.file here silently skipped the B2 upload on every request.
+
     const files = getFiles(req);
     const uploadedVideo = files.videoFile?.[0];
     const uploadedThumbnail = files.thumbnail?.[0];
@@ -845,8 +822,7 @@ export async function updateVideo(
       order,
     } = req.body;
 
-    // Same fix as createVideo: this route uses upload.fields(), so files
-    // live in req.files.videoFile / req.files.thumbnail, not req.file.
+
     const files = getFiles(req);
     const uploadedVideo = files.videoFile?.[0];
     const uploadedThumbnail = files.thumbnail?.[0];

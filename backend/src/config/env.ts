@@ -22,9 +22,7 @@ const envSchema = z.object({
 
   BCRYPT_ROUNDS: z.coerce.number().default(12),
 
-  // ─────────────────────────────────────────────
-  // Backblaze B2
-  // ─────────────────────────────────────────────
+
   B2_ENDPOINT: z.string(),
 
   B2_BUCKET_NAME: z.string(),

@@ -2,14 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as messagesService from '../services/messages.service';
 import { MessagingError } from '../services/messages.service';
 
-// req.user is typed globally by src/middlewares/auth.middleware.ts
-// (Express.Request.user = { id, email, role, name }), so no local
-// AuthenticatedRequest interface is needed here.
 
-/**
- * GET /api/messages/users
- * Returns every user the current user is allowed to message.
- */
 export async function getUsers(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.user) {
@@ -23,10 +16,7 @@ export async function getUsers(req: Request, res: Response, next: NextFunction) 
   }
 }
 
-/**
- * GET /api/messages/conversations
- * Returns the current user's conversations with last message + unread count.
- */
+
 export async function getConversations(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.user) {
@@ -40,11 +30,7 @@ export async function getConversations(req: Request, res: Response, next: NextFu
   }
 }
 
-/**
- * GET /api/messages/:userId
- * Returns the message history between the current user and :userId.
- * Returns an empty array if no conversation exists yet.
- */
+
 export async function getConversationMessages(
   req: Request,
   res: Response,
@@ -77,11 +63,7 @@ export async function getConversationMessages(
     return next(error);
   }
 }
-/**
- * POST /api/messages
- * Body: { receiverId: string, content: string }
- * Creates the conversation if needed, validates permission, and saves the message.
- */
+
 export async function postMessage(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.user) {
