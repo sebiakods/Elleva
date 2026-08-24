@@ -22,7 +22,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const categories = [
   { value: "BANK_LOAN", label: "Bank Loan" },

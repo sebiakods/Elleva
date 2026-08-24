@@ -9,7 +9,7 @@ import { AuthShell } from "@/components/forms/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 interface ExpertForm {
   fullName: string;

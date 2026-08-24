@@ -27,8 +27,7 @@ import {
   X,
 } from "lucide-react";
 
-const API_URL = '/api';
-
+import { API_BASE_URL as API_URL } from "@/services/api";
 type ContentType = "article" | "video" | "resource";
 
 type CourseContent = {
@@ -522,16 +521,7 @@ export default function CreateCoursePage() {
     try {
       setSaving(true);
 
-      /*
-       * IMPORTANT:
-       *
-       * There is NO localStorage here.
-       * There is NO accessToken here.
-       * There is NO Authorization header.
-       *
-       * Authentication is handled by the httpOnly
-       * cookie sent automatically by the browser.
-       */
+
 
       const formData = new FormData();
 

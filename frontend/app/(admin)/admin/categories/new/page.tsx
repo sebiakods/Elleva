@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-const API = '/api';
+import { API_BASE_URL as API } from "@/services/api";
 
 type CategoryForm = {
   name: string;

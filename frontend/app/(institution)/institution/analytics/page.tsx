@@ -29,6 +29,7 @@ import {
 
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { API_BASE_URL } from "@/services/api";
 
 type Period = "3m" | "6m" | "12m";
 type Accent = "rose" | "wine" | "amber" | "emerald" | "teal";
@@ -63,8 +64,6 @@ interface AnalyticsData {
     totalAmount: number;
   };
 }
-
-const API_BASE_URL = "/api";
 
 const PERIOD_OPTIONS: {
   value: Period;
@@ -131,23 +130,6 @@ function formatDZD(value: number): string {
   return `${value} DA`;
 }
 
-/*
- * ============================================================
- * FETCH ANALYTICS
- * ============================================================
- *
- * IMPORTANT:
- *
- * There is NO localStorage here.
- * There is NO accessToken here.
- * There is NO Authorization Bearer header here.
- *
- * Authentication is handled by the HTTP-only cookie created
- * by the backend.
- *
- * credentials: "include" tells the browser to send cookies
- * with the request.
- */
 async function fetchInstitutionAnalytics(
   period: Period
 ): Promise<AnalyticsData> {

@@ -35,7 +35,7 @@ import {
   type Meeting,
 } from "@/lib/api/meetings";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -130,14 +130,7 @@ export default function ExpertAnalyticsPage() {
       setLoading(true);
       setError(null);
 
-      /*
-       * IMPORTANT:
-       *
-       * No accessToken.
-       * No localStorage.
-       * The browser automatically sends the httpOnly authentication
-       * cookie because credentials is set to "include".
-       */
+
       const [coursesRes, entrepreneursData, meetingsData] =
         await Promise.all([
           fetch(`${API_URL}/courses/expert`, {

@@ -37,24 +37,7 @@ interface Course {
   resources?: Lesson[];
 }
 
-const API_URL = '/api';
-
-/*
- * ============================================================
- * FRONTEND COURSE PAYMENT STORAGE
- * ============================================================
- *
- * IMPORTANT:
- *
- * This MUST be exactly the same key used by:
- *
- * /dashboard/courses/[id]/payment/page.tsx
- *
- * It is NOT an authentication token.
- *
- * It only stores course IDs that have been "paid" in this
- * browser.
- */
+import { API_BASE_URL as API_URL } from "@/services/api";
 const PAID_COURSES_KEY = "ellevadz_paid_courses";
 
 /*
@@ -134,25 +117,7 @@ export default function CoursePage() {
   const [error, setError] =
     useState<string | null>(null);
 
-  /*
-   * ============================================================
-   * CHECK PAYMENT
-   * ============================================================
-   *
-   * Flow:
-   *
-   * 1. User opens /courses/[id]
-   * 2. Check localStorage
-   * 3. If NOT paid:
-   *       -> /courses/[id]/payment
-   *
-   * 4. If paid:
-   *       -> load course
-   *       -> show lessons
-   *
-   * NO accessToken.
-   * NO localStorage authentication token.
-   */
+
   useEffect(() => {
     if (!courseId) {
       setCheckingPayment(false);
@@ -213,11 +178,7 @@ export default function CoursePage() {
           {
             method: "GET",
 
-            /*
-             * Authentication is handled by HttpOnly cookies.
-             *
-             * There is NO accessToken here.
-             */
+
             credentials: "include",
 
             headers: {

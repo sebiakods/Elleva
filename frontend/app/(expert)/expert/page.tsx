@@ -23,8 +23,7 @@ import {
   type EntrepreneurSummary,
 } from "@/lib/api/entrepreneurs";
 import { listMyMeetings, type Meeting } from "@/lib/api/meetings";
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */

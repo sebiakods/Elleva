@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { API_BASE_URL } from "@/services/api";
 
 type EventType =
   | "webinaire"
@@ -50,8 +51,6 @@ type EventsResponse = {
   data?: EventItem[];
   message?: string;
 };
-
-const API_BASE_URL = "/api";
 
 const TYPE_LABELS: Record<EventType, string> = {
   webinaire: "Webinaire",
@@ -86,19 +85,6 @@ export default function InstitutionEventsPage() {
   const [statusFilter, setStatusFilter] =
     useState<"all" | EventStatus>("all");
 
-  /**
-   * ============================================================
-   * LOAD EVENTS
-   * ============================================================
-   *
-   * Authentication:
-   * - NO localStorage
-   * - NO accessToken
-   * - NO Authorization header
-   *
-   * The browser automatically sends the httpOnly auth cookie
-   * because credentials: "include" is enabled.
-   */
   const loadEvents = async () => {
     setLoading(true);
     setError(null);

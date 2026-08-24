@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// IMPORTANT: this calls the backend DIRECTLY (server-to-server), so CORS
-// and the /api rewrite proxy are irrelevant here — this code runs on
-// Vercel's server, not in the user's browser.
 const BACKEND_URL = "https://ellevadz-backend.onrender.com";
 
 // Map each protected route prefix to the role(s) allowed to access it.

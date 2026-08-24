@@ -26,7 +26,7 @@ type Expert = {
   profileImage?: string | null;
 };
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export default function ExpertsDirectoryPage() {
   const [experts, setExperts] = useState<Expert[]>([]);

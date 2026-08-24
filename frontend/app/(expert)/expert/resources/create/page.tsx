@@ -14,7 +14,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export default function CreateResourcePage() {
   const router = useRouter();
@@ -72,15 +72,7 @@ export default function CreateResourcePage() {
       formData.append("isPublished", "true");
       formData.append("file", file);
 
-      /*
-       * IMPORTANT:
-       * No localStorage.
-       * No accessToken.
-       * No Authorization header.
-       *
-       * The browser sends the httpOnly authentication
-       * cookie automatically because of credentials: "include".
-       */
+
       const response = await fetch(
         `${API_URL}/courses/${encodeURIComponent(courseId)}/resources`,
         {

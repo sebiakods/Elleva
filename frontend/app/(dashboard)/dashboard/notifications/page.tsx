@@ -30,18 +30,9 @@ interface NotificationsResponse {
   notifications: Notification[];
   count: number;
 }
+import { API_BASE_URL as API_URL } from "@/services/api";
 
-const API_URL = '/api';
 
-/**
- * API helper
- *
- * Authentication is handled by the browser through
- * the httpOnly session cookie.
- *
- * IMPORTANT:
- * Do NOT read accessToken/token from localStorage.
- */
 async function apiFetch(
   endpoint: string,
   options: RequestInit = {}

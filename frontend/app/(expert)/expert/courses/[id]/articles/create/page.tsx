@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Header } from "@/components/layout/Header";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type Course = {
   id: string;

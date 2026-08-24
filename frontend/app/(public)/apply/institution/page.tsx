@@ -9,6 +9,7 @@ import { Building2, Upload, FileText } from "lucide-react";
 import { AuthShell } from "@/components/forms/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const WILAYAS = [
   "Adrar", "Chlef", "Laghouat", "Oum El Bouaghi", "Batna", "Béjaïa",
@@ -87,7 +88,6 @@ export default function InstitutionApplicationPage() {
     return "";
   };
 
-const API_URL = '/api';
 
 const handleSubmit = async (
   e: React.FormEvent<HTMLFormElement>
@@ -126,10 +126,11 @@ const handleSubmit = async (
     }
 
     const response = await fetch(
-      `${API_URL}/api/institution-applications`,
+      `${API_URL}/institution-applications`,
       {
         method: "POST",
         body: formData,
+        credentials: "include",
       }
     );
 

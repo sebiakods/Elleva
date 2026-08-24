@@ -22,8 +22,7 @@ import { NotificationPanel } from "@/components/dashboard/NotificationPanel";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 interface Program {
   id: string;
@@ -123,15 +122,7 @@ export default function DashboardHome() {
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState("");
 
-  /*
-   * Authentication:
-   * We no longer read accessToken/token from localStorage.
-   *
-   * The backend authentication cookie is sent automatically
-   * because every authenticated request uses:
-   *
-   * credentials: "include"
-   */
+
 
   const loadPrograms = useCallback(async () => {
     try {

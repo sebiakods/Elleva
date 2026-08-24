@@ -21,7 +21,7 @@ import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 
@@ -342,16 +342,6 @@ export default function CourseDetailPage() {
         setLoading(true);
         setError("");
 
-        /*
-         * IMPORTANT:
-         * No localStorage.
-         * No accessToken.
-         * No Authorization header.
-         *
-         * The browser automatically sends the httpOnly
-         * authentication cookie because apiFetch uses
-         * credentials: "include".
-         */
 
         const courseResponse = await apiFetch(
           `/courses/${encodeURIComponent(id)}`

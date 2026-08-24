@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/common/Reveal";
 import { Avatar } from "@/components/common/Avatar";
 
+import { API_BASE_URL } from "@/services/api";
+
 type BadgeTone = "wine" | "gold" | "rose" | "neutral";
 
 type AppStatus =
@@ -52,8 +54,6 @@ interface OverviewData {
     createdAt: string;
   }[];
 }
-
-const API_BASE_URL = "/api";
 
 const statusMap: Record<
   AppStatus,

@@ -25,8 +25,7 @@ interface PublicProfile {
   companyName?: string;
   createdAt?: string;
 }
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export default function DynamicPublicProfilePage() {
   const params = useParams();
