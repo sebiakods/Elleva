@@ -1,5 +1,4 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "/api";
+export const API_BASE_URL = "/api";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
