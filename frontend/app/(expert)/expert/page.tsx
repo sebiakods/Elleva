@@ -163,14 +163,6 @@ export default function ExpertOverviewPage() {
       setLoading(true);
       setError(null);
 
-      /*
-       * IMPORTANT:
-       * No localStorage.
-       * No Authorization: Bearer token.
-       *
-       * The browser sends the HTTP-only authentication cookie
-       * automatically because credentials is set to "include".
-       */
 
       const [meRes, coursesRes, entrepreneursData, meetingsData] =
         await Promise.all([
