@@ -17,16 +17,11 @@ import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
-// IMPORTANT: use the relative "/api" path so requests stay same-origin
-// with the frontend and the Next.js rewrite proxies them to the real
-// backend. Do NOT default this to the full onrender.com URL — that
-// turns every request into a cross-site request and the HttpOnly auth
-// cookie stops being sent reliably.
-import { API_BASE_URL as API_URL } from "@/services/api";
 
-const BACKEND_URL =
-  (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) ||
-  "https://ellevadz-backend.onrender.com";
+import { API_BASE_URL as API_URL } from "@/services/api";
+import { API_BASE_URL } from "@/services/api";
+
+const BACKEND_URL = API_BASE_URL;
 
 type Article = {
   id: string;
