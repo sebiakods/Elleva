@@ -21,9 +21,9 @@ import { Badge } from "@/components/ui/Badge";
 import { API_BASE_URL as API_URL } from "@/services/api";
 
 
-const BACKEND_URL =
-  (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined) ||
-  "https://ellevadz-backend.onrender.com";
+import { API_BASE_URL } from "@/services/api";
+
+const BACKEND_URL = API_BASE_URL;
 
 type Video = {
   id: string;
