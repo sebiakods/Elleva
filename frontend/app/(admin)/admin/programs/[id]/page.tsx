@@ -16,8 +16,7 @@ import {
   Loader2,
   ShieldCheck,
 } from "lucide-react";
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 interface Institution {
   id?: string;

@@ -11,8 +11,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type Course = {
   id: string;
@@ -52,10 +51,6 @@ export default function CoursesPage() {
         setLoading(true);
         setError("");
 
-        // IMPORTANT:
-        // No localStorage
-        // No accessToken
-        // No Authorization header
         const response = await fetch(`${API_URL}/courses`, {
           method: "GET",
           headers: {

@@ -89,17 +89,9 @@ type CreateCommentResponse = {
   message?: string;
 };
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
-/**
- * Authentication
- *
- * The platform should use an httpOnly authentication cookie.
- * We therefore do NOT read accessToken/token from localStorage.
- *
- * `credentials: "include"` tells the browser to send the
- * authentication cookie with the API request.
- */
+
 const authFetchOptions: RequestInit = {
   credentials: "include",
 };

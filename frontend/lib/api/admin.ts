@@ -1,4 +1,4 @@
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export interface AdminOverviewData {
   analytics: {
@@ -39,22 +39,7 @@ export interface AdminOverviewData {
   }[];
 }
 
-/**
- * Get admin dashboard overview.
- *
- * Authentication is handled by the HttpOnly session cookie.
- *
- * We intentionally DO NOT:
- * - read localStorage
- * - read sessionStorage
- * - read accessToken
- * - read refreshToken
- * - use authService.getToken()
- * - send Authorization: Bearer
- *
- * The browser automatically sends the authentication cookie
- * because credentials: "include" is enabled.
- */
+
 export async function getAdminOverview(): Promise<AdminOverviewData> {
   const response = await fetch(
     `${API_URL}/admin/overview`,

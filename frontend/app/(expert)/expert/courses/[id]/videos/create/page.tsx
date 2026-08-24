@@ -7,13 +7,7 @@ import { ArrowLeft, Film, Loader2, Upload, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-// IMPORTANT: always use the relative "/api" path so requests stay
-// same-origin with the frontend and the Next.js rewrite proxies them
-// to the real backend. Using the full onrender.com URL directly here
-// (like other pages in this app do via NEXT_PUBLIC_API_URL) turns the
-// request cross-site and the HttpOnly auth cookie stops being sent
-// reliably — that's the root cause behind the recurring 401s.
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const CATEGORY_OPTIONS = [
   "business plan",

@@ -33,7 +33,7 @@ interface PaymentPageProps {
 
 type PaymentMethod = "baridimob" | "ccp" | "card";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const FIXED_PRICE_DZD = 1900;
 

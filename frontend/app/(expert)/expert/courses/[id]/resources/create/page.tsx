@@ -18,7 +18,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
@@ -61,16 +61,7 @@ export default function CreateResourcePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  /**
-   * --------------------------------------------------------------------------
-   * Load course
-   * --------------------------------------------------------------------------
-   *
-   * Authentication is handled by the HTTP-only cookie.
-   *
-   * IMPORTANT:
-   * Do NOT read accessToken from localStorage.
-   */
+
   useEffect(() => {
     if (!courseId) {
       setLoading(false);

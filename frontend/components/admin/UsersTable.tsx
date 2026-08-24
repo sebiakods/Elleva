@@ -15,7 +15,7 @@ import {
 
 import { Badge } from "@/components/ui/Badge";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 interface User {
   id: string;
@@ -186,22 +186,7 @@ export function UsersTable({
     }
   }, [externalUsers, externalLoading]);
 
-  /**
-   * ============================================================
-   * FETCH USERS
-   * ============================================================
-   *
-   * Authentication:
-   * - httpOnly cookie
-   * - credentials: "include"
-   *
-   * NEVER:
-   * - localStorage
-   * - sessionStorage
-   * - accessToken
-   * - refreshToken
-   * - Authorization: Bearer
-   */
+  
   const fetchUsers = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (isControlled) {

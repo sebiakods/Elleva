@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
+import { API_BASE_URL } from "@/services/api";
 
 type InstitutionType = "banque" | "fonds_investissement" | "ong" | "incubateur" | "organisme_public";
 
@@ -58,8 +59,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const API_BASE = "/api";
-const ASSET_ORIGIN = API_BASE.replace(/\/api$/, "");
+const ASSET_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
 
 export default function InstitutionProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,7 +77,7 @@ export default function InstitutionProfilePage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await authFetch(`${API_BASE}/institution-profile/me`);
+        const res = await authFetch(`${API_BASE_URL}/institution-profile/me`);
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.error || "Erreur lors du chargement du profil");
 
@@ -142,7 +142,7 @@ export default function InstitutionProfilePage() {
       fd.append("facebook", form.facebook);
       if (logo) fd.append("logo", logo);
 
-      const res = await authFetch(`${API_BASE}/institution-profile/me`, {
+      const res = await authFetch(`${API_BASE_URL}/institution-profile/me`, {
         method: "PATCH",
         body: fd,
       });
@@ -175,33 +175,33 @@ export default function InstitutionProfilePage() {
 
   return (
     <>
-{/* Breadcrumb */}
-<div className="mb-8 text-sm text-ink-soft">
-  <span>Espace Institution</span>
-  <span className="mx-2 text-ink-soft/40">/</span>
-  <span className="font-medium text-wine-700">Profil</span>
-</div>
+      {/* Breadcrumb */}
+      <div className="mb-8 text-sm text-ink-soft">
+        <span>Espace Institution</span>
+        <span className="mx-2 text-ink-soft/40">/</span>
+        <span className="font-medium text-wine-700">Profil</span>
+      </div>
 
-{/* Header Section */}
-<div className="relative mb-10">
-  <div
-    aria-hidden
-    className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
-  />
+      {/* Header Section */}
+      <div className="relative mb-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 right-0 -z-10 h-56 w-56 rounded-full bg-rise-gradient-soft opacity-70 blur-3xl md:h-72 md:w-72"
+        />
 
-  <p className="font-script text-2xl leading-none text-rose-500">
-    Votre institution
-  </p>
+        <p className="font-script text-2xl leading-none text-rose-500">
+          Votre institution
+        </p>
 
-  <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
-    Profil -{" "}
-    <span className="text-gradient-rise">Mon institution</span>
-  </h1>
+        <h1 className="mt-2 font-display text-3xl font-semibold text-wine-900 sm:text-4xl">
+          Profil -{" "}
+          <span className="text-gradient-rise">Mon institution</span>
+        </h1>
 
-  <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-    Consultez et gérez les informations de votre institution.
-  </p>
-</div>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
+          Consultez et gérez les informations de votre institution.
+        </p>
+      </div>
 
       <div className="mx-auto max-w-7xl space-y-8">
         <div>

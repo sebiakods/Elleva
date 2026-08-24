@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
 
+import { API_BASE_URL as API_BASE } from "@/services/api";
+
 type ProfileForm = {
   name: string;
   bio: string;
@@ -38,8 +40,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const API_BASE = '/api';
-const ASSET_ORIGIN = API_BASE.replace(/\/api$/, "");
+const ASSET_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
 
 export default function ExpertProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);

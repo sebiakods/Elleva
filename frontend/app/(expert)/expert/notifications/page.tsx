@@ -31,7 +31,7 @@ interface NotificationsResponse {
   message?: string;
 }
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* ========================================================================== */
 /* API                                                                        */
@@ -56,12 +56,7 @@ async function apiFetch(
     ...options,
     headers,
 
-    /*
-     * IMPORTANT:
-     *
-     * Authentication is handled by the httpOnly cookie.
-     * We do NOT read accessToken from localStorage anymore.
-     */
+
     credentials: "include",
 
     cache: "no-store",

@@ -18,7 +18,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type Course = {
   id: string;
@@ -43,16 +43,7 @@ export default function CreateResourcePage() {
 
   const [file, setFile] = useState<File | null>(null);
 
-  /*
-   * Load course.
-   *
-   * IMPORTANT:
-   * Authentication is now handled by the httpOnly cookie.
-   * We do NOT read accessToken from localStorage.
-   *
-   * credentials: "include" tells the browser to send the
-   * authentication cookie with the request.
-   */
+
   useEffect(() => {
     if (!courseId) return;
 

@@ -51,7 +51,7 @@ type ApiResponse = {
   message?: string;
 };
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */

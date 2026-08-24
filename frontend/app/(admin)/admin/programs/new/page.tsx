@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Eye } from "lucide-react";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type Program = {
   id: string;

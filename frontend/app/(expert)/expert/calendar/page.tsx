@@ -32,7 +32,7 @@ const MONTHS = [
   "Décembre",
 ];
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -103,22 +103,7 @@ function normalizeDate(date: string) {
 /* Authenticated API                                                          */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Authenticated API helper.
- *
- * IMPORTANT:
- *
- * Authentication no longer uses localStorage.
- *
- * The backend authentication cookie is sent automatically
- * by the browser because credentials: "include" is used.
- *
- * Therefore we DO NOT:
- *
- * - read accessToken
- * - read token
- * - create Authorization: Bearer ...
- */
+
 async function apiFetch(
   path: string = "",
   options: RequestInit = {}

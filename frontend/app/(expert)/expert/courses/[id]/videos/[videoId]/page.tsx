@@ -16,7 +16,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
 
@@ -109,15 +109,7 @@ function getErrorMessage(
   return fallback;
 }
 
-/**
- * All authenticated API requests use the httpOnly cookie.
- *
- * IMPORTANT:
- * - No localStorage
- * - No accessToken
- * - No Authorization header
- * - The browser automatically sends the session cookie.
- */
+
 async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {}

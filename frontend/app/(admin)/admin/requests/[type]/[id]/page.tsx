@@ -14,7 +14,7 @@ import {
 
 import { Header } from "@/components/layout/Header";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type ApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
 type UrlType = "expert" | "institution";
@@ -96,8 +96,6 @@ function getFileUrl(path?: string | null): string | null {
   // Remove a leading slash so we don't create //.
   const cleanPath = path.replace(/^\/+/, "");
 
-  // API_URL is normally http://localhost:4000/api.
-  // Static uploaded files are normally served by the backend root.
   const backendUrl = API_URL.replace(/\/api\/?$/, "");
 
   return `${backendUrl}/${cleanPath}`;

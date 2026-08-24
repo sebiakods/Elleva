@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
 
+import { API_BASE_URL as API_BASE } from "@/services/api";
+
 type DocCategory = "formulaire" | "guide" | "modele" | "reglementation";
 type FileType = "pdf" | "docx" | "xlsx";
 
@@ -78,8 +80,6 @@ function formatSize(bytes: string | null) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} Ko`;
   return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
 }
-
-const API_BASE = '/api';
 
 export default function InstitutionDocumentsPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);

@@ -1,4 +1,4 @@
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 async function request<T>(
   endpoint: string,

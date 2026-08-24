@@ -1,16 +1,5 @@
-// IMPORTANT:
-// Always call the backend through a RELATIVE path ("/api/...") so the
-// browser treats every request as same-origin with the frontend
-// (elleva-flame.vercel.app). Next.js rewrites() then proxies it server-side
-// to the real backend on Render. This is what makes the HttpOnly cookies
-// work reliably — same-origin cookies don't depend on SameSite=None/Secure
-// edge cases or browser cross-site cookie restrictions.
-//
-// NEVER default this to the full onrender.com URL — doing so turns every
-// request into a real cross-site request and cookies stop being sent
-// reliably (this was the root cause of the recurring 401s across
-// /auth/me, /notifications, /my/applications, etc).
-const API_BASE_URL = "/api";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "/api";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -18,41 +7,57 @@ export interface ApiResponse<T = unknown> {
   data: T;
 }
 
+async function parseResponse(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (!contentType.includes("application/json")) {
+    const text = await response.text().catch(() => "");
+
+    return text
+      ? { message: text }
+      : { message: `Request failed with status ${response.status}` };
+  }
+
+  return response.json().catch(() => ({}));
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers = new Headers(options.headers || {});
+  const headers = new Headers(options.headers);
 
   const isFormData =
     typeof FormData !== "undefined" &&
     options.body instanceof FormData;
 
-  if (
-    options.body &&
-    !isFormData &&
-    !headers.has("Content-Type")
-  ) {
+  if (options.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}${endpoint}`,
-    {
-      ...options,
-      headers,
-      credentials: "include",
-      cache: "no-store",
-    }
-  );
+  const cleanEndpoint = endpoint.startsWith("/")
+    ? endpoint
+    : `/${endpoint}`;
 
-  const data = await response.json();
+  const response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
+    ...options,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const data = await parseResponse(response);
 
   if (!response.ok) {
+    const errorData = data as {
+      message?: string;
+      error?: string;
+    };
+
     throw new Error(
-      data.message ||
-        data.error ||
-        "Request failed"
+      errorData.message ||
+        errorData.error ||
+        `Request failed with status ${response.status}`
     );
   }
 
@@ -65,48 +70,39 @@ export const api = {
       method: "GET",
     }),
 
-  post: <T>(
-    endpoint: string,
-    body?: unknown
-  ) =>
+  post: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: "POST",
       ...(body !== undefined
         ? {
             body:
-              body instanceof FormData
+              typeof FormData !== "undefined" && body instanceof FormData
                 ? body
                 : JSON.stringify(body),
           }
         : {}),
     }),
 
-  put: <T>(
-    endpoint: string,
-    body?: unknown
-  ) =>
+  put: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: "PUT",
       ...(body !== undefined
         ? {
             body:
-              body instanceof FormData
+              typeof FormData !== "undefined" && body instanceof FormData
                 ? body
                 : JSON.stringify(body),
           }
         : {}),
     }),
 
-  patch: <T>(
-    endpoint: string,
-    body?: unknown
-  ) =>
+  patch: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: "PATCH",
       ...(body !== undefined
         ? {
             body:
-              body instanceof FormData
+              typeof FormData !== "undefined" && body instanceof FormData
                 ? body
                 : JSON.stringify(body),
           }

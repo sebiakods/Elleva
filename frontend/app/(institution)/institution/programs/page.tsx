@@ -90,11 +90,7 @@ export default function InstitutionProgramsPage() {
       const response = await fetch(`${API}/institution/programs`, {
         method: "GET",
 
-        /*
-         * IMPORTANT:
-         * Authentication is now handled by the HTTP-only cookie.
-         * There is NO localStorage accessToken anymore.
-         */
+
         credentials: "include",
 
         headers: {

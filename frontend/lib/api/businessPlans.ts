@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/authFetch";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export type BusinessPlanStatus = "DRAFT" | "SUBMITTED" | "IN_REVIEW" | "APPROVED" | "REJECTED";
 

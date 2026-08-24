@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/authFetch";
 
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 export type MeetingUser = { id: string; name: string; email: string; avatarUrl: string | null };
 

@@ -12,8 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-
-const API_URL = '/api';
+import { API_BASE_URL as API_URL } from "@/services/api";
 
 type ApplicationType = "EXPERT" | "INSTITUTION";
 

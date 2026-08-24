@@ -21,7 +21,8 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { authFetch } from "@/lib/authFetch"; // Ajustez le chemin selon votre structure
+import { authFetch } from "@/lib/authFetch"; 
+import { API_BASE_URL as API_BASE } from "@/services/api";
 
 type DocCategory = "formulaire" | "guide" | "modele" | "reglementation";
 
@@ -32,8 +33,6 @@ type DocumentForm = {
   description: string;
   status: "draft" | "published";
 };
-
-const API_BASE = '/api';
 
 const PROGRAMS = [
   "Programme Innovation Femmes 2026",
