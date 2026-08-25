@@ -45,7 +45,7 @@ export default function InstitutionLayout({
     <div className="flex min-h-screen bg-gray-50">
       <InstitutionSidebar />
 
-      <main className="flex-1 overflow-auto px-4 pb-8 pt-24 lg:p-6">
+      <main className="min-w-0 flex-1 overflow-auto px-4 pb-8 pt-20 sm:px-6 lg:py-8">
         {children}
       </main>
     </div>

@@ -41,10 +41,13 @@ export default function ExpertLayout({
     return null;
   }
 
-  return (
-    <div className="flex">
-      <ExpertSidebar />
-      <main className="flex-1">{children}</main>
-    </div>
-  );
+return (
+  <div className="flex min-h-screen bg-sand-50">
+    <ExpertSidebar />
+
+    <main className="min-w-0 flex-1 pt-14 lg:pt-0">
+      {children}
+    </main>
+  </div>
+);
 }
