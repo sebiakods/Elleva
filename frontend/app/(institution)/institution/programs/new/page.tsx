@@ -348,14 +348,7 @@ export default function NewProgramPage() {
         payload
       );
 
-      /*
-       * IMPORTANT:
-       * We do NOT read a JWT from localStorage anymore.
-       *
-       * Authentication is handled by the HTTP-only cookie.
-       * credentials: "include" tells the browser to send
-       * the authentication cookie with the request.
-       */
+
       const response = await fetch(
         `${API_URL}/institution/programs`,
         {

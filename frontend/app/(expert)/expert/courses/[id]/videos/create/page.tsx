@@ -35,12 +35,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
-/**
- * Reads a local video File and resolves its duration in seconds
- * using a throwaway <video> element + object URL. This lets us send
- * durationSeconds to the backend without asking the user to type it
- * in manually (the Video model requires it).
- */
+
 function readVideoDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
@@ -143,14 +138,6 @@ export default function CreateVideoPage() {
 
     try {
       setSubmitting(true);
-
-      // IMPORTANT: the backend route uses
-      // upload.single("videoFile"), which only accepts ONE file field
-      // named exactly "videoFile" — any other field name (or a second
-      // file field like "thumbnail") triggers multer's
-      // "Unexpected field" error and a 500. Until the backend route
-      // is upgraded to upload.fields([...]) to accept a thumbnail too,
-      // only the video file is sent here.
       const formData = new FormData();
       formData.append("title", title.trim());
       formData.append("description", description.trim());
@@ -164,8 +151,7 @@ export default function CreateVideoPage() {
         {
           method: "POST",
           credentials: "include",
-          body: formData, // do NOT set Content-Type manually — the
-          // browser needs to set the multipart boundary itself
+          body: formData,           
         }
       );
 

@@ -4,10 +4,7 @@ import { Role } from '@prisma/client';
 // used here only as a safe fallback if no shared client is found.
 import { prisma } from '../prisma';
 
-/**
- * Communication permission matrix.
- * Key = sender role, Value = list of roles that sender is allowed to message.
- */
+
 const ALLOWED_ROLES: Record<Role, Role[]> = {
   ADMIN: ['ADMIN', 'EXPERT', 'ENTREPRENEUR', 'INSTITUTION'],
   EXPERT: ['ENTREPRENEUR', 'INSTITUTION', 'ADMIN'],
@@ -25,9 +22,6 @@ export class MessagingError extends Error {
   }
 }
 
-/**
- * Returns true if `senderRole` is allowed to send a message to `receiverRole`.
- */
 export function canMessage(senderRole: Role, receiverRole: Role): boolean {
   return ALLOWED_ROLES[senderRole]?.includes(receiverRole) ?? false;
 }
@@ -39,9 +33,7 @@ const USER_SUMMARY_SELECT = {
   role: true,
 } as const;
 
-/**
- * Returns every user the current user is allowed to message, excluding themselves.
- */
+
 export async function getAvailableUsers(currentUserId: string, currentUserRole: Role) {
   const allowedRoles = ALLOWED_ROLES[currentUserRole] ?? [];
 

@@ -18,10 +18,3 @@ router.patch("/:id", updateCalendarEvent);
 router.delete("/:id", deleteCalendarEvent);
 
 export default router;
-
-/**
- * In your main app/index.ts (or wherever routes are mounted), add:
- *
- *   import calendarEventRoutes from "./routes/calendarEvent.routes";
- *   app.use("/api/expert/calendar", calendarEventRoutes);
- */

@@ -25,6 +25,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { authFetch } from "@/lib/authFetch";
+
 import {
   listMyEntrepreneurs,
   type EntrepreneurSummary,
@@ -34,8 +36,6 @@ import {
   listMyMeetings,
   type Meeting,
 } from "@/lib/api/meetings";
-
-import { API_BASE_URL as API_URL } from "@/services/api";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -52,6 +52,12 @@ type Course = {
   articles: CourseContentItem[];
   videos: CourseContentItem[];
   resources: CourseContentItem[];
+};
+
+type ApiResponse<T> = {
+  success: boolean;
+  data: T;
+  message?: string;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -75,11 +81,17 @@ function safeLength(items?: unknown[]) {
 }
 
 function truncate(text: string, max = 16) {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+  return text.length > max
+    ? `${text.slice(0, max - 1)}…`
+    : text;
 }
 
 function getLastMonths(count: number) {
-  const months: { key: string; label: string }[] = [];
+  const months: {
+    key: string;
+    label: string;
+  }[] = [];
+
   const now = new Date();
 
   for (let i = count - 1; i >= 0; i--) {
@@ -108,18 +120,62 @@ function getLastMonths(count: number) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* API                                                                        */
+/* -------------------------------------------------------------------------- */
+
+async function listExpertCourses(): Promise<Course[]> {
+  const response = await authFetch("/courses/expert", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const json = (await response
+    .json()
+    .catch(() => null)) as ApiResponse<Course[]> | null;
+
+  if (!response.ok || !json?.success) {
+    if (response.status === 401) {
+      throw new Error(
+        "Votre session a expiré. Veuillez vous reconnecter."
+      );
+    }
+
+    if (response.status === 403) {
+      throw new Error(
+        "Vous n'avez pas l'autorisation d'accéder à ces statistiques."
+      );
+    }
+
+    throw new Error(
+      json?.message ||
+        `Impossible de charger les cours. Erreur ${response.status}`
+    );
+  }
+
+  return Array.isArray(json.data)
+    ? json.data
+    : [];
+}
+
+/* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
 export default function ExpertAnalyticsPage() {
   const [courses, setCourses] = useState<Course[]>([]);
+
   const [entrepreneurs, setEntrepreneurs] = useState<
     EntrepreneurSummary[]
   >([]);
+
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     void loadAnalytics();
@@ -130,57 +186,24 @@ export default function ExpertAnalyticsPage() {
       setLoading(true);
       setError(null);
 
-
-      const [coursesRes, entrepreneursData, meetingsData] =
-        await Promise.all([
-          fetch(`${API_URL}/courses/expert`, {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-            headers: {
-              Accept: "application/json",
-            },
-          }),
-
-          listMyEntrepreneurs(),
-
-          listMyMeetings(),
-        ]);
-
-      const coursesJson = await coursesRes
-        .json()
-        .catch(() => ({}));
-
-      if (!coursesRes.ok) {
-        if (coursesRes.status === 401) {
-          throw new Error(
-            "Votre session a expiré. Veuillez vous reconnecter."
-          );
-        }
-
-        if (coursesRes.status === 403) {
-          throw new Error(
-            "Vous n'avez pas l'autorisation d'accéder à ces statistiques."
-          );
-        }
-
-        throw new Error(
-          coursesJson?.message ||
-            "Impossible de charger les cours."
-        );
-      }
-
-      const coursesData: Course[] = Array.isArray(
-        coursesJson?.data
-      )
-        ? coursesJson.data
-        : [];
+      const [
+        coursesData,
+        entrepreneursData,
+        meetingsData,
+      ] = await Promise.all([
+        listExpertCourses(),
+        listMyEntrepreneurs(),
+        listMyMeetings(),
+      ]);
 
       setCourses(coursesData);
       setEntrepreneurs(entrepreneursData);
       setMeetings(meetingsData);
     } catch (err) {
-      console.error("Error loading analytics:", err);
+      console.error(
+        "Error loading analytics:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -217,13 +240,21 @@ export default function ExpertAnalyticsPage() {
 
     return {
       courses: courses.length,
+
       publishedCourses: courses.filter(
         (course) => course.isPublished
       ).length,
+
       articles,
+
       videos,
+
       resources,
-      content: articles + videos + resources,
+
+      content:
+        articles +
+        videos +
+        resources,
     };
   }, [courses]);
 
@@ -248,65 +279,94 @@ export default function ExpertAnalyticsPage() {
     [totals]
   );
 
-  const hasContent = totals.content > 0;
+  const hasContent =
+    totals.content > 0;
 
-  const perCourseData = useMemo(
-    () =>
-      courses
-        .slice()
-        .sort((a, b) => {
-          const aTotal =
-            safeLength(a.articles) +
-            safeLength(a.videos) +
-            safeLength(a.resources);
+  const perCourseData = useMemo(() => {
+    return courses
+      .slice()
+      .sort((a, b) => {
+        const aTotal =
+          safeLength(a.articles) +
+          safeLength(a.videos) +
+          safeLength(a.resources);
 
-          const bTotal =
-            safeLength(b.articles) +
-            safeLength(b.videos) +
-            safeLength(b.resources);
+        const bTotal =
+          safeLength(b.articles) +
+          safeLength(b.videos) +
+          safeLength(b.resources);
 
-          return bTotal - aTotal;
-        })
-        .slice(0, 8)
-        .map((course) => ({
-          name: truncate(course.title),
-          fullName: course.title,
-          Articles: safeLength(course.articles),
-          Vidéos: safeLength(course.videos),
-          Ressources: safeLength(course.resources),
-        })),
-    [courses]
-  );
+        return bTotal - aTotal;
+      })
+      .slice(0, 8)
+      .map((course) => ({
+        name: truncate(course.title),
+
+        fullName: course.title,
+
+        Articles: safeLength(
+          course.articles
+        ),
+
+        Vidéos: safeLength(
+          course.videos
+        ),
+
+        Ressources: safeLength(
+          course.resources
+        ),
+      }));
+  }, [courses]);
 
   const monthlyMeetings = useMemo(() => {
     const months = getLastMonths(6);
 
-    return months.map(({ key, label }) => {
-      const count = meetings.filter((meeting) => {
-        const date = new Date(meeting.scheduledAt);
+    return months.map(
+      ({ key, label }) => {
+        const count = meetings.filter(
+          (meeting) => {
+            const date = new Date(
+              meeting.scheduledAt
+            );
 
-        const monthKey = `${date.getFullYear()}-${String(
-          date.getMonth() + 1
-        ).padStart(2, "0")}`;
+            if (Number.isNaN(date.getTime())) {
+              return false;
+            }
 
-        return monthKey === key;
-      }).length;
+            const monthKey =
+              `${date.getFullYear()}-${String(
+                date.getMonth() + 1
+              ).padStart(2, "0")}`;
 
-      return {
-        month: label,
-        Réunions: count,
-      };
-    });
+            return monthKey === key;
+          }
+        ).length;
+
+        return {
+          month: label,
+          Réunions: count,
+        };
+      }
+    );
   }, [meetings]);
 
-  const upcomingMeetings = useMemo(
-    () =>
-      meetings.filter(
-        (meeting) =>
-          new Date(meeting.scheduledAt) >= new Date()
-      ).length,
-    [meetings]
-  );
+  const upcomingMeetings =
+    useMemo(() => {
+      const now = new Date();
+
+      return meetings.filter(
+        (meeting) => {
+          const date = new Date(
+            meeting.scheduledAt
+          );
+
+          return (
+            !Number.isNaN(date.getTime()) &&
+            date >= now
+          );
+        }
+      ).length;
+    }, [meetings]);
 
   /* ---------------------------------------------------------------------- */
   /* Loading state                                                           */
@@ -326,7 +386,9 @@ export default function ExpertAnalyticsPage() {
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
+            {Array.from({
+              length: 4,
+            }).map((_, index) => (
               <div
                 key={index}
                 className="card-surface space-y-3 p-5"
@@ -366,7 +428,9 @@ export default function ExpertAnalyticsPage() {
 
           <button
             type="button"
-            onClick={() => void loadAnalytics()}
+            onClick={() =>
+              void loadAnalytics()
+            }
             className="focus-ring mt-6 rounded-xl bg-wine-900 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-wine-700"
           >
             Réessayer
@@ -383,10 +447,13 @@ export default function ExpertAnalyticsPage() {
   return (
     <main className="min-h-screen bg-sand-50">
       <div className="mx-auto max-w-7xl px-6 py-10">
+
         {/* Breadcrumb */}
 
         <div className="mb-8 text-sm text-ink-soft">
-          <span>Espace Experte</span>
+          <span>
+            Espace Experte
+          </span>
 
           <span className="mx-2 text-ink-soft/40">
             /
@@ -417,9 +484,10 @@ export default function ExpertAnalyticsPage() {
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-            Le contenu que vous publiez, les entrepreneures que
-            vous accompagnez et l'activité de vos réunions, en un
-            coup d'œil.
+            Le contenu que vous publiez,
+            les entrepreneures que vous
+            accompagnez et l'activité de vos
+            réunions, en un coup d'œil.
           </p>
         </div>
 
@@ -459,6 +527,7 @@ export default function ExpertAnalyticsPage() {
         {/* Content breakdown */}
 
         <section className="mb-8 grid gap-6 lg:grid-cols-[380px_1fr]">
+
           {/* Pie chart */}
 
           <div className="card-surface p-6 shadow-card">
@@ -494,13 +563,15 @@ export default function ExpertAnalyticsPage() {
                         outerRadius={85}
                         paddingAngle={3}
                       >
-                        {contentBreakdown.map((entry) => (
-                          <Cell
-                            key={entry.name}
-                            fill={entry.color}
-                            stroke="none"
-                          />
-                        ))}
+                        {contentBreakdown.map(
+                          (entry) => (
+                            <Cell
+                              key={entry.name}
+                              fill={entry.color}
+                              stroke="none"
+                            />
+                          )
+                        )}
                       </Pie>
 
                       <Tooltip
@@ -515,32 +586,37 @@ export default function ExpertAnalyticsPage() {
                 </div>
 
                 <div className="mt-2 space-y-2">
-                  {contentBreakdown.map((item) => (
-                    <div
-                      key={item.name}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="flex items-center gap-2 text-ink-soft">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{
-                            backgroundColor: item.color,
-                          }}
-                        />
+                  {contentBreakdown.map(
+                    (item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="flex items-center gap-2 text-ink-soft">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{
+                              backgroundColor:
+                                item.color,
+                            }}
+                          />
 
-                        {item.name}
-                      </span>
+                          {item.name}
+                        </span>
 
-                      <span className="font-semibold text-wine-900">
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="font-semibold text-wine-900">
+                          {item.value}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </>
             ) : (
               <EmptyChartState
-                icon={<FolderOpen size={22} />}
+                icon={
+                  <FolderOpen size={22} />
+                }
                 text="Ajoutez des articles, vidéos ou ressources pour voir la répartition."
               />
             )}
@@ -560,8 +636,8 @@ export default function ExpertAnalyticsPage() {
                 </h2>
 
                 <p className="text-xs text-ink-soft">
-                  Nombre d'articles, vidéos et ressources par cours
-                  (top 8)
+                  Nombre d'articles, vidéos et
+                  ressources par cours (top 8)
                 </p>
               </div>
             </div>
@@ -611,8 +687,9 @@ export default function ExpertAnalyticsPage() {
                         _label,
                         payload
                       ) =>
-                        payload?.[0]?.payload?.fullName ??
-                        ""
+                        payload?.[0]
+                          ?.payload
+                          ?.fullName ?? ""
                       }
                     />
 
@@ -625,27 +702,42 @@ export default function ExpertAnalyticsPage() {
                     <Bar
                       dataKey="Articles"
                       stackId="content"
-                      fill={CHART_COLORS.wine}
+                      fill={
+                        CHART_COLORS.wine
+                      }
                     />
 
                     <Bar
                       dataKey="Vidéos"
                       stackId="content"
-                      fill={CHART_COLORS.rose}
+                      fill={
+                        CHART_COLORS.rose
+                      }
                     />
 
                     <Bar
                       dataKey="Ressources"
                       stackId="content"
-                      fill={CHART_COLORS.gold}
-                      radius={[6, 6, 0, 0]}
+                      fill={
+                        CHART_COLORS.gold
+                      }
+                      radius={[
+                        6,
+                        6,
+                        0,
+                        0,
+                      ]}
                     />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <EmptyChartState
-                icon={<GraduationCap size={22} />}
+                icon={
+                  <GraduationCap
+                    size={22}
+                  />
+                }
                 text="Créez un cours et ajoutez du contenu pour voir ce graphique."
               />
             )}
@@ -667,7 +759,8 @@ export default function ExpertAnalyticsPage() {
                 </h2>
 
                 <p className="text-xs text-ink-soft">
-                  Réunions programmées par mois — 6 derniers mois
+                  Réunions programmées par mois —
+                  6 derniers mois
                 </p>
               </div>
             </div>
@@ -701,10 +794,14 @@ export default function ExpertAnalyticsPage() {
                 width="100%"
                 height="100%"
               >
-                <BarChart data={monthlyMeetings}>
+                <BarChart
+                  data={monthlyMeetings}
+                >
                   <CartesianGrid
                     vertical={false}
-                    stroke={CHART_COLORS.grid}
+                    stroke={
+                      CHART_COLORS.grid
+                    }
                   />
 
                   <XAxis
@@ -733,8 +830,15 @@ export default function ExpertAnalyticsPage() {
 
                   <Bar
                     dataKey="Réunions"
-                    fill={CHART_COLORS.wine}
-                    radius={[8, 8, 0, 0]}
+                    fill={
+                      CHART_COLORS.wine
+                    }
+                    radius={[
+                      8,
+                      8,
+                      0,
+                      0,
+                    ]}
                     maxBarSize={48}
                   />
                 </BarChart>
@@ -742,7 +846,11 @@ export default function ExpertAnalyticsPage() {
             </div>
           ) : (
             <EmptyChartState
-              icon={<CalendarClock size={22} />}
+              icon={
+                <CalendarClock
+                  size={22}
+                />
+              }
               text="Programmez une réunion pour voir l'activité apparaître ici."
             />
           )}

@@ -85,10 +85,6 @@ class AuthService {
     await api.post("/auth/refresh");
   }
 
-  /**
-   * Authentication is handled by HttpOnly cookies.
-   * The browser sends the cookies automatically.
-   */
   async isAuthenticated(): Promise<boolean> {
     try {
       await this.getCurrentUser();
@@ -98,18 +94,10 @@ class AuthService {
     }
   }
 
-  /**
-   * There is intentionally no getToken().
-   * JWT tokens must never be read by frontend JavaScript.
-   */
   getToken(): null {
     return null;
   }
 
-  /**
-   * There is intentionally no localStorage user.
-   * Use getCurrentUser() instead.
-   */
   getUser(): null {
     return null;
   }

@@ -680,21 +680,7 @@ export default function CreateCoursePage() {
         `${API_URL}/courses`,
         {
           method: "POST",
-
-          /*
-           * THIS IS THE IMPORTANT AUTH CHANGE.
-           *
-           * The browser sends the httpOnly authentication
-           * cookie with this request.
-           */
           credentials: "include",
-
-          /*
-           * DO NOT set Content-Type manually.
-           *
-           * Because this is FormData, the browser automatically
-           * creates the multipart/form-data boundary.
-           */
           body: formData,
         },
       );

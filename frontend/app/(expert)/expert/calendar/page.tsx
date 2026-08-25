@@ -60,22 +60,11 @@ type CalendarResponse = {
 
 const pad = (number: number) => String(number).padStart(2, "0");
 
-/**
- * Convert calendar values to:
- *
- * YYYY-MM-DD
- */
 function toInputValue(year: number, month: number, day: number) {
   return `${year}-${pad(month + 1)}-${pad(day)}`;
 }
 
-/**
- * Parse:
- *
- * YYYY-MM-DD
- *
- * without using UTC conversion.
- */
+
 function parseInputValue(value: string) {
   const [year, month, day] = value.split("-").map(Number);
 

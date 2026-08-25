@@ -165,11 +165,7 @@ export default function InstitutionEventsPage() {
     };
   }, []);
 
-  /**
-   * ============================================================
-   * FILTER EVENTS
-   * ============================================================
-   */
+
   const filtered = useMemo(() => {
     const normalizedQuery =
       query.trim().toLowerCase();

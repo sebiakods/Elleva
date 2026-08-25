@@ -152,10 +152,7 @@ export default function CreateResourcePage() {
       formData.append("order", String(Number(order)));
       formData.append("isPublished", String(isPublished));
 
-      /*
-       * IMPORTANT:
-       * Your backend expects the uploaded file under "files".
-       */
+
       formData.append("files", file);
 
       const res = await fetch(

@@ -129,11 +129,7 @@ export default function CreateResourcePage() {
     };
   }, [courseId]);
 
-  /**
-   * --------------------------------------------------------------------------
-   * File selection
-   * --------------------------------------------------------------------------
-   */
+
   function handleFileChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
@@ -188,11 +184,7 @@ export default function CreateResourcePage() {
     setFile(selectedFile);
   }
 
-  /**
-   * --------------------------------------------------------------------------
-   * Remove selected file
-   * --------------------------------------------------------------------------
-   */
+
   function removeFile() {
     setFile(null);
     setError("");
@@ -206,11 +198,6 @@ export default function CreateResourcePage() {
     }
   }
 
-  /**
-   * --------------------------------------------------------------------------
-   * Create resource
-   * --------------------------------------------------------------------------
-   */
   async function createResource(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -242,15 +229,6 @@ export default function CreateResourcePage() {
     try {
       setSaving(true);
 
-      /**
-       * FormData is required because we are uploading a real file.
-       *
-       * DO NOT set:
-       *
-       * Content-Type: multipart/form-data
-       *
-       * The browser automatically creates the correct boundary.
-       */
 
       const formData = new FormData();
 
@@ -264,15 +242,7 @@ export default function CreateResourcePage() {
       formData.append("order", String(order));
       formData.append("isPublished", String(isPublished));
 
-      /**
-       * IMPORTANT:
-       *
-       * The backend Multer field name must be "file".
-       *
-       * Therefore this must stay:
-       *
-       * formData.append("file", file);
-       */
+
       formData.append("file", file);
 
       const response = await fetch(
@@ -280,14 +250,10 @@ export default function CreateResourcePage() {
         {
           method: "POST",
 
-          /**
-           * Send the HTTP-only authentication cookie.
-           */
+
           credentials: "include",
 
-          /**
-           * Do NOT set Content-Type here.
-           */
+
           body: formData,
 
           cache: "no-store",
@@ -307,9 +273,6 @@ export default function CreateResourcePage() {
 
       setSuccess("La ressource a été créée avec succès.");
 
-      /**
-       * Small delay so the success message can be displayed.
-       */
       setTimeout(() => {
         router.push(
           `/expert/courses/${encodeURIComponent(courseId)}/resources`
@@ -398,11 +361,7 @@ export default function CreateResourcePage() {
     );
   }
 
-  /**
-   * --------------------------------------------------------------------------
-   * Main page
-   * --------------------------------------------------------------------------
-   */
+
   return (
     <main className="p-6">
       <div className="mx-auto max-w-4xl">

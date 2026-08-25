@@ -210,10 +210,7 @@ export async function removeNotification(
       });
     }
 
-    /**
-     * Express can type params as string | string[].
-     * We normalize it to a string.
-     */
+
     const notificationId = Array.isArray(
       req.params.id
     )

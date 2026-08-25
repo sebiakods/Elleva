@@ -68,14 +68,7 @@ function getFileUrl(url?: string | null): string | null {
   return `${BACKEND_URL}/${url}`;
 }
 
-/**
- * Authenticated request.
- *
- * Authentication is handled by the HTTP-only cookie.
- *
- * IMPORTANT:
- * Do NOT use localStorage here.
- */
+
 async function apiFetch(
   path: string,
   options: RequestInit = {}
@@ -87,9 +80,7 @@ async function apiFetch(
   });
 }
 
-/**
- * Safely read JSON responses.
- */
+
 async function readJson<T>(
   response: Response
 ): Promise<ApiResponse<T>> {
@@ -378,15 +369,7 @@ export default function ArticleDetailPage() {
         String(isPublished)
       );
 
-      /*
-       * IMPORTANT:
-       *
-       * Backend uses:
-       *
-       * upload.array("files", 10)
-       *
-       * Therefore the PDF field MUST be "files".
-       */
+
       if (newPdfFile) {
         formData.append(
           "files",
@@ -436,9 +419,7 @@ export default function ArticleDetailPage() {
     }
   }
 
-  /**
-   * Delete article.
-   */
+
   async function handleDelete() {
     const confirmed = window.confirm(
       "Voulez-vous vraiment supprimer cet article ? Cette action est irréversible."
@@ -488,9 +469,7 @@ export default function ArticleDetailPage() {
     }
   }
 
-  /**
-   * Loading state.
-   */
+
   if (loading) {
     return (
       <main className="min-h-[60vh] p-6">

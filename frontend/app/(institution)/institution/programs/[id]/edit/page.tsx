@@ -296,13 +296,7 @@ export default function EditInstitutionProgramPage() {
         {
           method: "PUT",
 
-          /*
-           * IMPORTANT:
-           * Authentication cookie is automatically sent.
-           *
-           * There is NO:
-           * Authorization: Bearer token
-           */
+
           credentials: "include",
 
           headers: {

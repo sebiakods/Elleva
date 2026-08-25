@@ -1,8 +1,11 @@
 import { authFetch } from "@/lib/authFetch";
 
-import { API_BASE_URL as API_URL } from "@/services/api";
-
-export type MeetingUser = { id: string; name: string; email: string; avatarUrl: string | null };
+export type MeetingUser = {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+};
 
 export type Meeting = {
   id: string;
@@ -11,18 +14,29 @@ export type Meeting = {
   meetingUrl: string;
   scheduledAt: string;
   notes: string | null;
-  expert: { id: string; name: string; email?: string; avatarUrl: string | null };
+  expert: {
+    id: string;
+    name: string;
+    email?: string;
+    avatarUrl: string | null;
+  };
   participants: { user: MeetingUser }[];
   createdAt: string;
 };
 
-type ApiResponse<T> = { success: boolean; data: T; message?: string };
+type ApiResponse<T> = {
+  success: boolean;
+  data: T;
+  message?: string;
+};
 
 async function handle<T>(res: Response): Promise<T> {
   const json = (await res.json().catch(() => null)) as ApiResponse<T> | null;
+
   if (!res.ok || !json?.success) {
     throw new Error(json?.message || `Erreur ${res.status}`);
   }
+
   return json.data;
 }
 
@@ -35,7 +49,7 @@ export async function createMeeting(data: {
   participantIds: string[];
 }): Promise<Meeting> {
   return handle(
-    await authFetch(`${API_URL}/meetings`, {
+    await authFetch("/meetings", {
       method: "POST",
       body: JSON.stringify(data),
     })
@@ -43,9 +57,9 @@ export async function createMeeting(data: {
 }
 
 export async function listMyMeetings(): Promise<Meeting[]> {
-  return handle(await authFetch(`${API_URL}/meetings`));
+  return handle(await authFetch("/meetings"));
 }
 
 export async function getMeeting(id: string): Promise<Meeting> {
-  return handle(await authFetch(`${API_URL}/meetings/${id}`));
+  return handle(await authFetch(`/meetings/${id}`));
 }

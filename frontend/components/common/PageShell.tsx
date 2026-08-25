@@ -3,14 +3,7 @@ import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 
-/**
- * Lightweight wrapper used during Step 4 (routing scaffolding).
- * Every placeholder page renders a consistent preview card so the
- * entire navigation is explorable before full implementation begins.
- *
- * Step 5 will replace the inner content with full implementations
- * while keeping Header usage and prop signatures identical.
- */
+
 export function PageShell({
   title,
   badge,
