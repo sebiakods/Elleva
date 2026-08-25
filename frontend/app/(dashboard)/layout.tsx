@@ -45,7 +45,7 @@ export default function DashboardLayout({
     <div className="flex min-h-screen bg-sand-50">
       <DashboardSidebar />
 
-      <main className="flex-1 px-6 py-8 lg:px-10 lg:py-10">
+      <main className="flex-1 px-4 pb-8 pt-24 lg:px-10 lg:py-10 lg:pt-10">
         {children}
       </main>
     </div>
