@@ -48,7 +48,7 @@ export async function listMyEntrepreneurs(): Promise<
   EntrepreneurSummary[]
 > {
   const res = await authFetch(
-    "/api/expert/entrepreneurs"
+    "/expert/entrepreneurs"
   );
 
   return handle<EntrepreneurSummary[]>(res);

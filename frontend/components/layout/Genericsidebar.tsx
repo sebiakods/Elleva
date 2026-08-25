@@ -6,6 +6,7 @@ import * as Icons from "lucide-react";
 import { Logo } from "@/components/common/Logo";
 import { cn } from "@/lib/utils";
 import authService from "@/services/auth";
+import { useState } from "react";
 
 type NavLink = {
   href: string;
@@ -41,38 +42,37 @@ export function GenericSidebar({
   const pathname = usePathname();
   const router = useRouter();
 
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const isDark = theme === "dark";
 
-const handleLogout = async () => {
-  console.log("🔴 LOGOUT BUTTON CLICKED");
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      router.replace("/login");
+    }
+  };
 
-  try {
-    console.log("🟡 Calling authService.logout()...");
+  const isActive = (href: string) => {
+    const isRoot = href.split("/").filter(Boolean).length === 1;
 
-    await authService.logout();
+    return isRoot
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/");
+  };
 
-    console.log("🟢 authService.logout() SUCCESS");
-  } catch (error) {
-    console.error("❌ handleLogout ERROR:", error);
-  } finally {
-    console.log("➡️ Redirecting to /login");
-    router.replace("/login");
-  }
-};
-  return (
-    <aside
-      className={cn(
-        "sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r p-5 lg:flex",
-        isDark
-          ? "border-white/10 bg-wine-900"
-          : "border-sand-200 bg-white"
-      )}
-    >
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div
         className={cn(
           "mb-8",
-          isDark ? "w-fit rounded-xl bg-white/95 px-4 py-2" : "px-1"
+          isDark
+            ? "w-fit rounded-xl bg-white/95 px-4 py-2"
+            : "px-1"
         )}
       >
         <Logo />
@@ -92,31 +92,24 @@ const handleLogout = async () => {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1">
-        {links.map((l) => {
-          const isRoot = l.href.split("/").filter(Boolean).length === 1;
-
-          const active = isRoot
-            ? pathname === l.href
-            : pathname === l.href || pathname.startsWith(l.href + "/");
-
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={cn(
-                "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-rise-gradient text-white shadow-bloom"
-                  : isDark
-                  ? "text-white/70 hover:bg-white/10"
-                  : "text-ink-soft hover:bg-sand-50"
-              )}
-            >
-              <DynamicIcon name={l.icon} />
-              {l.label}
-            </Link>
-          );
-        })}
+        {links.map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
+              isActive(l.href)
+                ? "bg-rise-gradient text-white shadow-bloom"
+                : isDark
+                ? "text-white/70 hover:bg-white/10"
+                : "text-ink-soft hover:bg-sand-50"
+            )}
+          >
+            <DynamicIcon name={l.icon} />
+            {l.label}
+          </Link>
+        ))}
       </nav>
 
       {/* Logout */}
@@ -133,6 +126,122 @@ const handleLogout = async () => {
         <DynamicIcon name="LogOut" />
         Déconnexion
       </button>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ================================================================ */}
+      {/* DESKTOP SIDEBAR                                                   */}
+      {/* ================================================================ */}
+
+      <aside
+        className={cn(
+          "sticky top-0 flex h-screen w-64 shrink-0 flex-col overflow-y-auto border-r p-5",
+          isDark
+            ? "border-white/10 bg-wine-900"
+            : "border-sand-200 bg-white"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* ================================================================ */}
+      {/* MOBILE HEADER                                                     */}
+      {/* ================================================================ */}
+
+      <div
+        className={cn(
+          "fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between border-b px-4 lg:hidden",
+          isDark
+            ? "border-white/10 bg-wine-900"
+            : "border-sand-200 bg-white"
+        )}
+      >
+        <div
+          className={cn(
+            isDark
+              ? "rounded-lg bg-white/95 px-3 py-1"
+              : ""
+          )}
+        >
+          <Logo />
+        </div>
+
+        <button
+          type="button"
+          aria-label="Ouvrir le menu"
+          onClick={() => setMobileOpen(true)}
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-xl",
+            isDark
+              ? "text-white hover:bg-white/10"
+              : "text-ink-soft hover:bg-sand-50"
+          )}
+        >
+          <Icons.Menu size={24} />
+        </button>
+      </div>
+
+      {/* ================================================================ */}
+      {/* MOBILE OVERLAY                                                    */}
+      {/* ================================================================ */}
+
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={sectionLabel || "Navigation"}
+        >
+          {/* Overlay */}
+          <button
+            type="button"
+            aria-label="Fermer le menu"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 bg-black/50"
+          />
+
+          {/* Drawer */}
+          <aside
+            className={cn(
+              "absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto border-r p-5 shadow-2xl",
+              isDark
+                ? "border-white/10 bg-wine-900"
+                : "border-sand-200 bg-white"
+            )}
+          >
+            {/* Close */}
+            <div className="mb-5 flex items-center justify-between">
+              <div
+                className={cn(
+                  isDark
+                    ? "rounded-lg bg-white/95 px-3 py-1"
+                    : ""
+                )}
+              >
+                <Logo />
+              </div>
+
+              <button
+                type="button"
+                aria-label="Fermer le menu"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-xl",
+                  isDark
+                    ? "text-white hover:bg-white/10"
+                    : "text-ink-soft hover:bg-sand-50"
+                )}
+              >
+                <Icons.X size={22} />
+              </button>
+            </div>
+
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

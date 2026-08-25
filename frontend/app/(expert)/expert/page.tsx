@@ -226,20 +226,6 @@ export default function ExpertOverviewPage() {
       setLoading(true);
       setError(null);
 
-      /*
-       * IMPORTANT:
-       *
-       * These requests are intentionally relative:
-       *
-       *   /api/auth/me
-       *   /api/courses/expert
-       *
-       * Next.js rewrites /api/* to your Render backend.
-       *
-       * Because the browser talks to the Vercel domain,
-       * HttpOnly cookies are sent correctly.
-       */
-
       const [
         meRes,
         coursesRes,
