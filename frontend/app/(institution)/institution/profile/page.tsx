@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
-import { API_BASE_URL } from "@/services/api";
+
 
 type InstitutionType = "banque" | "fonds_investissement" | "ong" | "incubateur" | "organisme_public";
 
@@ -59,7 +59,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const ASSET_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
+
 
 export default function InstitutionProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,7 +77,7 @@ export default function InstitutionProfilePage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await authFetch(`${API_BASE_URL}/institution-profile/me`);
+        const res = await authFetch("/institution-profile/me");
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.error || "Erreur lors du chargement du profil");
 
@@ -142,10 +142,10 @@ export default function InstitutionProfilePage() {
       fd.append("facebook", form.facebook);
       if (logo) fd.append("logo", logo);
 
-      const res = await authFetch(`${API_BASE_URL}/institution-profile/me`, {
-        method: "PATCH",
-        body: fd,
-      });
+    const res = await authFetch("/institution-profile/me", {
+      method: "PATCH",
+      body: fd,
+    });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Échec de l'enregistrement");
 
@@ -163,7 +163,7 @@ export default function InstitutionProfilePage() {
   }
 
   const initials = form.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  const displayedLogo = logoPreview || (existingLogoUrl ? `${ASSET_ORIGIN}${existingLogoUrl}` : null);
+  const displayedLogo = logoPreview || existingLogoUrl || null;
 
   if (loading) {
     return (

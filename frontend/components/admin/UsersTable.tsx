@@ -264,11 +264,7 @@ export function UsersTable({
     [isControlled, role, search]
   );
 
-  /**
-   * ============================================================
-   * LOAD USERS WHEN SEARCH / ROLE CHANGES
-   * ============================================================
-   */
+
   useEffect(() => {
     if (isControlled) {
       return;
@@ -286,11 +282,7 @@ export function UsersTable({
     };
   }, [fetchUsers, isControlled]);
 
-  /**
-   * ============================================================
-   * CLOSE MENU WHEN CLICKING OUTSIDE
-   * ============================================================
-   */
+
   useEffect(() => {
     function closeMenu(event: MouseEvent) {
       const target = event.target;
@@ -311,11 +303,7 @@ export function UsersTable({
     };
   }, []);
 
-  /**
-   * ============================================================
-   * ACTIVATE / SUSPEND USER
-   * ============================================================
-   */
+
   async function toggleActive(user: User): Promise<void> {
     const userId = user.id;
 
@@ -424,11 +412,7 @@ export function UsersTable({
     }
   }
 
-  /**
-   * ============================================================
-   * DELETE USER
-   * ============================================================
-   */
+
   async function deleteUser(id: string): Promise<void> {
     const userId = id;
 

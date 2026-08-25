@@ -35,17 +35,6 @@ import { expertOnly } from "../middleware/rbac";
 
 const router = Router();
 
-/* ============================================================
-   UPLOAD CONFIGURATION
-   ============================================================
-
-   Files are kept in memory temporarily.
-
-   The controllers will upload them to Backblaze B2.
-   We do NOT use diskStorage() anymore.
-
-============================================================ */
-
 const storage = multer.memoryStorage();
 
 
@@ -123,19 +112,7 @@ const videoUpload = upload.fields([
   { name: "thumbnail", maxCount: 1 },
 ]);
 
-/* ============================================================
-   EXPERT: MY COURSES
 
-   IMPORTANT:
-   /expert MUST come before /:id
-
-   Otherwise:
-   GET /api/courses/expert
-
-   could be interpreted as:
-   GET /api/courses/:id
-   with id = "expert".
-============================================================ */
 
 router.get(
   "/expert",

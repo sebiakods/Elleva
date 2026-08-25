@@ -64,17 +64,6 @@ const roleMap: Record<string, string> = {
   ADMIN: "Administrateur",
 };
 
-/**
- * Converts an asset URL into a usable browser URL.
- *
- * Supports:
- * - Absolute URLs: https://...
- * - Absolute URLs: http://...
- * - Data URLs
- * - Blob URLs
- * - Relative URLs: /uploads/avatar.jpg
- * - Relative URLs: uploads/avatar.jpg
- */
 function getAssetUrl(value?: string | null): string | null {
   if (!value) {
     return null;
@@ -144,14 +133,7 @@ export default function UserProfilePage() {
   const params = useParams();
   const router = useRouter();
 
-  /**
-   * IMPORTANT:
-   *
-   * Next.js useParams() can return:
-   * string | string[] | undefined
-   *
-   * We normalize it immediately to a guaranteed string.
-   */
+
   const rawId = params?.id;
 
   const userId: string =
@@ -166,9 +148,6 @@ export default function UserProfilePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Load user
-   */
   useEffect(() => {
     if (!userId) {
       setError("Identifiant utilisateur manquant.");

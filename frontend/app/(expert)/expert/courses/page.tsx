@@ -160,11 +160,6 @@ export default function ExpertCoursesPage() {
   );
   const [error, setError] = useState<string | null>(null);
 
-  /*
-   * IMPORTANT:
-   * We use a callback ref instead of passing RefObject<HTMLDivElement | null>
-   * directly to JSX. This avoids the React 19 / TypeScript ref type mismatch.
-   */
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const setMenuRef = useCallback((node: HTMLDivElement | null) => {

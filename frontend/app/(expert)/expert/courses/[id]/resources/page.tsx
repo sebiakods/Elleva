@@ -102,11 +102,7 @@ export default function ResourcesPage() {
         setLoading(true);
         setError("");
 
-        /**
-         * Authentication is handled by the HTTP-only cookie.
-         *
-         * Do NOT use localStorage or manually send Authorization.
-         */
+
         const response = await fetch(
           `${API_URL}/courses/${courseId}/resources`,
           {

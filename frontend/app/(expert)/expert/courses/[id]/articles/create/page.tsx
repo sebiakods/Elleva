@@ -72,15 +72,6 @@ export default function CreateArticlePage() {
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
-  /**
-   * Load course information.
-   *
-   * Authentication is handled by the HTTP-only cookie.
-   *
-   * IMPORTANT:
-   * We do NOT use localStorage.
-   * We do NOT manually send Authorization headers.
-   */
   useEffect(() => {
     if (!courseId) {
       setLoading(false);
@@ -100,9 +91,7 @@ export default function CreateArticlePage() {
           {
             method: "GET",
 
-            /**
-             * Send the HTTP-only authentication cookie.
-             */
+
             credentials: "include",
 
             headers: {
@@ -163,9 +152,7 @@ export default function CreateArticlePage() {
     };
   }, [courseId, router]);
 
-  /**
-   * Handle PDF selection.
-   */
+
   function handlePdfChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
@@ -196,9 +183,6 @@ export default function CreateArticlePage() {
       return;
     }
 
-    /**
-     * Maximum PDF size: 100 MB.
-     */
     const maxSize = 100 * 1024 * 1024;
 
     if (file.size > maxSize) {
@@ -225,12 +209,7 @@ export default function CreateArticlePage() {
     }
   }
 
-  /**
-   * Create article.
-   *
-   * Uses FormData because the request contains
-   * both text fields and an optional PDF file.
-   */
+
   async function createArticle(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -292,9 +271,7 @@ export default function CreateArticlePage() {
     try {
       setSaving(true);
 
-      /**
-       * Build multipart/form-data.
-       */
+
       const formData = new FormData();
 
       formData.append(
@@ -327,13 +304,7 @@ export default function CreateArticlePage() {
         )
       );
 
-      /**
-       * IMPORTANT:
-       *
-       * This must match your backend multer field:
-       *
-       * upload.single("pdfFile")
-       */
+
       if (pdfFile) {
         formData.append(
           "pdfFile",
@@ -346,26 +317,9 @@ export default function CreateArticlePage() {
         {
           method: "POST",
 
-          /**
-           * IMPORTANT:
-           *
-           * Authentication cookie is sent automatically.
-           *
-           * DO NOT use:
-           * Authorization: Bearer ...
-           *
-           * DO NOT use localStorage.
-           */
           credentials: "include",
 
-          /**
-           * DO NOT manually set Content-Type.
-           *
-           * The browser automatically creates:
-           *
-           * multipart/form-data;
-           * boundary=...
-           */
+
           body: formData,
 
           cache: "no-store",
@@ -413,9 +367,7 @@ export default function CreateArticlePage() {
     }
   }
 
-  /**
-   * Loading state.
-   */
+
   if (loading) {
     return (
       <>
@@ -441,9 +393,7 @@ export default function CreateArticlePage() {
     );
   }
 
-  /**
-   * Course not found / loading error.
-   */
+
   if (!course) {
     return (
       <>

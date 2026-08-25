@@ -332,12 +332,7 @@ export default function CoursePaymentPage({
       window.setTimeout(resolve, 800);
     });
 
-    /*
-     * IMPORTANT:
-     *
-     * The course is now permanently marked as paid
-     * in this browser.
-     */
+
     markCourseAsPaid(course.id);
 
 markCourseAsPaid(course.id);

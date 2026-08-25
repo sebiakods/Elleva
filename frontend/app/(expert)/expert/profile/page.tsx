@@ -7,8 +7,9 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
+import { API_BASE_URL } from "@/services/api";
 
-import { API_BASE_URL as API_BASE } from "@/services/api";
+
 
 type ProfileForm = {
   name: string;
@@ -40,7 +41,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-const ASSET_ORIGIN = API_BASE.replace(/\/api\/?$/, "");
+const ASSET_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
 
 export default function ExpertProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +62,7 @@ export default function ExpertProfilePage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await authFetch(`${API_BASE}/expert-profile/me`);
+        const res = await authFetch("/expert-profile/me");
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.error || "Erreur lors du chargement du profil");
 
@@ -147,8 +148,8 @@ export default function ExpertProfilePage() {
       fd.append("linkedinUrl", form.linkedinUrl);
       fd.append("websiteUrl", form.websiteUrl);
       if (avatar) fd.append("avatar", avatar);
-
-      const res = await authFetch(`${API_BASE}/expert-profile/me`, {
+      const res = await authFetch("/expert-profile/me", {
+   
         method: "PATCH",
         body: fd,
       });

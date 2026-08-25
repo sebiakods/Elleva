@@ -30,11 +30,10 @@ export interface ProgramCardData {
   amountMin: number;
   amountMax: number;
   currency: string;
-  closingDate: string | null; // ISO date
+  closingDate: string | null;
   region: string | null;
   institutionName: string;
   isFavorite?: boolean;
-  /** Whether THIS user has already unlocked the full details */
   isUnlocked?: boolean;
 }
 

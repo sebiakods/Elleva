@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   GraduationCap,
   Layers,
@@ -23,7 +29,9 @@ import {
   type EntrepreneurSummary,
 } from "@/lib/api/entrepreneurs";
 import { listMyMeetings, type Meeting } from "@/lib/api/meetings";
-import { API_BASE_URL as API_URL } from "@/services/api";
+
+
+const API_BASE = "/api";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -31,7 +39,7 @@ import { API_BASE_URL as API_URL } from "@/services/api";
 
 type ContentItem = {
   id: string;
-  views?: number;
+  views?: number | null;
 };
 
 type ResourceItem = {
@@ -41,20 +49,23 @@ type ResourceItem = {
 type Course = {
   id: string;
   title: string;
-  isPublished: boolean;
-  rating: number;
-  articles: ContentItem[];
-  videos: ContentItem[];
-  resources: ResourceItem[];
+  isPublished?: boolean;
+  rating?: number | null;
+  articles?: ContentItem[];
+  videos?: ContentItem[];
+  resources?: ResourceItem[];
 };
 
 type ApiResponse = {
+  success?: boolean;
   data?: unknown;
   courses?: unknown;
   message?: string;
+  error?: string;
 };
 
 type MeResponse = {
+  success?: boolean;
   data?: {
     id?: string;
     name?: string;
@@ -70,28 +81,34 @@ type MeResponse = {
     email?: string;
   };
   message?: string;
+  error?: string;
 };
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function safeLength(items?: unknown[]) {
+function safeLength(items?: unknown): number {
   return Array.isArray(items) ? items.length : 0;
 }
 
-function sumViews(items?: ContentItem[]) {
+function sumViews(items?: ContentItem[]): number {
   if (!Array.isArray(items)) {
     return 0;
   }
 
-  return items.reduce(
-    (sum, item) => sum + Number(item?.views || 0),
-    0
-  );
+  return items.reduce((sum, item) => {
+    const views = Number(item?.views ?? 0);
+
+    return sum + (Number.isFinite(views) ? views : 0);
+  }, 0);
 }
 
-function formatDateTime(iso: string) {
+function formatDateTime(iso?: string | null): string {
+  if (!iso) {
+    return "Date inconnue";
+  }
+
   const date = new Date(iso);
 
   if (Number.isNaN(date.getTime())) {
@@ -131,12 +148,54 @@ function normalizeCourses(data: unknown): Course[] {
 function getApiMessage(
   data: ApiResponse | MeResponse | null,
   fallback: string
-) {
+): string {
   if (typeof data?.message === "string" && data.message.trim()) {
-    return data.message;
+    return data.message.trim();
+  }
+
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error.trim();
   }
 
   return fallback;
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T | null> {
+  try {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      return null;
+    }
+
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getHttpErrorMessage(
+  response: Response,
+  data: ApiResponse | MeResponse | null,
+  fallback: string
+): string {
+  if (response.status === 401) {
+    return "Votre session a expiré. Veuillez vous reconnecter.";
+  }
+
+  if (response.status === 403) {
+    return "Vous n'avez pas l'autorisation d'accéder à cette ressource.";
+  }
+
+  if (response.status === 404) {
+    return "La ressource demandée est introuvable. Vérifiez la configuration de l'API.";
+  }
+
+  if (response.status >= 500) {
+    return "Le serveur a rencontré une erreur. Veuillez réessayer.";
+  }
+
+  return getApiMessage(data, fallback);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -145,13 +204,17 @@ function getApiMessage(
 
 export default function ExpertOverviewPage() {
   const [name, setName] = useState<string | null>(null);
+
   const [courses, setCourses] = useState<Course[]>([]);
-  const [entrepreneurs, setEntrepreneurs] = useState<EntrepreneurSummary[]>(
-    []
-  );
+
+  const [entrepreneurs, setEntrepreneurs] = useState<
+    EntrepreneurSummary[]
+  >([]);
+
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState<string | null>(null);
 
   /* ---------------------------------------------------------------------- */
@@ -163,45 +226,61 @@ export default function ExpertOverviewPage() {
       setLoading(true);
       setError(null);
 
+      /*
+       * IMPORTANT:
+       *
+       * These requests are intentionally relative:
+       *
+       *   /api/auth/me
+       *   /api/courses/expert
+       *
+       * Next.js rewrites /api/* to your Render backend.
+       *
+       * Because the browser talks to the Vercel domain,
+       * HttpOnly cookies are sent correctly.
+       */
 
-      const [meRes, coursesRes, entrepreneursData, meetingsData] =
-        await Promise.all([
-          fetch(`${API_URL}/auth/me`, {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-            cache: "no-store",
-          }),
+      const [
+        meRes,
+        coursesRes,
+        entrepreneursResult,
+        meetingsResult,
+      ] = await Promise.all([
+        fetch(`${API_BASE}/auth/me`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        }),
 
-          fetch(`${API_URL}/courses/expert`, {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              Accept: "application/json",
-            },
-            cache: "no-store",
-          }),
+        fetch(`${API_BASE}/courses/expert`, {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        }),
 
-          listMyEntrepreneurs(),
+        listMyEntrepreneurs(),
 
-          listMyMeetings(),
-        ]);
+        listMyMeetings(),
+      ]);
 
       /* ------------------------------------------------------------------ */
       /* Current expert                                                      */
       /* ------------------------------------------------------------------ */
 
-      const meData = (await meRes.json().catch(() => null)) as MeResponse | null;
+      const meData = await parseJsonResponse<MeResponse>(meRes);
 
       if (!meRes.ok) {
         throw new Error(
-          getApiMessage(
+          getHttpErrorMessage(
+            meRes,
             meData,
-            meRes.status === 401 || meRes.status === 403
-              ? "Votre session a expiré. Veuillez vous reconnecter."
-              : "Impossible de récupérer votre profil."
+            "Impossible de récupérer votre profil."
           )
         );
       }
@@ -225,28 +304,42 @@ export default function ExpertOverviewPage() {
       /* Courses                                                              */
       /* ------------------------------------------------------------------ */
 
-      const coursesDataJson = (await coursesRes
-        .json()
-        .catch(() => null)) as ApiResponse | null;
+      const coursesDataJson =
+        await parseJsonResponse<ApiResponse>(coursesRes);
 
       if (!coursesRes.ok) {
         throw new Error(
-          getApiMessage(
+          getHttpErrorMessage(
+            coursesRes,
             coursesDataJson,
-            coursesRes.status === 401 || coursesRes.status === 403
-              ? "Votre session a expiré. Veuillez vous reconnecter."
-              : "Impossible de charger les cours."
+            "Impossible de charger les cours."
           )
         );
       }
 
-      const coursesData = normalizeCourses(coursesDataJson);
+      const normalizedCourses = normalizeCourses(coursesDataJson);
 
-      setCourses(coursesData);
+      setCourses(normalizedCourses);
+
+      /* ------------------------------------------------------------------ */
+      /* Entrepreneurs                                                       */
+      /* ------------------------------------------------------------------ */
+
       setEntrepreneurs(
-        Array.isArray(entrepreneursData) ? entrepreneursData : []
+        Array.isArray(entrepreneursResult)
+          ? entrepreneursResult
+          : []
       );
-      setMeetings(Array.isArray(meetingsData) ? meetingsData : []);
+
+      /* ------------------------------------------------------------------ */
+      /* Meetings                                                             */
+      /* ------------------------------------------------------------------ */
+
+      setMeetings(
+        Array.isArray(meetingsResult)
+          ? meetingsResult
+          : []
+      );
     } catch (err) {
       console.error("Error loading expert dashboard:", err);
 
@@ -292,23 +385,26 @@ export default function ExpertOverviewPage() {
       0
     );
 
+    const publishedCourses = courses.filter(
+      (course) => course.isPublished === true
+    ).length;
+
     const ratedCourses = courses.filter(
-      (course) => Number(course.rating) > 0
+      (course) => Number(course.rating ?? 0) > 0
     );
 
     const avgRating =
       ratedCourses.length > 0
         ? ratedCourses.reduce(
-            (sum, course) => sum + Number(course.rating || 0),
+            (sum, course) =>
+              sum + Number(course.rating ?? 0),
             0
           ) / ratedCourses.length
         : 0;
 
     return {
       courses: courses.length,
-      publishedCourses: courses.filter(
-        (course) => course.isPublished
-      ).length,
+      publishedCourses,
       articles,
       videos,
       resources,
@@ -323,9 +419,18 @@ export default function ExpertOverviewPage() {
 
     return meetings
       .filter((meeting) => {
-        const timestamp = new Date(meeting.scheduledAt).getTime();
+        if (!meeting?.scheduledAt) {
+          return false;
+        }
 
-        return !Number.isNaN(timestamp) && timestamp >= now;
+        const timestamp = new Date(
+          meeting.scheduledAt
+        ).getTime();
+
+        return (
+          !Number.isNaN(timestamp) &&
+          timestamp >= now
+        );
       })
       .sort(
         (a, b) =>
@@ -347,6 +452,7 @@ export default function ExpertOverviewPage() {
               size={18}
               className="animate-spin text-wine-700"
             />
+
             Chargement de votre tableau de bord...
           </div>
 
@@ -404,7 +510,7 @@ export default function ExpertOverviewPage() {
   }
 
   /* ---------------------------------------------------------------------- */
-  /* Page                                                                     */
+  /* Page                                                                    */
   /* ---------------------------------------------------------------------- */
 
   return (
@@ -413,7 +519,11 @@ export default function ExpertOverviewPage() {
         {/* Breadcrumb */}
         <div className="mb-8 text-sm text-ink-soft">
           <span>Espace Experte</span>
-          <span className="mx-2 text-ink-soft/40">/</span>
+
+          <span className="mx-2 text-ink-soft/40">
+            /
+          </span>
+
           <span className="font-medium text-wine-700">
             Tableau de bord
           </span>
@@ -536,44 +646,54 @@ export default function ExpertOverviewPage() {
               </div>
             ) : (
               <ul className="divide-y divide-sand-100">
-                {upcomingMeetings.slice(0, 4).map((meeting) => (
-                  <li
-                    key={meeting.id}
-                    className="flex items-center gap-4 py-4"
-                  >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
-                      <CalendarClock size={18} />
-                    </div>
+                {upcomingMeetings
+                  .slice(0, 4)
+                  .map((meeting) => (
+                    <li
+                      key={meeting.id}
+                      className="flex items-center gap-4 py-4"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-wine-50 text-wine-700">
+                        <CalendarClock size={18} />
+                      </div>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-wine-900">
-                        {meeting.title}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-wine-900">
+                          {meeting.title}
+                        </p>
 
-                      <p className="truncate text-xs text-ink-soft">
-                        {meeting.participants?.map((p) => p.user.name).join(", ") ||
-                          "Aucun participant"}
-                      </p>
-                    </div>
+                        <p className="truncate text-xs text-ink-soft">
+                          {meeting.participants
+                            ?.map(
+                              (participant) =>
+                                participant?.user?.name
+                            )
+                            .filter(Boolean)
+                            .join(", ") ||
+                            "Aucun participant"}
+                        </p>
+                      </div>
 
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-medium text-ink-soft">
-                        {formatDateTime(meeting.scheduledAt)}
-                      </p>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium text-ink-soft">
+                          {formatDateTime(
+                            meeting.scheduledAt
+                          )}
+                        </p>
 
-                      {meeting.meetingUrl && (
-                        <a
-                          href={meeting.meetingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-block text-xs font-semibold text-wine-700 hover:underline"
-                        >
-                          Rejoindre →
-                        </a>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                        {meeting.meetingUrl && (
+                          <a
+                            href={meeting.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 inline-block text-xs font-semibold text-wine-700 hover:underline"
+                          >
+                            Rejoindre →
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  ))}
               </ul>
             )}
           </section>

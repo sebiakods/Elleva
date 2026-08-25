@@ -173,13 +173,7 @@ export default function RequestDetailsPage() {
 
         const endpoint = endpointFor(type);
 
-        /*
-         * IMPORTANT:
-         * Authentication is now handled by httpOnly cookies.
-         *
-         * We intentionally DO NOT use localStorage and DO NOT manually
-         * send an Authorization Bearer token here.
-         */
+
         const response = await fetch(`${API_URL}/${endpoint}/${id}`, {
           method: "GET",
           credentials: "include",

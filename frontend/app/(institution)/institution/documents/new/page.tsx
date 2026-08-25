@@ -22,7 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch"; 
-import { API_BASE_URL as API_BASE } from "@/services/api";
+
 
 type DocCategory = "formulaire" | "guide" | "modele" | "reglementation";
 
@@ -100,25 +100,31 @@ export default function NewDocumentPage() {
     handleFileSelect(dropped);
   }
 
-  async function postDocument(form: DocumentForm, file: File | null) {
-    const fd = new FormData();
-    fd.append("name", form.name);
-    fd.append("category", form.category);
-    fd.append("description", form.description);
-    fd.append("isRequired", "false");
-    if (file) fd.append("file", file);
+async function postDocument(form: DocumentForm, file: File | null) {
+  const fd = new FormData();
 
-    const res = await authFetch(`${API_BASE}/documents`, {
-      method: "POST",
-      body: fd,
-    });
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      throw new Error(json.error || "Échec de l'envoi du document");
-    }
-    return json.data;
+  fd.append("name", form.name);
+  fd.append("category", form.category);
+  fd.append("description", form.description);
+  fd.append("isRequired", "false");
+
+  if (file) {
+    fd.append("file", file);
   }
 
+  const res = await authFetch("/documents", {
+    method: "POST",
+    body: fd,
+  });
+
+  const json = await res.json();
+
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || "Échec de l'envoi du document");
+  }
+
+  return json.data;
+}
   async function saveDraft() {
     setSaving(true);
     try {

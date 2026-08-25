@@ -184,11 +184,7 @@ export default function InstitutionProgramsPage() {
         {
           method: "DELETE",
 
-          /*
-           * IMPORTANT:
-           * Send the HTTP-only cookie automatically.
-           * No Authorization header.
-           */
+
           credentials: "include",
 
           headers: {

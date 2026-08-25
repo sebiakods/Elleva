@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { authFetch } from "@/lib/authFetch";
 
-import { API_BASE_URL as API_BASE } from "@/services/api";
 
 type DocCategory = "formulaire" | "guide" | "modele" | "reglementation";
 type FileType = "pdf" | "docx" | "xlsx";
@@ -95,7 +94,7 @@ export default function InstitutionDocumentsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await authFetch(`${API_BASE}/documents`);
+        const res = await authFetch("/documents");
         const json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Erreur lors du chargement des documents");
@@ -132,12 +131,13 @@ export default function InstitutionDocumentsPage() {
 
   async function handleDownload(doc: DocumentItem) {
     if (!doc.fileUrl) return;
-    await authFetch(`${API_BASE}/documents/${doc.id}/download`, { method: "POST" });
+    await authFetch(`/documents/${doc.id}/download`, {
+        method: "POST",
+      });
     setDocuments((prev) =>
       prev.map((d) => (d.id === doc.id ? { ...d, downloadCount: d.downloadCount + 1 } : d))
     );
-    const backendOrigin = API_BASE.replace(/\/api$/, "");
-    window.open(`${backendOrigin}${doc.fileUrl}`, "_blank");
+    window.open(doc.fileUrl, "_blank");
   }
 
   return (
@@ -320,7 +320,7 @@ export default function InstitutionDocumentsPage() {
                   <button
                     onClick={() =>
                       doc.fileUrl &&
-                      window.open(`${API_BASE.replace(/\/api$/, "")}${doc.fileUrl}`, "_blank")
+                      window.open(doc.fileUrl, "_blank")
                     }
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-sand-200 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-sand-50"
                   >

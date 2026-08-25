@@ -414,9 +414,7 @@ const submit = async (
         "Content-Type": "application/json",
       },
 
-      // IMPORTANT:
-      // The authentication cookie is httpOnly,
-      // so the browser sends it automatically.
+
       credentials: "include",
 
       body: JSON.stringify(payload),

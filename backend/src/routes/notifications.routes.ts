@@ -12,10 +12,6 @@ import { authenticate } from "../middleware/auth.middleware";
 
 const router = Router();
 
-/**
- * Every notification endpoint requires
- * a valid JWT.
- */
 router.use(authenticate);
 
 /**
